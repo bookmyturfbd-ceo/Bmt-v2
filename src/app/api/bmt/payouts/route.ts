@@ -8,7 +8,7 @@ export async function GET() {
   });
 
   // Map proofUrl to legacy variable name seamlessly for frontend components
-  return NextResponse.json(payouts.map(p => ({ ...p, proofBase64: p.proofUrl })));
+  return NextResponse.json(payouts.map((p: any) => ({ ...p, proofBase64: p.proofUrl })));
 }
 
 export async function POST(req: NextRequest) {
