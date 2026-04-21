@@ -115,7 +115,7 @@ export async function GET(req: NextRequest) {
       const mmr     = isCricketSport ? p.cricketMmr : p.footballMmr;
       const team    = p.teamMemberships[0]?.team ?? null;
       const stats   = p.matchStats;
-      const badges  = stats.filter(s => s.badge && s.badge !== 'NONE').length;
+      const badges  = stats.filter((s: { badge: string | null; mmrChange: number; badgeBonus: number }) => s.badge && s.badge !== 'NONE').length;
       const played  = stats.length;
       return {
         rank    : idx + 1,

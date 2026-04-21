@@ -13,9 +13,9 @@ export default async function BookPage() {
     prisma.slot.findMany()
   ]);
 
-  const turfs = turfsRaw.map(t => ({
+  const turfs = turfsRaw.map((t: typeof turfsRaw[number]) => ({
     ...t,
-    sportIds: t.sports.map(ts => ts.sportId)
+    sportIds: t.sports.map((ts: { sportId: string }) => ts.sportId)
   }));
 
   return (
