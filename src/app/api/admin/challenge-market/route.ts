@@ -23,13 +23,13 @@ export async function GET(req: NextRequest) {
     const payments = await prisma.challengePayment.findMany();
 
     // Stats Math
-    const lifetime = payments.reduce((sum, p) => sum + p.amount, 0);
+    const lifetime = payments.reduce((sum: number, p: any) => sum + p.amount, 0);
     const todayStr = new Date().toISOString().split('T')[0];
-    const daily = payments.filter(p => p.createdAt.toISOString().startsWith(todayStr)).reduce((sum, p) => sum + p.amount, 0);
+    const daily = payments.filter((p: any) => p.createdAt.toISOString().startsWith(todayStr)).reduce((sum: number, p: any) => sum + p.amount, 0);
     
     // roughly matching "YYYY-MM"
     const monthStr = todayStr.substring(0, 7);
-    const monthly = payments.filter(p => p.createdAt.toISOString().startsWith(monthStr)).reduce((sum, p) => sum + p.amount, 0);
+    const monthly = payments.filter((p: any) => p.createdAt.toISOString().startsWith(monthStr)).reduce((sum: number, p: any) => sum + p.amount, 0);
 
     const stats = { lifetime, daily, monthly, activeSubs: subscriptions.filter((s: any) => s.active).length };
 

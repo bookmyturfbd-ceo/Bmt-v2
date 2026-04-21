@@ -70,8 +70,8 @@ export async function POST(
 
   const winnerId: string | null = chasingTotal >= target ? chasingTeamId : settingTeamId;
 
-  const scoreA = innings.reduce((s, i) => i.battingTeamId === match.teamA_Id ? s + i.totalRuns : s, 0);
-  const scoreB = innings.reduce((s, i) => i.battingTeamId === match.teamB_Id ? s + i.totalRuns : s, 0);
+  const scoreA = innings.reduce((s: number, i: any) => i.battingTeamId === match.teamA_Id ? s + i.totalRuns : s, 0);
+  const scoreB = innings.reduce((s: number, i: any) => i.battingTeamId === match.teamB_Id ? s + i.totalRuns : s, 0);
 
   // ── MMR calculation ─────────────────────────────────────────────────────────
   const sportType = match.teamA.sportType as any;
