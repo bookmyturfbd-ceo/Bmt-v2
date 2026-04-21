@@ -25,7 +25,7 @@ export default async function RootPage() {
   // Build sportIds for each turf:
   // 1st priority: TurfSport join table (set by admin during approval)
   // 2nd priority: auto-derive from slot sports names (set by owner when creating slots)
-  const turfsWithSportIds = turfs.map(t => {
+  const turfsWithSportIds = turfs.map((t: any) => {
     // Explicit join-table sports first
     let sportIds: string[] = t.sports.map((ts: any) => ts.sportId);
 
