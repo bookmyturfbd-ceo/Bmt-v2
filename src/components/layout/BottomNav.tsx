@@ -21,7 +21,7 @@ export default function BottomNav() {
   const pathname = usePathname();
   const [walletOpen, setWalletOpen] = useState(false);
 
-  if (pathname.includes('/admin') || pathname.includes('/owner')) return null;
+  if (pathname.includes('/admin') || pathname.includes('/owner') || pathname.includes('/login') || pathname.includes('/register')) return null;
 
   const isActive = (id: string, href: string) =>
     id === 'arena'
