@@ -40,13 +40,13 @@ export default async function RootPage() {
 
       // Match names → Sport IDs (case-insensitive partial match)
       sportIds = sports
-        .filter(sp =>
-          [...slotSportNames].some(n =>
+        .filter((sp: any) =>
+          [...slotSportNames].some((n: any) =>
             n.toLowerCase().includes(sp.name.toLowerCase()) ||
             sp.name.toLowerCase().includes(n.toLowerCase())
           )
         )
-        .map(sp => sp.id);
+        .map((sp: any) => sp.id);
     }
 
     return { ...t, sportIds };
