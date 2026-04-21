@@ -50,7 +50,7 @@ export default async function TurfDetailPage({ params }: PageProps) {
       : '5.0';
 
   const bookings = await prisma.booking.findMany({
-    where: { slotId: { in: turfSlots.map(s => s.id) } }
+    where: { slotId: { in: turfSlots.map((s: any) => s.id) } }
   });
 
   const turf = {
