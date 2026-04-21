@@ -81,8 +81,8 @@ export default function RegisterPage() {
       <div className="w-full max-w-sm px-4 relative z-10">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-accent/10 border border-accent/30 flex items-center justify-center mb-4 shadow-[0_0_30px_rgba(0,255,0,0.1)]">
-            <Zap size={28} className="text-accent" fill="currentColor" />
+          <div className="w-20 h-20 mb-4 drop-shadow-[0_0_15px_rgba(0,255,0,0.2)]">
+            <img src="/logo.png" alt="BMT Logo" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-2xl font-black tracking-tight text-[var(--foreground)]">{t('title')}</h1>
           <p className="text-sm text-neutral-500 font-medium mt-1">{t('subtitle')}</p>
