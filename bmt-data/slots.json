@@ -1,0 +1,459 @@
+[
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntloe898y38",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ],
+    "sports": [
+      "5-a-side Futsal",
+      "6-a-side Futsal",
+      "7-a-side Futsal"
+    ],
+    "startTime": "06:00 AM",
+    "endTime": "07:29 AM",
+    "price": 3000,
+    "createdAt": "2026-04-11T00:37:44.455Z",
+    "id": "mntlvi01479g",
+    "timeCategory": "Morning",
+    "status": "available"
+  },
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntloe898y38",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ],
+    "sports": [
+      "5-a-side Futsal",
+      "6-a-side Futsal",
+      "7-a-side Futsal"
+    ],
+    "startTime": "07:30 AM",
+    "endTime": "08:59 AM",
+    "price": 3000,
+    "createdAt": "2026-04-11T00:37:44.457Z",
+    "id": "mntlvi2jt865",
+    "timeCategory": "Morning"
+  },
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntloe898y38",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ],
+    "sports": [
+      "5-a-side Futsal",
+      "6-a-side Futsal",
+      "7-a-side Futsal"
+    ],
+    "startTime": "09:00 AM",
+    "endTime": "10:29 AM",
+    "price": 3000,
+    "createdAt": "2026-04-11T00:37:44.457Z",
+    "id": "mntlvi4iehhl",
+    "timeCategory": "Morning"
+  },
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntloe898y38",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ],
+    "sports": [
+      "5-a-side Futsal",
+      "6-a-side Futsal",
+      "7-a-side Futsal"
+    ],
+    "startTime": "10:30 AM",
+    "endTime": "11:59 AM",
+    "price": 3000,
+    "createdAt": "2026-04-11T00:37:44.457Z",
+    "id": "mntlvi5pk3v8",
+    "timeCategory": "Morning"
+  },
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntloe898y38",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ],
+    "sports": [
+      "5-a-side Futsal",
+      "6-a-side Futsal",
+      "7-a-side Futsal"
+    ],
+    "startTime": "12:00 PM",
+    "endTime": "01:29 PM",
+    "price": 3000,
+    "createdAt": "2026-04-11T00:37:44.457Z",
+    "id": "mntlvi66lrod",
+    "timeCategory": "Afternoon"
+  },
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntloe898y38",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ],
+    "sports": [
+      "5-a-side Futsal",
+      "6-a-side Futsal",
+      "7-a-side Futsal"
+    ],
+    "startTime": "01:30 PM",
+    "endTime": "02:59 PM",
+    "price": 3000,
+    "createdAt": "2026-04-11T00:37:44.457Z",
+    "id": "mntlvi6k91tz",
+    "timeCategory": "Afternoon"
+  },
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntloe898y38",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ],
+    "sports": [
+      "5-a-side Futsal",
+      "6-a-side Futsal",
+      "7-a-side Futsal"
+    ],
+    "startTime": "04:30 PM",
+    "endTime": "05:59 PM",
+    "price": 3499,
+    "createdAt": "2026-04-11T00:55:39.125Z",
+    "id": "mntmij8gd6gd",
+    "timeCategory": "Evening"
+  },
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntloe898y38",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ],
+    "sports": [
+      "5-a-side Futsal",
+      "6-a-side Futsal",
+      "7-a-side Futsal"
+    ],
+    "startTime": "03:00 PM",
+    "endTime": "04:29 PM",
+    "price": 3499,
+    "createdAt": "2026-04-11T00:55:39.125Z",
+    "id": "mntmij9zx1hs",
+    "timeCategory": "Afternoon"
+  },
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntloe898y38",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ],
+    "sports": [
+      "5-a-side Futsal",
+      "6-a-side Futsal",
+      "7-a-side Futsal"
+    ],
+    "startTime": "06:00 PM",
+    "endTime": "07:29 PM",
+    "price": 3499,
+    "createdAt": "2026-04-11T00:55:39.125Z",
+    "id": "mntmijb26zbo",
+    "timeCategory": "Evening"
+  },
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntloe898y38",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ],
+    "sports": [
+      "5-a-side Futsal",
+      "6-a-side Futsal",
+      "7-a-side Futsal"
+    ],
+    "startTime": "07:30 PM",
+    "endTime": "08:59 PM",
+    "price": 3499,
+    "createdAt": "2026-04-11T00:55:39.125Z",
+    "id": "mntmijdaqwxg",
+    "timeCategory": "Evening"
+  },
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntloe898y38",
+    "timeCategory": "Night",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Fri",
+      "Thu",
+      "Sat",
+      "Sun"
+    ],
+    "sports": [
+      "5-a-side Futsal",
+      "6-a-side Futsal",
+      "7-a-side Futsal"
+    ],
+    "startTime": "09:00 PM",
+    "endTime": "10:29 PM",
+    "price": 4000,
+    "createdAt": "2026-04-11T03:19:09.887Z",
+    "id": "mntrn3bw742a"
+  },
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntloe898y38",
+    "timeCategory": "Night",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Fri",
+      "Thu",
+      "Sat",
+      "Sun"
+    ],
+    "sports": [
+      "5-a-side Futsal",
+      "6-a-side Futsal",
+      "7-a-side Futsal"
+    ],
+    "startTime": "10:30 PM",
+    "endTime": "11:59 PM",
+    "price": 4000,
+    "createdAt": "2026-04-11T03:19:09.887Z",
+    "id": "mntrn3e4rpco"
+  },
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntloe898y38",
+    "timeCategory": "Night",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Fri",
+      "Thu",
+      "Sat",
+      "Sun"
+    ],
+    "sports": [
+      "5-a-side Futsal",
+      "6-a-side Futsal",
+      "7-a-side Futsal"
+    ],
+    "startTime": "12:00 AM",
+    "endTime": "01:29 AM",
+    "price": 4000,
+    "createdAt": "2026-04-11T03:19:09.887Z",
+    "id": "mntrn3fqaf0v"
+  },
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntn4zlqkxn1",
+    "timeCategory": "Morning",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ],
+    "sports": [
+      "5-a-side Futsal",
+      "6-a-side Futsal",
+      "7-a-side Futsal"
+    ],
+    "startTime": "06:00 AM",
+    "endTime": "06:59 AM",
+    "price": 2500,
+    "createdAt": "2026-04-11T03:40:29.110Z",
+    "id": "mntseicr4su7"
+  },
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntn4zlqkxn1",
+    "timeCategory": "Morning",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ],
+    "sports": [
+      "5-a-side Futsal",
+      "6-a-side Futsal",
+      "7-a-side Futsal"
+    ],
+    "startTime": "07:00 AM",
+    "endTime": "07:59 AM",
+    "price": 2500,
+    "createdAt": "2026-04-11T03:40:29.110Z",
+    "id": "mntseietor2j"
+  },
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntn4zlqkxn1",
+    "timeCategory": "Morning",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ],
+    "sports": [
+      "5-a-side Futsal",
+      "6-a-side Futsal",
+      "7-a-side Futsal"
+    ],
+    "startTime": "08:00 AM",
+    "endTime": "08:59 AM",
+    "price": 2500,
+    "createdAt": "2026-04-11T03:40:29.110Z",
+    "id": "mntseig3sss2"
+  },
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntn4zlqkxn1",
+    "timeCategory": "Morning",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ],
+    "sports": [
+      "5-a-side Futsal",
+      "6-a-side Futsal",
+      "7-a-side Futsal"
+    ],
+    "startTime": "09:00 AM",
+    "endTime": "09:59 AM",
+    "price": 2500,
+    "createdAt": "2026-04-11T03:40:29.110Z",
+    "id": "mntseiicv46l"
+  },
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntn4zlqkxn1",
+    "timeCategory": "Morning",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ],
+    "sports": [
+      "5-a-side Futsal",
+      "6-a-side Futsal",
+      "7-a-side Futsal"
+    ],
+    "startTime": "10:00 AM",
+    "endTime": "10:59 AM",
+    "price": 2500,
+    "createdAt": "2026-04-11T03:40:29.110Z",
+    "id": "mntseij41c82"
+  },
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntn4zlqkxn1",
+    "timeCategory": "Morning",
+    "days": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Fri",
+      "Sun",
+      "Thu",
+      "Sat"
+    ],
+    "sports": [
+      "5-a-side Futsal",
+      "6-a-side Futsal",
+      "7-a-side Futsal"
+    ],
+    "startTime": "11:00 AM",
+    "endTime": "11:59 AM",
+    "price": 2500,
+    "createdAt": "2026-04-11T03:41:52.050Z",
+    "id": "mntsgacif4qr"
+  }
+]

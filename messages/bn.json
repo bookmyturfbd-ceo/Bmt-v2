@@ -1,0 +1,53 @@
+{
+  "Navigation": {
+    "dashboard": "ড্যাশবোর্ড",
+    "login": "লগইন",
+    "toggleTheme": "থিম পরিবর্তন",
+    "toggleLanguage": "Change to English"
+  },
+  "Login": {
+    "title": "বুক মাই টার্ফ এ স্বাগতম",
+    "emailLabel": "ইমেইল এড্রেস",
+    "passwordLabel": "পাসওয়ার্ড",
+    "submit": "লগইন করুন",
+    "forgotPassword": "পাসওয়ার্ড ভুলে গেছেন?"
+  },
+  "Home": {
+    "location": "ঢাকা, বাংলাদেশ",
+    "appTitle": "বুক মাই টার্ফ",
+    "profileAlt": "আপনার প্রোফাইল",
+    "heroBanner": "আপনার খেলা বুক করুন",
+    "searchPlaceholder": "টার্ফ, খেলা, এলাকা খুঁজুন...",
+    "sportsTitle": "খেলাধুলা",
+    "sportsAvailable": "৬ টি উপলব্ধ",
+    "turfsTitle": "উপলব্ধ টার্ফ",
+    "viewAll": "সব দেখুন",
+    "sports": {
+      "futsal5": "৫-এ-সাইড ফুটসাল",
+      "futsal6": "৬-এ-সাইড ফুটসাল",
+      "cricket7": "৭-এ-সাইড ক্রিকেট",
+      "badminton": "ব্যাডমিন্টন",
+      "billiard": "বিলিয়ার্ড",
+      "swimming": "সাঁতার"
+    },
+    "badges": {
+      "popular": "জনপ্রিয়",
+      "hot": "হট",
+      "new": "নতুন"
+    },
+    "nav": {
+      "home": "হোম",
+      "book": "বুক",
+      "shop": "শপ",
+      "tourney": "টুর্নামেন্ট",
+      "interact": "ইন্টারেক্ট"
+    }
+  },
+  "Dashboard": {
+    "title": "আপনার টার্ফ ড্যাশবোর্ড",
+    "activeBookings": "সক্রিয় বুকিং",
+    "totalMatches": "মোট ম্যাচ",
+    "upcoming": "আসন্ন",
+    "bookNow": "এখনই টার্ফ বুক করুন"
+  }
+}

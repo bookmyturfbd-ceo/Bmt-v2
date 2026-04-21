@@ -1,0 +1,23 @@
+[
+  {
+    "id": "mnu4fv3bexz6",
+    "type": "bkash",
+    "number": "01811008303",
+    "accountType": "Merchant ",
+    "updatedAt": "2026-04-11T09:17:32.592Z"
+  },
+  {
+    "id": "mnu4g85hhry4",
+    "type": "nagad",
+    "number": "01811008303",
+    "accountType": "Merchant",
+    "updatedAt": "2026-04-11T09:17:44.645Z"
+  },
+  {
+    "id": "mnu4gk5ioi2e",
+    "type": "bank",
+    "number": "01811008303",
+    "accountType": "Current",
+    "updatedAt": "2026-04-11T09:18:00.198Z"
+  }
+]

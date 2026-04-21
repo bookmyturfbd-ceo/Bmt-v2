@@ -1,0 +1,104 @@
+import { NextRequest, NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs';
+import prisma from '@/lib/prisma';
+
+export async function POST(request: NextRequest) {
+  const { credential, password } = await request.json();
+
+  if (!credential?.trim() || !password?.trim()) {
+    return NextResponse.json({ error: 'Missing credentials' }, { status: 400 });
+  }
+
+  const cred = credential.trim().toLowerCase();
+  const pw   = password.trim();
+
+  const cookieOpts = {
+    path: '/',
+    maxAge: 86400,
+    sameSite: 'lax' as const,
+    httpOnly: false,
+  };
+
+  // ── Super Admin ──────────────────────────────────────────────────────────────
+  if (cred === 'admin@bmt.com' && pw === '1234') {
+    const response = NextResponse.json({ ok: true, redirect: '/en/admin' });
+    response.cookies.set('bmt_auth',  '1',     cookieOpts);
+    response.cookies.set('bmt_role',  'admin', cookieOpts);
+    response.cookies.set('bmt_name',  'Admin', cookieOpts);
+    return response;
+  }
+
+  // ── Turf Owner ───────────────────────────────────────────────────────────────
+  const owner = await prisma.owner.findFirst({
+    where: { email: { equals: cred, mode: 'insensitive' } },
+  });
+
+  if (owner) {
+    const passwordMatch = await bcrypt.compare(pw, owner.password);
+    if (!passwordMatch) {
+      return NextResponse.json(
+        { error: 'Invalid credentials. Check your email and password.' },
+        { status: 401 }
+      );
+    }
+    const name = owner.name || owner.contactPerson || credential;
+    const response = NextResponse.json({ ok: true, redirect: '/en/dashboard/owner' });
+    response.cookies.set('bmt_auth',     '1',        cookieOpts);
+    response.cookies.set('bmt_role',     'owner',    cookieOpts);
+    response.cookies.set('bmt_owner_id', owner.id,   cookieOpts);
+    response.cookies.set('bmt_name',     name,       cookieOpts);
+    return response;
+  }
+
+  // ── Player ───────────────────────────────────────────────────────────────────
+  const player = await prisma.player.findFirst({
+    where: { email: { equals: cred, mode: 'insensitive' } },
+  });
+
+  if (!player) {
+    return NextResponse.json(
+      { error: 'Invalid credentials. Check your email and password.' },
+      { status: 401 }
+    );
+  }
+
+  const passwordMatch = await bcrypt.compare(pw, player.password);
+  if (!passwordMatch) {
+    return NextResponse.json(
+      { error: 'Invalid credentials. Check your email and password.' },
+      { status: 401 }
+    );
+  }
+
+  // ── Ban checks ───────────────────────────────────────────────────────────────
+  if (player.banStatus === 'perma') {
+    return NextResponse.json(
+      { error: 'Your account has been permanently banned. Contact support.' },
+      { status: 403 }
+    );
+  }
+
+  if (player.banStatus === 'soft' && player.banUntil) {
+    if (player.banUntil > new Date()) {
+      return NextResponse.json(
+        {
+          error: `Your account is suspended until ${player.banUntil.toLocaleDateString('en-BD')}. Contact support if you think this is a mistake.`,
+        },
+        { status: 403 }
+      );
+    }
+    // Auto-unban — ban has expired; clear it in Postgres
+    await prisma.player.update({
+      where: { id: player.id },
+      data:  { banStatus: 'none', banUntil: null, banReason: null },
+    });
+  }
+
+  // ── Success ──────────────────────────────────────────────────────────────────
+  const response = NextResponse.json({ ok: true, redirect: '/en' });
+  response.cookies.set('bmt_auth',      '1',            cookieOpts);
+  response.cookies.set('bmt_role',      'player',       cookieOpts);
+  response.cookies.set('bmt_player_id', player.id,      cookieOpts);
+  response.cookies.set('bmt_name',      player.fullName, cookieOpts);
+  return response;
+}
