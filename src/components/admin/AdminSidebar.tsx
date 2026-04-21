@@ -75,8 +75,8 @@ export default function AdminSidebar({ activePage, onNavigate }: AdminSidebarPro
   const toggleGroup = (label: string) => setOpenGroups(prev => ({ ...prev, [label]: !prev[label] }));
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full">
-      <div className={`flex items-center gap-3 md:gap-4 px-4 md:px-5 py-5 md:py-6 border-b border-[var(--panel-border)] ${collapsed ? 'justify-center' : ''}`}>
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className={`flex items-center gap-3 md:gap-4 px-4 md:px-5 py-5 md:py-6 border-b border-[var(--panel-border)] shrink-0 ${collapsed ? 'justify-center' : ''}`}>
         <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-accent/10 border border-accent/30 flex items-center justify-center shrink-0">
           <Zap size={16} className="text-accent md:hidden" fill="currentColor" />
           <Zap size={20} className="text-accent hidden md:block" fill="currentColor" />
@@ -89,7 +89,7 @@ export default function AdminSidebar({ activePage, onNavigate }: AdminSidebarPro
         )}
       </div>
 
-      <nav className="flex-1 px-2 md:px-3 py-4 md:py-5 flex flex-col gap-1 md:gap-1.5 overflow-y-auto">
+      <nav className="flex-1 px-2 md:px-3 py-4 md:py-5 flex flex-col gap-1 md:gap-1.5 overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {/* Standalone items */}
         {STANDALONE_ITEMS.map(item => {
           const IconObj = item.icon;
@@ -168,7 +168,7 @@ export default function AdminSidebar({ activePage, onNavigate }: AdminSidebarPro
         })}
       </nav>
 
-      <div className="hidden md:flex px-3 md:px-4 pb-4 md:pb-5 border-t border-[var(--panel-border)] pt-3 md:pt-4">
+      <div className="hidden md:flex shrink-0 px-3 md:px-4 pb-4 md:pb-5 border-t border-[var(--panel-border)] pt-3 md:pt-4">
         <button
           onClick={() => setCollapsed(prev => !prev)}
           className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-[var(--muted)] hover:text-foreground hover:bg-[var(--panel-bg)] transition-all text-xs md:text-sm font-semibold ${collapsed ? 'justify-center' : ''}`}

@@ -3,11 +3,31 @@ import bcrypt from 'bcryptjs';
 import prisma from '@/lib/prisma';
 
 export async function POST(request: NextRequest) {
-  const { fullName, contact, role, password } = await request.json();
+  const { fullName, token, password } = await request.json();
 
-  if (!fullName?.trim()) {
-    return NextResponse.json({ error: 'Full name is required' }, { status: 400 });
+  if (!fullName?.trim() || !token?.trim()) {
+    return NextResponse.json({ error: 'Full name and valid invite token are required' }, { status: 400 });
   }
+
+  // Fetch token from DB
+  const inviteRecord = await prisma.inviteToken.findUnique({
+    where: { token },
+  });
+
+  if (!inviteRecord) {
+    return NextResponse.json({ error: 'Invalid or expired invite token' }, { status: 400 });
+  }
+
+  if (inviteRecord.usedAt) {
+    return NextResponse.json({ error: 'This invite link has already been used' }, { status: 400 });
+  }
+
+  if (new Date() > inviteRecord.expiresAt) {
+    return NextResponse.json({ error: 'This invite link has expired' }, { status: 400 });
+  }
+
+  const role = inviteRecord.role;
+  const contact = inviteRecord.contact;
 
   const roleLower    = (role ?? '').toLowerCase();
   const isTurfOwner  = roleLower.includes('turf') || roleLower.includes('owner');
@@ -37,6 +57,12 @@ export async function POST(request: NextRequest) {
         phone:    '',
         password: hashed,
       },
+    });
+
+    // Mark Token as Used!
+    await prisma.inviteToken.update({
+      where: { id: inviteRecord.id },
+      data: { usedAt: new Date(), usedBy: owner.id }
     });
 
     const redirect = '/en/dashboard/owner';
