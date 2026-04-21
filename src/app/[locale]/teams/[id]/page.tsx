@@ -160,8 +160,8 @@ export default function SingleTeamPage() {
   const [search, setSearch] = useState('');
 
   // Lookup data for dropdowns
-  const [cities, setCities] = useState([]);
-  const [turfs, setTurfs]   = useState([]);
+  const [cities, setCities] = useState<any[]>([]);
+  const [turfs, setTurfs]   = useState<any[]>([]);
 
   const seasonCountdown = useCountdown(activeSeason?.endDate ?? null);
 

@@ -57,11 +57,12 @@ export default function CreateTurfModal({ open, onClose }: Props) {
 
     try {
       if (logoFile) {
-        uploadedLogoUrl = await uploadFileToCDN(logoFile, 'turfs');
+        uploadedLogoUrl = await uploadFileToCDN(logoFile, 'turfs') || '';
         console.log('CDN Result Logo:', uploadedLogoUrl);
       }
       if (imageFiles.length > 0) {
-        uploadedImageUrls = await Promise.all(imageFiles.map(f => uploadFileToCDN(f, 'turfs')));
+        const urls = await Promise.all(imageFiles.map(f => uploadFileToCDN(f, 'turfs')));
+        uploadedImageUrls = urls.filter((url): url is string => url !== null);
         console.log('CDN Result Images:', uploadedImageUrls);
       }
     } catch (err) {

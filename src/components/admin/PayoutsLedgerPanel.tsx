@@ -46,7 +46,7 @@ function DisburseModal({ owner, turf, balance, onClose, onDone }: {
     setProofName(file.name);
     setSaving(true);
     try {
-      setProof(await uploadFileToCDN(file, 'payouts'));
+      setProof((await uploadFileToCDN(file, 'payouts')) ?? '');
     } catch (err) {
       alert("Upload failed. Make sure the 'bmt-public' bucket exists in your Supabase dashboard.");
     } finally {

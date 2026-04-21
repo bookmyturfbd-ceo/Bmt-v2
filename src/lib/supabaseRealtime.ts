@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, RealtimeChannel } from '@supabase/supabase-js';
 
 const supabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -15,7 +15,7 @@ export function getSupabaseClient() {
   return _client;
 }
 
-const activeChannels: Record<string, ReturnType<typeof createClient>['channel']> = {};
+const activeChannels: Record<string, RealtimeChannel> = {};
 
 /** Subscribe to a match scoring channel and handle incoming events */
 export function subscribeToMatchChannel(

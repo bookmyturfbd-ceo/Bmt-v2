@@ -10,13 +10,13 @@ interface Division { id: string; name: string; }
 interface City     { id: string; name: string; divisionId: string; }
 interface Sport    { id: string; name: string; }
 interface Amenity  { id: string; name: string; }
-interface Props { open: boolean; onClose: () => void; }
+interface Props { open: boolean; onClose: () => void; turf?: any; }
 
 const inputCls = 'w-full bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-accent/50 placeholder:text-[var(--muted)] transition-colors color-inherit';
 
 
 
-export default function EditTurfModal({ open, onClose, turf }: EditTurfModalProps) {
+export default function EditTurfModal({ open, onClose, turf }: Props) {
   const divisions = useApiEntity<Division>('divisions');
   const cities    = useApiEntity<City>('cities');
   const amenities = useApiEntity<Amenity>('amenities');

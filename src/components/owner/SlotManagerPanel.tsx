@@ -16,6 +16,7 @@ interface Slot {
   days: string[];
   price: number;
   status?: 'available' | 'walkin' | 'maintenance' | 'booked';
+  sports?: any[];
 }
 
 type SlotStatus = 'available' | 'walkin' | 'maintenance';
@@ -66,7 +67,7 @@ export default function SlotManagerPanel() {
   const [saving, setSaving]         = useState<Record<string, boolean>>({});
   const [updated, setUpdated]       = useState<Record<string, boolean>>({});
   const [loading, setLoading]       = useState(true);
-  const [bookings, setBookings]     = useState<{slotId: string; date: string}[]>([]);
+  const [bookings, setBookings]     = useState<{id: string; slotId: string; date: string}[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [activeTab, setActiveTab]   = useState<'slots' | 'discounts'>('slots');

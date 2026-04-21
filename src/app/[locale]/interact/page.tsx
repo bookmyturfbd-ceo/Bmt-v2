@@ -1137,6 +1137,7 @@ export default function MarketPage() {
       {statsModal && (() => {
         const { myScore, sport, players, starterIds } = statsModal;
         const isCricket  = ['CRICKET_7','CRICKET_FULL'].includes(sport);
+        const isFutsal   = !isCricket;
         const sportBadges: BadgeDef[]  = BADGES_BY_SPORT[sport] ?? BADGES_BY_SPORT['FUTSAL_5'];
         const badgeLimit = maxBadges(sport);
         const assignedCount = Object.values(statsData).filter((s: any) => s.badge && s.badge !== 'NONE').length;

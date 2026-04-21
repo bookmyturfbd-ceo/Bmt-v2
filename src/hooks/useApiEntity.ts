@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 
-export interface BmtEntity { id: string; [key: string]: unknown; }
+export interface BmtEntity { id: string; }
 
 export function useApiEntity<T extends BmtEntity>(entity: string) {
   const [items, setItems]   = useState<T[]>([]);

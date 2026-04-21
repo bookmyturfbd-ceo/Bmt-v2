@@ -94,10 +94,9 @@ export async function GET(req: NextRequest) {
         avatarUrl   : true,
         footballMmr : true,
         cricketMmr  : true,
-        mmr         : true,
         teamMemberships: {
           take: 1,
-          where: sport !== 'ALL' ? { team: { sportType: sport } } : {},
+          where: sport !== 'ALL' ? { team: { sportType: sport as any } } : undefined,
           select: {
             team: {
               select: { id: true, name: true, logoUrl: true, sportType: true }

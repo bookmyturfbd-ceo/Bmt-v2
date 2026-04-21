@@ -47,12 +47,11 @@ export default function DisbursementsPanel() {
 
     const grossRevenue = ownerBookings.reduce((sum, b) => {
       const slot = slots.find(s => s.id === b.slotId);
-      const turf = slot ? ownerTurfs.find(t => t.id === slots.find(s2 => s2.id === b.slotId) ? ownerTurfs.find(t2 => ownerSlotIds.has(b.slotId) && t2.id === ownerTurfs[0]?.id)?.id : '') : null;
+      const turf = slot ? ownerTurfs.find(t => t.id === slot.turfId) : null;
       const gross = b.price ?? slot?.price ?? 0;
       // Apply platform cut for percentage model
-      const matchTurf = ownerTurfs.find(t => slots.find(s => s.id === b.slotId && s.turfId === t.id));
-      if (matchTurf?.revenueModel === 'percentage' && matchTurf.platformCut) {
-        return sum + gross * (1 - matchTurf.platformCut / 100);
+      if (turf?.revenueModel === 'percentage' && turf.platformCut) {
+        return sum + gross * (1 - turf.platformCut / 100);
       }
       return sum + gross;
     }, 0);

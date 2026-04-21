@@ -60,8 +60,8 @@ export default async function RootPage() {
           slides={bannerSlides}
           settings={carouselSettings ?? { autoSlide: true, intervalMs: 3500 }}
         />
-        <SearchBar turfs={turfsWithSportIds} sports={sports} />
-        <SportsTurfSection initialSports={sports} initialTurfs={turfsWithSportIds} />
+        <SearchBar turfs={turfsWithSportIds as any} sports={sports} />
+        <SportsTurfSection initialSports={sports} initialTurfs={turfsWithSportIds as any} />
       </div>
     </div>
   );

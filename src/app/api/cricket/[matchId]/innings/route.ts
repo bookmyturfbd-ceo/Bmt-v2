@@ -57,8 +57,9 @@ export async function POST(
   let battingTeamId: string, bowlingTeamId: string;
   if (activeInningsNum === 1) {
     const tossWinnerBats = toss.electedTo === 'BAT';
-    battingTeamId  = tossWinnerBats ? toss.winnerTeamId : (toss.winnerTeamId === match.teamA_Id ? match.teamB_Id : match.teamA_Id);
-    bowlingTeamId  = tossWinnerBats ? (toss.winnerTeamId === match.teamA_Id ? match.teamB_Id : match.teamA_Id) : toss.winnerTeamId;
+    const winnerId = toss.winnerTeamId ?? '';
+    battingTeamId  = tossWinnerBats ? winnerId : (winnerId === match.teamA_Id ? match.teamB_Id : match.teamA_Id);
+    bowlingTeamId  = tossWinnerBats ? (winnerId === match.teamA_Id ? match.teamB_Id : match.teamA_Id) : winnerId;
   } else {
     // Second innings — roles flip
     const firstInnings = match.cricketInnings.find(i => i.inningsNumber === 1);

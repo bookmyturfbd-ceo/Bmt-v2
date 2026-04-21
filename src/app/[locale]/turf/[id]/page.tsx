@@ -64,7 +64,7 @@ export default async function TurfDetailPage({ params }: PageProps) {
     images: rawTurf.imageUrls && rawTurf.imageUrls.length > 0 ? rawTurf.imageUrls : [],
     logoUrl: rawTurf.logoUrl,
     amenities: amenitiesList,
-    rules: rawTurf.rules || '',
+    rules: '',
     lat: rawTurf.lat || 23.8103, // default map fallback
     lng: rawTurf.lng || 90.4125,
     mapLink: rawTurf.mapLink
@@ -81,8 +81,8 @@ export default async function TurfDetailPage({ params }: PageProps) {
             <TurfBookingClient
               turfId={rawTurf.id}
               turfName={rawTurf.name}
-              area={rawTurf.area}
-              cityName={city?.name}
+              area={rawTurf.area ?? undefined}
+              cityName={city?.name ?? undefined}
               slots={turfSlots}
               bookings={bookings}
               grounds={grounds}

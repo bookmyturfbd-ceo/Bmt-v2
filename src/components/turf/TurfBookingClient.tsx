@@ -13,7 +13,7 @@ import { useRouter } from '@/i18n/routing';
 interface Slot {
   id: string; turfId: string; groundId: string; days: string[]; sports: string[];
   startTime: string; endTime: string; price: number; timeCategory?: string;
-  status?: string;
+  status?: 'available' | 'walkin' | 'maintenance' | 'booked';
 }
 interface Booking { id: string; slotId: string; date: string; }
 interface Ground  { id: string; turfId: string; name: string; }
@@ -214,8 +214,8 @@ function ConfirmSheet({
             {couponApplied ? (
               <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-accent/30 bg-accent/5">
                 <CheckCircle2 size={14} className="text-accent" />
-                <p className="text-sm font-black text-accent flex-1">{coupon.toUpperCase()} applied! −৳{discount.toLocaleString()}</p>
-                <button onClick={() => { setDiscount(0); setCouponApplied(false); setCoupon(''); }} className="text-[var(--muted)] hover:text-white">
+                <p className="text-sm font-black text-accent flex-1">{coupon.toUpperCase()} applied! −৳{couponDiscount.toLocaleString()}</p>
+                <button onClick={() => { setCouponDiscount(0); setCouponApplied(false); setCoupon(''); }} className="text-[var(--muted)] hover:text-white">
                   <X size={13} />
                 </button>
               </div>

@@ -382,8 +382,8 @@ export default function FinancePanel() {
         ? myTurfs.find(t => t.id === slot.turfId)
         : (b.turfId ? myTurfs.find(t => t.id === b.turfId) : null);
       const gross = b.price ?? slot?.price ?? 0;
-      if (turf?.revenueModel?.type === 'percentage') {
-        return sum + Math.round(gross * (1 - turf.revenueModel.value / 100));
+      if (turf?.revenueModelType === 'percentage' && turf.revenueModelValue) {
+        return sum + Math.round(gross * (1 - turf.revenueModelValue / 100));
       }
       return sum + gross;
     }, 0);
