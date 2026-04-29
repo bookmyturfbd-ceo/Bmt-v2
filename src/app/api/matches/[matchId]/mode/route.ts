@@ -45,10 +45,10 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid mode' }, { status: 400 });
   }
 
-  // Only allowed before LIVE starts
-  const allowed = ['PENDING', 'INTERACTION', 'SCHEDULED'];
+  // Allow picking mode even after match becomes LIVE (since that's when the UI prompts for it)
+  const allowed = ['PENDING', 'INTERACTION', 'SCHEDULED', 'LIVE'];
   if (!allowed.includes(ctx.match.status)) {
-    return NextResponse.json({ error: 'Cannot change mode after match starts' }, { status: 409 });
+    return NextResponse.json({ error: 'Cannot change mode after match is completed' }, { status: 409 });
   }
 
   const updated = await prisma.match.update({
