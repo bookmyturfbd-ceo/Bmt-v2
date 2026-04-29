@@ -8,13 +8,14 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ matchId: string; inningsId: string }> }
 ) {
-  const { matchId, inningsId } = await params;
-  const playerId = pid(req);
-  if (!playerId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    const { matchId, inningsId } = await params;
+    const playerId = pid(req);
+    if (!playerId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = await req.json();
-  const {
-    deliveryType,   // 'LEGAL' | 'WIDE' | 'NO_BALL'
+    const body = await req.json();
+    const {
+      deliveryType,   // 'LEGAL' | 'WIDE' | 'NO_BALL'
     runs,           // total runs on delivery
     isWicket,
     dismissalType,
@@ -73,18 +74,48 @@ export async function POST(
   const bowlerRunsIncrement = (isLegal && isByeRuns) ? 0 : teamRunsIncrement;
 
   // Wait! If it is a WICKET, we must tag it as PENDING natively so it locks the screen for Bowling confirmation
-  const finalStatus = isWicket ? 'PENDING' : 'CONFIRMED';
+  // UPDATE: User requested to remove bowling confirmation. All deliveries auto-confirm.
+  const finalStatus = 'CONFIRMED';
+
+  let activeStrikerId = innings.currentStrikerId;
+  let activeNonStrikerId = innings.currentNonStrikerId;
+
+  // --- SELF HEALING LOGIC ---
+  if (!activeStrikerId || !activeNonStrikerId) {
+    const unbatted = battingTeam.members.filter((m: any) => {
+      const perf = innings.battingPerfs?.find((p: any) => p.playerId === m.playerId);
+      return !perf || (!perf.hasBatted && !perf.isOut);
+    });
+    if (!activeStrikerId && unbatted.length > 0) {
+      activeStrikerId = unbatted[0].playerId;
+      unbatted.shift();
+    }
+    if (!activeNonStrikerId && unbatted.length > 0) {
+      activeNonStrikerId = unbatted[0].playerId;
+    }
+  }
+
+  // --- ENSURE BATTING PERFORMANCE ROWS EXIST ---
+  for (const pid of [activeStrikerId, activeNonStrikerId]) {
+    if (pid) {
+      await prisma.battingPerformance.upsert({
+        where: { inningsId_playerId: { inningsId, playerId: pid } },
+        create: { inningsId, matchId, playerId: pid, battingPosition: 999, hasBatted: true },
+        update: { hasBatted: true },
+      });
+    }
+  }
 
   // 1. Create Delivery
   const delivery = await prisma.cricketDelivery.create({
     data: {
       inningsId, matchId, overId: currentOver.id, overNumber: currentOver.overNumber,
       ballNumber: isLegal ? legalBallNumber : currentOver.legalBalls,
-      deliverySequence, bowlerId: innings.currentBowlerId!, strikerId: innings.currentStrikerId!, nonStrikerId: innings.currentNonStrikerId!,
+      deliverySequence, bowlerId: innings.currentBowlerId!, strikerId: activeStrikerId!, nonStrikerId: activeNonStrikerId!,
       deliveryType, runs: totalRunsParam, strikerRuns, nonStrikerRuns, isWicket: isWicket ?? false,
       dismissalType: isWicket ? dismissalType : undefined, dismissedPlayerId: isWicket ? dismissedPlayerId : undefined,
       fielderId: fielderId ?? undefined, bowlerCredited: bowlerCredited ?? true, isBye: isBye ?? false, isLegBye: isLegBye ?? false,
-      isFreeHit: isFreeHit ?? false, status: finalStatus, submittedByPlayerId: playerId, confirmedByPlayerId: isWicket ? null : playerId,
+      isFreeHit: isFreeHit ?? false, status: finalStatus, submittedByPlayerId: playerId, confirmedByPlayerId: playerId,
     },
   });
 
@@ -118,22 +149,25 @@ export async function POST(
     inningsUpdate.totalWickets = { increment: 1 };
   }
 
-  let newStrikerId = innings.currentStrikerId;
-  let newNonStrikerId = innings.currentNonStrikerId;
+  let newStrikerId = activeStrikerId;
+  let newNonStrikerId = activeNonStrikerId;
 
   // Strike rotation calculation
   const isCaught = isWicket && dismissalType === 'CAUGHT';
   const strikersSwap = (physicalRuns % 2 === 1);
 
   if (isCaught) {
-    if (dismissedPlayerId === innings.currentStrikerId) {
+    if (dismissedPlayerId === activeStrikerId) {
         newStrikerId = nextBatsmanId ?? null;
     } else {
         newNonStrikerId = nextBatsmanId ?? null; 
         [newStrikerId, newNonStrikerId] = [newNonStrikerId, newStrikerId];
     }
-  } else if (isWicket && dismissedPlayerId === innings.currentStrikerId) {
+  } else if (isWicket && dismissedPlayerId === activeStrikerId) {
     newStrikerId = nextBatsmanId ?? null;
+    if (strikersSwap) [newStrikerId, newNonStrikerId] = [newNonStrikerId, newStrikerId];
+  } else if (isWicket && dismissedPlayerId === activeNonStrikerId) {
+    newNonStrikerId = nextBatsmanId ?? null;
     if (strikersSwap) [newStrikerId, newNonStrikerId] = [newNonStrikerId, newStrikerId];
   } else if (strikersSwap) {
     [newStrikerId, newNonStrikerId] = [newNonStrikerId, newStrikerId];
@@ -159,7 +193,28 @@ export async function POST(
 
   const updatedInnings = await prisma.cricketInnings.update({ where: { id: innings.id }, data: inningsUpdate });
   const agreedOvers = (match as any).agreedOvers ?? (match.teamA.sportType === 'CRICKET_7' ? 7 : 20);
-  const inningsOver = Math.floor(updatedInnings.totalOvers) >= agreedOvers;
+  
+  // 1. All Out Check
+  const maxWickets = match.teamA.sportType === 'CRICKET_7' ? 6 : 10;
+  const isAllOut = updatedInnings.totalWickets >= maxWickets;
+
+  // 2. Super Over Limits
+  const isSuperOver = innings.inningsNumber === 3 || innings.inningsNumber === 4;
+  const isSuperOverAllOut = isSuperOver && updatedInnings.totalWickets >= 2;
+  const oversLimit = isSuperOver ? 1 : agreedOvers;
+  const oversFinished = Math.floor(updatedInnings.totalOvers) >= oversLimit;
+
+  // 3. Target Reached Check
+  let isTargetReached = false;
+  if (innings.inningsNumber === 2) {
+    const firstInnings = await prisma.cricketInnings.findFirst({ where: { matchId, inningsNumber: 1 } });
+    if (firstInnings && updatedInnings.totalRuns > firstInnings.totalRuns) isTargetReached = true;
+  } else if (innings.inningsNumber === 4) {
+    const thirdInnings = await prisma.cricketInnings.findFirst({ where: { matchId, inningsNumber: 3 } });
+    if (thirdInnings && updatedInnings.totalRuns > thirdInnings.totalRuns) isTargetReached = true;
+  }
+
+  const inningsOver = oversFinished || isAllOut || isSuperOverAllOut || isTargetReached;
 
   if (inningsOver) {
     await prisma.cricketInnings.update({ where: { id: innings.id }, data: { status: 'COMPLETED', completedAt: new Date() } });
@@ -171,4 +226,9 @@ export async function POST(
   if (inningsOver) await broadcastMatchEvent(matchId, 'INNINGS_COMPLETE', broadcastPayload);
 
   return NextResponse.json({ delivery, innings: updatedInnings, overComplete, inningsOver });
+  } catch (error: any) {
+    const fs = require('fs');
+    fs.appendFileSync('c:/BMT-V2/error_log.txt', new Date().toISOString() + ' ' + (error.stack || error.message) + '\\n');
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+  }
 }

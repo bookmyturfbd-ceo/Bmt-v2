@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ChevronLeft, Shield, Loader2, CheckCircle, X, AlertTriangle, RotateCcw, ScrollText, Pause, XCircle, MoreHorizontal, Flag } from 'lucide-react';
 import { subscribeToMatchChannel, broadcastMatchEvent } from '@/lib/supabaseRealtime';
+import { useMatchResult } from '@/context/MatchResultContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ViewState =
@@ -17,6 +18,7 @@ type ViewState =
   | 'WICKET_FLOW'
   | 'INNINGS_SIGNOFF'
   | 'SECOND_INNINGS_SETUP'
+  | 'SUPER_OVER_PROMPT'
   | 'MATCH_END';
 
 type DeliveryType = 'LEGAL' | 'WIDE' | 'NO_BALL';
@@ -139,7 +141,10 @@ function ScorecardHeader({ innings, match, agreedOvers, myTeamId, onSwap, allInn
             <div className="w-px h-6 bg-white/5" />
             <div className="flex flex-col items-center">
               <span className="text-[8px] text-neutral-600 uppercase tracking-widest font-black">Need</span>
-              <span className="text-sm font-black text-white">{Math.max(0, runsNeeded ?? 0)}</span>
+              <span className="text-sm font-black text-white whitespace-nowrap">
+                {Math.max(0, runsNeeded ?? 0)}
+                <span className="text-[9px] font-bold text-neutral-500 ml-1 tracking-tight">({legalBallsRemaining}b)</span>
+              </span>
             </div>
             <div className="w-px h-6 bg-white/5" />
             <div className="flex flex-col items-center">
@@ -609,8 +614,16 @@ function InningsSetupView({ match, innings, myTeamId, isOMC, onAction, agreedOve
     ? match.cricketToss.winnerTeamId 
     : (match.cricketToss?.winnerTeamId === match.teamA_Id ? match.teamB_Id : match.teamA_Id);
 
-  const activeBattingId = isSecondInnings ? (firstBattingTeamId === match.teamA_Id ? match.teamB_Id : match.teamA_Id) : firstBattingTeamId;
-  const activeBowlingId = activeBattingId === match.teamA_Id ? match.teamB_Id : match.teamA_Id;
+  let activeBattingId = firstBattingTeamId;
+  let activeBowlingId = activeBattingId === match.teamA_Id ? match.teamB_Id : match.teamA_Id;
+
+  if (innings?.battingTeamId) {
+    activeBattingId = innings.battingTeamId;
+    activeBowlingId = innings.bowlingTeamId;
+  } else if (isSecondInnings) {
+    activeBattingId = firstBattingTeamId === match.teamA_Id ? match.teamB_Id : match.teamA_Id;
+    activeBowlingId = activeBattingId === match.teamA_Id ? match.teamB_Id : match.teamA_Id;
+  }
 
   const isBatting = activeBattingId === myTeamId;
   const isBowling = activeBowlingId === myTeamId;
@@ -694,7 +707,7 @@ function InningsSetupView({ match, innings, myTeamId, isOMC, onAction, agreedOve
     <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-6 relative">
       <div className="text-center">
         <p className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">
-          {innings?.inningsNumber === 2 ? '2nd Innings' : '1st Innings'} Setup
+          {innings?.inningsNumber >= 3 ? `Super Over (Innings ${innings.inningsNumber}) Setup` : innings?.inningsNumber === 2 ? '2nd Innings Setup' : '1st Innings Setup'}
         </p>
         <p className="text-sm text-white font-black mt-1">Target: {agreedOvers} overs</p>
       </div>
@@ -842,7 +855,7 @@ function InningsSetupView({ match, innings, myTeamId, isOMC, onAction, agreedOve
 
       {/* Batting Position Modal */}
       {assigningMember && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-200">
           <div className="bg-[#0f1117] border border-white/10 rounded-3xl p-6 w-full max-w-sm flex flex-col items-center relative overflow-hidden shadow-2xl">
             <button onClick={() => setAssigningMember(null)} className="absolute top-4 right-4 text-white/40 hover:text-white p-2">✕</button>
             
@@ -887,6 +900,7 @@ function ScoringActionPad({ innings, match, myTeamId, onSubmit, pendingDelivery,
   const [whoIsOut, setWhoIsOut]         = useState<'striker' | 'nonStriker'>('striker');
   const [showWicketModal, setShowWicketModal] = useState(false);
   const [showFielderModal, setShowFielderModal] = useState(false);
+  const [showDismissalTypeModal, setShowDismissalTypeModal] = useState(false);
   const [customNextBatsman, setCustomNextBatsman] = useState<string>('');
   const [changingOrder, setChangingOrder] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -901,9 +915,12 @@ function ScoringActionPad({ innings, match, myTeamId, onSubmit, pendingDelivery,
   const needsFielder = ['CAUGHT', 'RUN_OUT', 'STUMPED'].includes(dismissal);
 
   const getUnbattedPlayers = () => {
-    return (innings.battingOrder as any[]).filter(b => {
-      const perf = innings.battingPerfs?.find((p: any) => p.playerId === b.playerId);
+    return battingTeam.members.filter((m: any) => {
+      const perf = innings.battingPerfs?.find((p: any) => p.playerId === m.playerId);
       return !perf || (!perf.hasBatted && !perf.isOut);
+    }).map((m: any) => {
+      const orderEntry = (innings.battingOrder as any[]).find((b: any) => b.playerId === m.playerId);
+      return { ...m, position: orderEntry?.position ?? 999 };
     }).sort((a: any, b: any) => a.position - b.position);
   };
 
@@ -921,16 +938,21 @@ function ScoringActionPad({ innings, match, myTeamId, onSubmit, pendingDelivery,
       nextBatsmanId
     });
     // Reset
-    setDeliveryType('LEGAL'); setRuns(0); setIsWicket(false); setDismissal(''); setFielderId(''); setIsBye(false); setShowWicketModal(false); setShowFielderModal(false); setChangingOrder(false); setCustomNextBatsman('');
+    setDeliveryType('LEGAL'); setRuns(0); setIsWicket(false); setDismissal(''); setFielderId(''); setIsBye(false); setShowWicketModal(false); setShowFielderModal(false); setShowDismissalTypeModal(false); setChangingOrder(false); setCustomNextBatsman('');
     setLoading(false);
   };
 
+  const cancelWicketFlow = () => {
+      setIsWicket(false);
+      setDismissal('');
+      setFielderId('');
+      setShowDismissalTypeModal(false);
+      setShowFielderModal(false);
+      setShowWicketModal(false);
+  };
+
   const handleInitialSubmitClick = () => {
-      if (isWicket && !!dismissal) {
-          setShowWicketModal(true);
-      } else {
-          submit();
-      }
+      submit();
   };
 
   // Lock UI if delivery is awaiting bowling ack
@@ -962,11 +984,11 @@ function ScoringActionPad({ innings, match, myTeamId, onSubmit, pendingDelivery,
   }
 
   return (
-    <div className="border-t border-[#1a1d26] bg-[#07080e] px-4 pt-3 pb-6 relative">
-      <div className="flex gap-2 mb-3">
+    <div className="border-t border-[#1a1d26] bg-[#07080e] px-4 pt-2 pb-4 relative shrink-0">
+      <div className="flex gap-2 mb-2">
         {(['LEGAL', 'WIDE', 'NO_BALL'] as DeliveryType[]).map(t => (
           <button key={t} onClick={() => { setDeliveryType(t); if (t !== 'LEGAL') { setRuns(1); setIsWicket(false); } }}
-            className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-wide border transition-all ${deliveryType === t
+            className={`flex-1 py-2 rounded-xl font-black text-xs uppercase tracking-wide border transition-all ${deliveryType === t
               ? t === 'LEGAL' ? 'bg-[#00ff41]/10 border-[#00ff41]/40 text-[#00ff41]'
                 : 'bg-[#a78bfa]/10 border-[#a78bfa]/40 text-[#a78bfa]'
               : 'bg-neutral-900 border-white/5 text-neutral-500'}`}>
@@ -975,20 +997,20 @@ function ScoringActionPad({ innings, match, myTeamId, onSubmit, pendingDelivery,
         ))}
       </div>
 
-      <div className="flex gap-2 mb-3">
+      <div className="flex gap-2 mb-2">
         {RUN_BUTTONS.map(r => (
           <button key={r} onClick={() => setRuns(r)}
-            className={`flex-1 py-3 rounded-xl font-black text-base border transition-all ${runs === r
-              ? r === 4 ? 'bg-[#3b82f6]/20 border-[#3b82f6]/50 text-[#3b82f6]'
-                : r === 6 ? 'bg-amber-400/20 border-amber-400/50 text-amber-400'
-                : 'bg-white/10 border-white/20 text-white'
+            className={`flex-1 py-2 rounded-xl font-black text-base border transition-all ${runs === r
+              ? r === 4 ? 'bg-[#3b82f6]/20 border-[#3b82f6] text-[#3b82f6] shadow-[0_0_12px_rgba(59,130,246,0.35)]'
+                : r === 6 ? 'bg-amber-400/20 border-amber-400 text-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.35)]'
+                : 'bg-[#00ff41]/10 border-[#00ff41] text-[#00ff41] shadow-[0_0_12px_rgba(0,255,65,0.3)]'
               : 'bg-neutral-900 border-white/5 text-neutral-400'}`}>
             {r}
           </button>
         ))}
       </div>
 
-      <div className="flex gap-2 mb-3">
+      <div className="flex gap-2 mb-2">
         <button onClick={() => setIsBye(b => !b)}
           className={`flex-1 py-2 rounded-xl font-black text-xs border transition-all ${isBye ? 'bg-neutral-700 border-white/20 text-white' : 'bg-neutral-900 border-white/5 text-neutral-600'}`}>
           Bye / Leg Bye
@@ -999,93 +1021,129 @@ function ScoringActionPad({ innings, match, myTeamId, onSubmit, pendingDelivery,
         </button>
       </div>
 
-      {deliveryType === 'LEGAL' && (
-        <button onClick={() => { setIsWicket(w => !w); if (isWicket) { setDismissal(''); setShowWicketModal(false); } }}
-          className={`w-full py-3 rounded-xl font-black text-sm border mb-3 transition-all ${isWicket ? 'bg-red-500/15 border-red-500/40 text-red-400' : 'bg-neutral-900 border-white/5 text-neutral-500'}`}>
-          {isWicket ? '🏏 WICKET — tap to cancel' : '🏏 Wicket'}
-        </button>
-      )}
+      <button onClick={() => { setIsWicket(true); setShowDismissalTypeModal(true); setDismissal(''); setFielderId(''); }}
+        className="w-full py-2.5 rounded-xl font-black text-sm border mb-2 transition-all bg-neutral-900 border-white/5 text-neutral-500 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30">
+        🏏 Wicket
+      </button>
 
-      {isWicket && (
-        <div className="flex flex-col gap-2 mb-3">
-          <p className="text-[9px] text-neutral-600 uppercase tracking-widest font-black">Dismissal</p>
-          <div className="grid grid-cols-3 gap-2">
-            {DISMISSALS.map(d => (
-              <button key={d} onClick={() => { 
-                  setDismissal(d); 
-                  if (['CAUGHT', 'RUN_OUT', 'STUMPED'].includes(d)) setShowFielderModal(true); 
-                  else setShowFielderModal(false); 
-                }}
-                className={`py-2.5 rounded-xl border font-black text-[10px] uppercase tracking-wide transition-all ${dismissal === d ? 'bg-red-500/15 border-red-500/40 text-red-400' : 'bg-neutral-900 border-white/5 text-neutral-500'}`}>
-                {d.replace('_', ' ')}
-              </button>
-            ))}
-          </div>
+      {/* Dismissal Type Centered Modal */}
+      {showDismissalTypeModal && (
+        <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 animate-in zoom-in-95 duration-200" onClick={cancelWicketFlow}>
+          <div className="bg-[#0f1117] border border-white/10 rounded-3xl p-6 w-full max-w-sm shadow-2xl relative" onClick={e => e.stopPropagation()}>
+            <h3 className="text-xl font-black text-white text-center mb-1">Dismissal Type</h3>
+            <p className="text-xs text-neutral-400 text-center mb-6">How was the batsman dismissed?</p>
 
-          {needsFielder && (
-            <button onClick={() => setShowFielderModal(true)} className="mt-2 w-full p-4 rounded-2xl border border-white/10 bg-black flex justify-between items-center text-xs font-bold text-white transition-all hover:bg-neutral-900">
-              <span className="text-neutral-400 uppercase tracking-widest text-[10px] font-black mr-2">
-                {dismissal === 'CAUGHT' ? 'Caught by' : dismissal === 'STUMPED' ? 'Stumped by' : 'Run out by'}:
-              </span>
-              <span className="flex-1 text-left text-sm text-[#3b82f6]">
-                {fielderId ? bowlingTeam.members.find((m: any) => m.playerId === fielderId)?.player.fullName : 'Tap to select fielder...'}
-              </span>
-              <span className="text-neutral-600 text-[10px] uppercase font-black bg-white/5 px-2 py-1 rounded">Edit</span>
-            </button>
-          )}
-
-          {dismissal === 'RUN_OUT' && (
-            <div className="mt-2 text-center bg-neutral-900 border border-white/5 p-3 rounded-xl">
-              <p className="text-[9px] text-red-500 uppercase tracking-widest font-black mb-2">Who is out?</p>
-              <div className="flex gap-2">
-                <button onClick={() => setWhoIsOut('striker')} className={`flex-1 py-2 text-[10px] font-black rounded-lg transition-all ${whoIsOut === 'striker' ? 'bg-red-500 text-white' : 'bg-black text-neutral-400'}`}>Striker</button>
-                <button onClick={() => setWhoIsOut('nonStriker')} className={`flex-1 py-2 text-[10px] font-black rounded-lg transition-all ${whoIsOut === 'nonStriker' ? 'bg-red-500 text-white' : 'bg-black text-neutral-400'}`}>Non-Striker</button>
-              </div>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {DISMISSALS.map(d => (
+                <button key={d} onClick={() => {
+                    setDismissal(d);
+                    if (d !== 'RUN_OUT') {
+                        setShowDismissalTypeModal(false);
+                        if (['CAUGHT', 'STUMPED'].includes(d)) setShowFielderModal(true);
+                        else {
+                            if (unbatted[0]?.position === 999) setChangingOrder(true);
+                            setShowWicketModal(true);
+                        }
+                    }
+                  }}
+                  className={`py-4 rounded-xl border font-black text-xs uppercase tracking-wide transition-all ${dismissal === d ? 'bg-red-500/20 border-red-500 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'bg-neutral-900 border-white/5 text-neutral-400 hover:bg-neutral-800 hover:text-white'}`}>
+                  {d.replace('_', ' ')}
+                </button>
+              ))}
             </div>
-          )}
+
+            {dismissal === 'RUN_OUT' && (
+               <div className="p-4 bg-neutral-900 rounded-2xl border border-white/5 mb-4 animate-in slide-in-from-top-2">
+                 <p className="text-[10px] text-red-500 uppercase tracking-widest font-black mb-3 text-center">Who is out?</p>
+                 <div className="flex gap-2 mb-4">
+                   <button onClick={() => setWhoIsOut('striker')} className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${whoIsOut === 'striker' ? 'bg-red-500 text-white shadow-[0_0_10px_rgba(239,68,68,0.4)]' : 'bg-black text-neutral-400 border border-white/5'}`}>Striker</button>
+                   <button onClick={() => setWhoIsOut('nonStriker')} className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${whoIsOut === 'nonStriker' ? 'bg-red-500 text-white shadow-[0_0_10px_rgba(239,68,68,0.4)]' : 'bg-black text-neutral-400 border border-white/5'}`}>Non-Striker</button>
+                 </div>
+                 <button onClick={() => {
+                     setShowDismissalTypeModal(false);
+                     setShowFielderModal(true); // Run out needs a fielder
+                 }} className="w-full py-3 rounded-xl bg-white text-black font-black text-xs hover:bg-neutral-200 transition-all">Continue →</button>
+               </div>
+            )}
+
+            <button onClick={cancelWicketFlow} className="w-full py-3 text-xs font-bold text-neutral-500 hover:text-white transition-all underline decoration-neutral-500/30">Cancel Wicket</button>
+          </div>
         </div>
       )}
 
       {/* Fielder Selection Bottom Sheet Overlay */}
       {showFielderModal && (
-          <div className="absolute inset-x-0 bottom-0 top-auto z-40 bg-[#0f1117] border-t border-[#1a1d26] rounded-t-3xl p-6 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] animate-in slide-in-from-bottom-5 duration-300">
+        <div className="fixed inset-0 z-[80] flex items-end bg-black/80 backdrop-blur-sm" onClick={cancelWicketFlow}>
+          <div className="w-full bg-[#0f1117] border-t border-[#1a1d26] rounded-t-3xl p-6 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] animate-in slide-in-from-bottom-5 duration-300 relative" onClick={e => e.stopPropagation()}>
              <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1 bg-white/10 rounded-full"/>
              <h3 className="text-xl font-black text-white text-center mt-3 mb-1">Select Fielder</h3>
              <p className="text-xs text-neutral-400 text-center mb-5">Who made the {dismissal.replace('_', ' ').toLowerCase()}?</p>
 
-             <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto mb-4 custom-scrollbar pb-6">
+             <div className="flex flex-col gap-2 max-h-[50vh] overflow-y-auto mb-4 custom-scrollbar pb-6">
                  {bowlingTeam.members.map((m: any) => (
-                     <button key={m.playerId} onClick={() => { setFielderId(m.playerId); setShowFielderModal(false); }} className="w-full flex items-center p-3 rounded-2xl bg-neutral-900 border border-white/5 hover:bg-neutral-800 transition-all text-left">
-                         <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center text-xs font-black mr-3">{m.player.fullName[0]}</div>
-                         <div className="flex-1">
-                             <p className="text-sm font-bold text-white leading-tight">{m.player.fullName}</p>
+                     <button key={m.playerId} onClick={() => { 
+                         setFielderId(m.playerId); 
+                         setShowFielderModal(false); 
+                         if (unbatted[0]?.position === 999) setChangingOrder(true);
+                         setShowWicketModal(true);
+                     }} className="w-full flex items-center p-3 rounded-2xl bg-[#14171f] border border-white/5 hover:border-[#00ff41]/50 hover:bg-[#00ff41]/10 transition-all text-left group">
+                         <div className="w-12 h-12 rounded-xl overflow-hidden mr-4 bg-neutral-800 border-2 border-white/10 shrink-0 group-hover:border-[#00ff41]/50 transition-colors">
+                             <img src={m.player.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${m.player.fullName}`} alt={m.player.fullName} className="w-full h-full object-cover" />
+                         </div>
+                         <div className="flex-1 min-w-0">
+                             <p className="text-base font-black text-white leading-tight truncate">{m.player.fullName}</p>
+                             <p className="text-xs text-neutral-500 uppercase tracking-wider truncate">{m.role.replace('_', ' ')}</p>
+                         </div>
+                         <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-[#00ff41] group-hover:text-black transition-colors">
+                             <span className="text-[10px] font-black">✓</span>
                          </div>
                      </button>
                  ))}
              </div>
-             <button onClick={() => setShowFielderModal(false)} className="mt-2 text-xs text-neutral-500 font-bold underline decoration-neutral-500/30 w-full text-center py-2">
-                 Cancel
+             <button onClick={cancelWicketFlow} className="mt-2 text-xs text-neutral-500 font-bold underline decoration-neutral-500/30 w-full text-center py-2">
+                 Cancel Wicket
              </button>
           </div>
+        </div>
       )}
 
       {/* Wicket Bottom Sheet Overlay */}
       {showWicketModal && (
-          <div className="absolute inset-x-0 bottom-0 top-auto z-40 bg-[#0f1117] border-t border-[#1a1d26] rounded-t-3xl p-6 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] animate-in slide-in-from-bottom-5 duration-300">
+        <div className="fixed inset-0 z-[90] flex items-end bg-black/80 backdrop-blur-sm" onClick={cancelWicketFlow}>
+          <div className="w-full bg-[#0f1117] border-t border-[#1a1d26] rounded-t-3xl p-6 shadow-[0_-20px_50px_rgba(0,0,0,0.8)] animate-in slide-in-from-bottom-5 duration-300 relative" onClick={e => e.stopPropagation()}>
              <div className="absolute top-3 left-1/2 -translate-x-1/2 w-12 h-1 bg-white/10 rounded-full"/>
-             <h3 className="text-xl font-black text-white text-center mt-3 mb-1">Incoming Batsman</h3>
+             
+             {/* WICKET SUMMARY */}
+             <div className="mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-center mt-3">
+                 <p className="text-xl font-black text-red-400 uppercase tracking-widest mb-1">{dismissal.replace('_', ' ')}</p>
+                 {needsFielder && fielderId && (
+                     <p className="text-sm text-red-300 font-bold">
+                         {dismissal === 'CAUGHT' ? 'Caught by' : dismissal === 'STUMPED' ? 'Stumped by' : 'Run out by'}: {bowlingTeam.members.find((m: any) => m.playerId === fielderId)?.player.fullName}
+                     </p>
+                 )}
+                 {dismissal === 'RUN_OUT' && (
+                     <p className="text-xs text-red-300 font-bold mt-1 uppercase tracking-widest">Out: {whoIsOut === 'striker' ? 'Striker' : 'Non-Striker'}</p>
+                 )}
+             </div>
+
+             <h3 className="text-lg font-black text-white text-center mb-1">Incoming Batsman</h3>
              <p className="text-xs text-neutral-400 text-center mb-5">Select or confirm who replaces the dismissed player.</p>
 
              {changingOrder ? (
-                 <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto mb-4 custom-scrollbar">
+                 <div className="flex flex-col gap-2 max-h-[50vh] overflow-y-auto mb-4 custom-scrollbar">
                      {unbatted.map((b: any) => {
                          const matchM = battingTeam.members.find((m: any) => m.playerId === b.playerId);
                          return (
-                             <button key={b.playerId} onClick={() => { setCustomNextBatsman(b.playerId); setChangingOrder(false); }} className="w-full flex items-center p-3 rounded-2xl bg-neutral-900 border border-white/5 hover:bg-neutral-800 transition-all text-left">
-                                 <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center text-xs font-black mr-3">{matchM?.player.fullName[0]}</div>
-                                 <div className="flex-1">
-                                     <p className="text-sm font-bold text-white leading-tight">{matchM?.player.fullName}</p>
-                                     <p className="text-[10px] text-neutral-500 uppercase tracking-wider">Position {b.position}</p>
+                             <button key={b.playerId} onClick={() => { setCustomNextBatsman(b.playerId); setChangingOrder(false); }} className="w-full flex items-center p-3 rounded-2xl bg-[#14171f] border border-white/5 hover:border-[#00ff41]/50 hover:bg-[#00ff41]/10 transition-all text-left group">
+                                 <div className="w-12 h-12 rounded-xl overflow-hidden mr-4 bg-neutral-800 border-2 border-white/10 shrink-0 group-hover:border-[#00ff41]/50 transition-colors">
+                                     <img src={matchM?.player?.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${matchM?.player?.fullName || 'Unknown'}`} alt={matchM?.player?.fullName} className="w-full h-full object-cover" />
+                                 </div>
+                                 <div className="flex-1 min-w-0">
+                                     <p className="text-base font-black text-white leading-tight truncate">{matchM?.player?.fullName}</p>
+                                     <p className="text-xs text-[#00ff41] uppercase tracking-wider truncate font-bold">Position {b.position}</p>
+                                 </div>
+                                 <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-[#00ff41] group-hover:text-black transition-colors">
+                                     <span className="text-[10px] font-black">✓</span>
                                  </div>
                              </button>
                          )
@@ -1093,36 +1151,49 @@ function ScoringActionPad({ innings, match, myTeamId, onSubmit, pendingDelivery,
                  </div>
              ) : (
                  <div className="flex flex-col items-center mb-6">
-                    <p className="text-xs text-neutral-500 uppercase tracking-widest font-black mb-3">Auto-Suggested</p>
-                    <div className="p-4 w-full rounded-2xl bg-[#00ff41]/5 border border-[#00ff41]/20 flex items-center justify-center gap-3 shadow-inner">
-                        <span className="text-xl">🏏</span>
-                        <span className="text-lg font-black text-[#00ff41] truncate">{nextBatsmanName}</span>
+                    <p className="text-[10px] text-neutral-500 uppercase tracking-widest font-black mb-3">Auto-Suggested</p>
+                    <div className="w-full p-4 rounded-2xl bg-gradient-to-r from-[#00ff41]/20 to-[#00ff41]/5 border border-[#00ff41]/30 flex items-center gap-4 shadow-[0_0_20px_rgba(0,255,65,0.1)]">
+                        <div className="w-14 h-14 rounded-2xl overflow-hidden bg-black border-2 border-[#00ff41]/50 shrink-0 relative">
+                            <img src={battingTeam.members.find((m: any) => m.playerId === activeNextBatsmanId)?.player?.avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${nextBatsmanName}`} alt={nextBatsmanName} className="w-full h-full object-cover" />
+                            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-[#00ff41] rounded-full border-2 border-black flex items-center justify-center">
+                                <span className="text-[10px]">🏏</span>
+                            </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-lg font-black text-white truncate">{nextBatsmanName}</p>
+                            <p className="text-xs text-[#00ff41] font-bold uppercase tracking-wider truncate">
+                                Position {unbatted.find((u: any) => u.playerId === activeNextBatsmanId)?.position ?? '?'}
+                            </p>
+                        </div>
                     </div>
                  </div>
              )}
 
              {!changingOrder && (
                  <div className="flex flex-col gap-2">
-                     <button onClick={() => submit(activeNextBatsmanId)} disabled={loading} className="w-full py-4 rounded-2xl bg-[#00ff41] text-black font-black text-sm transition-all hover:opacity-90 flex justify-center items-center">
+                     <button onClick={() => submit(activeNextBatsmanId)} disabled={loading || !activeNextBatsmanId} className="w-full py-4 rounded-2xl bg-[#00ff41] text-black font-black text-sm transition-all hover:opacity-90 flex justify-center items-center">
                          {loading ? <Loader2 size={16} className="animate-spin" /> : '✓ Confirm & Send Wicket'}
                      </button>
                      <button onClick={() => setChangingOrder(true)} className="w-full py-3 rounded-2xl bg-white/5 text-white border border-white/10 font-black text-xs hover:bg-white/10 transition-all">
                          Change Batsman
                      </button>
-                     <button onClick={() => setShowWicketModal(false)} className="mt-2 text-xs text-neutral-500 font-bold underline decoration-neutral-500/30 w-full text-center py-2">
-                         Cancel
+                     <button onClick={cancelWicketFlow} className="mt-2 text-xs text-neutral-500 font-bold underline decoration-neutral-500/30 w-full text-center py-2">
+                         Cancel Wicket
                      </button>
                  </div>
              )}
           </div>
+        </div>
       )}
 
-      <button
-        disabled={loading || (isWicket && !dismissal) || (needsFielder && !fielderId)}
-        onClick={handleInitialSubmitClick}
-        className="w-full py-4 rounded-2xl bg-[#3b82f6] text-white font-black text-sm uppercase tracking-wide disabled:opacity-40 transition-all active:scale-[0.98]">
-        {loading ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Log Delivery →'}
-      </button>
+      {!isWicket && (
+          <button
+            disabled={loading}
+            onClick={handleInitialSubmitClick}
+            className="w-full py-3 rounded-2xl bg-[#3b82f6] text-white font-black text-sm uppercase tracking-wide disabled:opacity-40 transition-all active:scale-[0.98]">
+            {loading ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Log Delivery →'}
+          </button>
+      )}
 
       {/* More menu sheet */}
       {showMoreMenu && (
@@ -1177,23 +1248,96 @@ function ScoringActionPad({ innings, match, myTeamId, onSubmit, pendingDelivery,
   );
 }
 
-// ─── Bowling Live View (Feed + ACK) ─────────────────────────────────────────
-function BowlingLiveView({ delivery, innings, match, myTeamId, onConfirm, onDispute, onOpenLog }: any) {
+// ─── Shared Delivery Chat Bubble ─────────────────────────────────────────────
+function DeliveryBubble({ d, idx, match, isBowlingTeamView, handleDispute, disputingId }: any) {
+  const overN  = d.overNumber ?? Math.floor((d.ballNumber ?? idx) / 6) + 1;
+  const ballN  = d.deliveryType === 'LEGAL' ? (d.ballNumber ?? idx) % 6 : null;
+  const stamp  = ballN !== null ? `Ov ${overN} · Ball ${ballN}` : `Ov ${overN} · Extra`;
+  const ts     = d.createdAt ? new Date(d.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  const isW    = d.isWicket;
+  const isFour = !isW && d.runs === 4;
+  const isSix  = !isW && d.runs === 6;
+  const isWide = d.deliveryType === 'WIDE';
+  const isNB   = d.deliveryType === 'NO_BALL';
+  const isConflict = d.status === 'CONFLICTED';
+  const isVoided   = d.status === 'VOIDED';
+
+  let bubbleBg = 'bg-[#0f1117] border-white/8';
+  let dotColor = '#6b7280';
+  let mainLabel = '';
+  let mainColor = 'text-white';
+  let badge: string | null = null;
+  let badgeColor = '';
+
+  if (isVoided)      { bubbleBg = 'bg-neutral-900/40 border-white/5'; mainColor = 'text-neutral-600'; }
+  else if (isConflict){ bubbleBg = 'bg-orange-500/8 border-orange-500/25'; mainColor = 'text-white'; badge = 'Disputed'; badgeColor = 'text-orange-400 border-orange-500/40'; }
+  else if (isW)       { bubbleBg = 'bg-red-500/10 border-red-500/20'; mainColor = 'text-red-300'; dotColor = '#ef4444'; }
+  else if (isSix)     { bubbleBg = 'bg-amber-500/10 border-amber-500/20'; mainColor = 'text-amber-300'; dotColor = '#f59e0b'; }
+  else if (isFour)    { bubbleBg = 'bg-blue-500/10 border-blue-500/20'; mainColor = 'text-blue-300'; dotColor = '#3b82f6'; }
+  else if (isWide || isNB) { bubbleBg = 'bg-purple-500/8 border-purple-500/20'; mainColor = 'text-purple-300'; dotColor = '#a78bfa'; }
+
+  if (isW) mainLabel = `🏏 WICKET — ${d.dismissalType?.replace('_',' ') ?? ''}`;
+  else if (isSix)   mainLabel = '6 — SIX!';
+  else if (isFour)  mainLabel = '4 — FOUR!';
+  else if (isWide)  mainLabel = `Wide +${d.runs}`;
+  else if (isNB)    mainLabel = `No Ball +${d.runs}`;
+  else mainLabel = d.runs === 0 ? 'Dot ball' : `${d.runs} run${d.runs !== 1 ? 's' : ''}`;
+  if (d.isBye) mainLabel += ' (Bye)';
+  if (isVoided) mainLabel += ' — VOIDED';
+
+  // Extract names
+  const bowlerName = match ? [...(match.teamA?.members || []), ...(match.teamB?.members || [])].find((m: any) => m.playerId === d.bowlerId)?.player?.fullName : 'Bowler';
+  const batsmanName = match ? [...(match.teamA?.members || []), ...(match.teamB?.members || [])].find((m: any) => m.playerId === d.strikerId)?.player?.fullName : 'Batsman';
+
+  return (
+    <div className={`flex items-end gap-2 animate-in slide-in-from-bottom-1 duration-200`}
+      style={{ opacity: isVoided ? 0.45 : 1 }}>
+      {/* Dot avatar */}
+      <div className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center border-2 text-[10px] font-black mb-0.5"
+        style={{ background: dotColor + '22', borderColor: dotColor, color: dotColor }}>
+        {isW ? 'W' : isSix ? '6' : isFour ? '4' : isWide ? 'Wd' : isNB ? 'Nb' : String(d.runs)}
+      </div>
+      {/* Bubble */}
+      <div className={`flex-1 rounded-2xl rounded-bl-none px-3 py-2 border ${bubbleBg}`}>
+        <div className="flex items-center justify-between gap-2">
+          <p className={`text-xs font-black leading-tight ${mainColor}`}>{mainLabel}</p>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {badge && (
+              <span className={`text-[9px] font-black border px-1.5 py-0.5 rounded-md uppercase ${badgeColor}`}>{badge}</span>
+            )}
+            {isBowlingTeamView && !isConflict && !isVoided && (
+               <button onClick={() => handleDispute(d)} disabled={disputingId === d.id}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded border border-white/10 bg-white/5 hover:bg-orange-500/20 hover:text-orange-400 hover:border-orange-500/30 text-neutral-500 text-[9px] font-black transition-all disabled:opacity-40">
+                  {disputingId === d.id ? <Loader2 size={9} className="animate-spin" /> : <Flag size={9} />} Dispute
+               </button>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 mt-1 text-[10px]">
+          <span className="text-neutral-300 font-bold max-w-[100px] truncate">{bowlerName}</span>
+          <span className="text-neutral-600">to</span>
+          <span className="text-neutral-300 font-bold max-w-[100px] truncate">{batsmanName}</span>
+        </div>
+        <p className="text-[9px] text-neutral-600 mt-0.5 font-bold">{stamp}{ts ? ` · ${ts}` : ''}</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Bowling Live View (Feed + ACK + Tabs + More) ────────────────────────────
+function BowlingLiveView({ delivery, innings, match, myTeamId, onConfirm, onDispute, onOpenLog, onPropose, onOpenDisputes }: any) {
   const [loading, setLoading] = useState(false);
-  // Deliveries that appeared but weren't major — will auto-vanish after 8s unless disputed
-  const [visibleDeliveries, setVisibleDeliveries] = useState<any[]>([]);
   const [disputingId, setDisputingId] = useState<string | null>(null);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
 
-  // When a new confirmed delivery arrives (not pending), show it
   const allDeliveries: any[] = innings?.deliveries ?? [];
-  // Last 5 confirmed deliveries for the feed
   const recentConfirmed = allDeliveries
-    .filter((d: any) => ['CONFIRMED','CONFLICTED'].includes(d.status))
-    .slice(-5)
+    .filter((d: any) => ['CONFIRMED', 'CONFLICTED'].includes(d.status))
     .reverse();
+  const conflicted = allDeliveries.filter((d: any) => d.status === 'CONFLICTED');
 
-  const isMajor = (d: any) => d?.isWicket || d?.runs >= 4 || d?.deliveryType === 'NO_BALL' || d?.deliveryType === 'WIDE';
+  const isMajor = (d: any) => d?.runs >= 4 || d?.deliveryType === 'NO_BALL' || d?.deliveryType === 'WIDE';
 
   const handleDispute = async (d: any) => {
     setDisputingId(d.id);
@@ -1201,110 +1345,120 @@ function BowlingLiveView({ delivery, innings, match, myTeamId, onConfirm, onDisp
     setDisputingId(null);
   };
 
-  // If there's a pending wicket — show the full ACK screen
-  if (delivery && delivery.isWicket) {
-    return (
-      <div className="border-t border-[#1a1d26] bg-amber-500/10 px-4 pt-4 pb-6 flex-shrink-0">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-          <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Wicket Verification Required</p>
-        </div>
-        <div className="bg-[#0f1117] border border-amber-500/20 rounded-2xl p-4 mb-4 flex items-center gap-4 shadow-xl">
-          <DeliveryDot d={delivery} />
-          <div className="flex-1">
-            <p className="text-sm font-black text-white">WICKET 🏏</p>
-            <p className="text-[10px] text-neutral-400 mt-0.5">Confirm the batting team's entry.</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={async () => { setLoading(true); await onConfirm(); setLoading(false); }}
-            disabled={loading}
-            className="flex-1 py-4 rounded-2xl bg-[#00ff41] text-black font-black text-sm flex items-center justify-center gap-1.5 disabled:opacity-40 transition-all">
-            <CheckCircle size={16} /> Confirm Wicket
-          </button>
-          <button
-            onClick={() => handleDispute(delivery)}
-            disabled={!!disputingId}
-            className="w-28 py-4 rounded-2xl bg-orange-500/10 border border-orange-500/30 text-orange-400 font-black text-sm flex items-center justify-center gap-1.5 disabled:opacity-40 transition-all hover:bg-orange-500/20">
-            <Flag size={14} /> Dispute
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const isFirstBall = allDeliveries.length === 0 && !delivery;
 
   return (
-    <div className="border-t border-[#1a1d26] flex-1 flex flex-col min-h-0 bg-[#07080e]">
+    <div className="border-t border-[#1a1d26] flex-1 flex flex-col min-h-0 bg-[#07080e] relative">
       {/* Header */}
-      <div className="px-4 py-2 flex items-center justify-between border-b border-white/5">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#00ff41] animate-pulse"></span>
-          <p className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">Live Feed</p>
+      <div className="px-4 pt-2 pb-2 flex items-center justify-between border-b border-white/5">
+        <p className="text-xs font-black uppercase tracking-widest text-neutral-500">Live Feed</p>
+        <div className="flex items-center gap-3">
+          <button onClick={onOpenDisputes}
+             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border ${
+                 conflicted.length > 0
+                   ? 'bg-orange-500/10 text-orange-400 border-orange-500/30 hover:bg-orange-500/20'
+                   : 'bg-white/5 text-neutral-400 border-white/10 hover:bg-white/10'
+             }`}>
+             Disputes
+             {conflicted.length > 0 && (
+               <span className="w-4 h-4 rounded-full bg-orange-500 text-black text-[8px] flex items-center justify-center font-black">{conflicted.length}</span>
+             )}
+          </button>
+          <button onClick={() => onOpenLog?.()} className="flex items-center gap-1 text-[10px] text-neutral-600 hover:text-neutral-400 font-bold">
+            <ScrollText size={11} /> Log
+          </button>
         </div>
-        <button onClick={() => onOpenLog?.()} className="flex items-center gap-1 text-[10px] text-neutral-600 hover:text-neutral-400 font-bold">
-          <ScrollText size={11} /> Full Log
-        </button>
       </div>
-
-      {/* Pending non-wicket delivery */}
-      {delivery && !delivery.isWicket && (
-        <div className="mx-4 mt-3 p-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center gap-3 animate-in slide-in-from-top-2">
-          <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse shrink-0" />
-          <DeliveryDot d={delivery} />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-black text-blue-300">Incoming delivery</p>
-            <p className="text-[10px] text-neutral-500 truncate">
-              {delivery.deliveryType === 'WIDE' ? 'Wide' : delivery.deliveryType === 'NO_BALL' ? 'No Ball' : 'Legal'} · {delivery.runs} run{delivery.runs !== 1 ? 's' : ''}
-            </p>
-          </div>
-          {isMajor(delivery) && (
-            <button onClick={() => handleDispute(delivery)} disabled={!!disputingId}
-              className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 text-[10px] font-black disabled:opacity-40">
-              <Flag size={10} /> Dispute
-            </button>
+          {/* Pending non-wicket delivery */}
+          {delivery && !delivery.isWicket && (
+            <div className="mx-4 mt-3 p-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center gap-3 animate-in slide-in-from-top-2">
+              <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse shrink-0" />
+              <DeliveryDot d={delivery} />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-black text-blue-300">Incoming delivery</p>
+                <p className="text-[10px] text-neutral-500 truncate">
+                  {delivery.deliveryType === 'WIDE' ? 'Wide' : delivery.deliveryType === 'NO_BALL' ? 'No Ball' : 'Legal'} · {delivery.runs} run{delivery.runs !== 1 ? 's' : ''}
+                </p>
+              </div>
+              {isMajor(delivery) && (
+                <button onClick={() => handleDispute(delivery)} disabled={!!disputingId}
+                  className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 text-[10px] font-black disabled:opacity-40">
+                  <Flag size={10} /> Dispute
+                </button>
+              )}
+            </div>
           )}
+
+          <div ref={feedRef} className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2">
+            {isFirstBall && (
+              <div className="flex-1 flex flex-col items-center justify-center gap-3 py-12 text-neutral-700">
+                <div className="text-4xl">🏏</div>
+                <p className="text-sm font-black">First ball incoming 🏏</p>
+                <div className="w-2 h-2 rounded-full bg-neutral-800 animate-ping mt-1" />
+              </div>
+            )}
+            {!isFirstBall && recentConfirmed.length === 0 && !delivery && (
+              <div className="flex-1 flex flex-col items-center justify-center gap-3 py-8 text-neutral-700">
+                <div className="w-3 h-3 rounded-full bg-neutral-800 animate-ping" />
+                <p className="text-xs uppercase tracking-widest font-black">Feed Active. Awaiting Batting Scorer…</p>
+              </div>
+            )}
+            {recentConfirmed.map((d: any, idx: number) => (
+              <DeliveryBubble key={d.id} d={d} idx={idx} match={match} isBowlingTeamView={true} handleDispute={handleDispute} disputingId={disputingId} />
+            ))}
+          </div>
+      {/* More button — bottom right corner */}
+      <button onClick={() => setShowMoreMenu(true)}
+        className="absolute bottom-4 right-4 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-neutral-900 border border-white/10 text-neutral-400 text-[11px] font-black hover:bg-neutral-800 transition-all shadow-lg">
+        <MoreHorizontal size={14} /> More
+      </button>
+
+      {/* More menu sheet */}
+      {showMoreMenu && (
+        <div className="fixed inset-0 z-50 flex items-end" onClick={() => setShowMoreMenu(false)}>
+          <div className="w-full bg-[#0f1117] rounded-t-3xl border-t border-[#1a1d26] p-6 flex flex-col gap-3 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+            style={{ animation: 'slideUpSheet 0.25s ease-out' }}>
+            <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-2" />
+            <p className="text-[10px] font-black text-neutral-500 uppercase tracking-widest text-center mb-2">Match Controls</p>
+
+            <button onClick={() => { setShowMoreMenu(false); onOpenLog?.(); }}
+              className="flex items-center gap-3 w-full p-4 rounded-2xl bg-white/5 border border-white/10 text-left hover:bg-white/10 transition-all">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                <ScrollText size={18} className="text-blue-400" />
+              </div>
+              <div>
+                <p className="font-black text-sm text-white">Delivery Log</p>
+                <p className="text-[10px] text-neutral-500">View full match history</p>
+              </div>
+            </button>
+
+            <button onClick={() => { setShowMoreMenu(false); onPropose?.('pause_proposal'); }}
+              className="flex items-center gap-3 w-full p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20 text-left hover:bg-amber-500/10 transition-all">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+                <Pause size={18} className="text-amber-400" />
+              </div>
+              <div>
+                <p className="font-black text-sm text-white">Request Pause</p>
+                <p className="text-[10px] text-neutral-500">Propose a match pause — opponent must agree</p>
+              </div>
+            </button>
+
+            <button onClick={() => { setShowMoreMenu(false); onPropose?.('cancel_proposal'); }}
+              className="flex items-center gap-3 w-full p-4 rounded-2xl bg-red-500/5 border border-red-500/20 text-left hover:bg-red-500/10 transition-all">
+              <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                <XCircle size={18} className="text-red-400" />
+              </div>
+              <div>
+                <p className="font-black text-sm text-white">Cancel Match</p>
+                <p className="text-[10px] text-neutral-500">Propose cancellation — opponent must agree</p>
+              </div>
+            </button>
+
+            <button onClick={() => setShowMoreMenu(false)} className="text-xs text-neutral-600 font-bold py-2 text-center mt-1">Close</button>
+          </div>
         </div>
       )}
-
-      {/* Recent confirmed deliveries feed */}
-      <div ref={feedRef} className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2">
-        {recentConfirmed.length === 0 && !delivery && (
-          <div className="flex-1 flex flex-col items-center justify-center gap-3 py-8 text-neutral-700">
-            <div className="w-3 h-3 rounded-full bg-neutral-800 animate-ping" />
-            <p className="text-xs uppercase tracking-widest font-black">Feed Active. Awaiting Batting Scorer…</p>
-          </div>
-        )}
-        {recentConfirmed.map((d: any) => (
-          <div key={d.id}
-            className="flex items-center gap-2.5 p-2.5 rounded-xl border transition-all animate-in slide-in-from-bottom-1"
-            style={{
-              background: d.status === 'CONFLICTED' ? 'rgba(249,115,22,0.07)' : 'rgba(255,255,255,0.02)',
-              borderColor: d.status === 'CONFLICTED' ? 'rgba(249,115,22,0.25)' : 'rgba(255,255,255,0.04)',
-            }}>
-            <DeliveryDot d={d} />
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-black text-white truncate">
-                {d.deliveryType === 'WIDE' ? 'Wide' : d.deliveryType === 'NO_BALL' ? 'No Ball' : 'Legal'}
-                {d.isWicket ? ' · 🏏 Wicket' : ` · ${d.runs}r`}
-                {d.isBye ? ' (Bye)' : ''}
-              </p>
-              <p className="text-[9px] text-neutral-600">Ball {Math.floor((d.ballNumber ?? 0) / 6)}.{(d.ballNumber ?? 0) % 6}</p>
-            </div>
-            {d.status === 'CONFLICTED' ? (
-              <span className="text-[9px] text-orange-400 font-black uppercase border border-orange-500/30 px-1.5 py-0.5 rounded-md">Disputed</span>
-            ) : (
-              <button
-                onClick={() => handleDispute(d)}
-                disabled={disputingId === d.id}
-                className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 text-neutral-600 hover:text-orange-400 hover:bg-orange-500/10 text-[9px] font-black transition-all disabled:opacity-40">
-                {disputingId === d.id ? <Loader2 size={9} className="animate-spin" /> : <Flag size={9} />}
-                Dispute
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
@@ -1326,29 +1480,67 @@ function OverCompleteModal({ over, innings, match, myTeamId, isOMC, onConfirmOve
   const agreedOvers = (match as any).agreedOvers ?? (sport === 'CRICKET_7' ? 7 : 20);
   const maxBowlerOvers = sport === 'CRICKET_7' ? 2 : Math.ceil(agreedOvers / 5);
 
+  const strikerName = match.teamA.members.concat(match.teamB.members).find((m: any) => m.playerId === innings?.currentStrikerId)?.player?.fullName || 'Striker';
+  const nonStrikerName = match.teamA.members.concat(match.teamB.members).find((m: any) => m.playerId === innings?.currentNonStrikerId)?.player?.fullName || 'Non-Striker';
+  const bowlerName = match.teamA.members.concat(match.teamB.members).find((m: any) => m.playerId === over?.bowlerId)?.player?.fullName || 'Bowler';
+
+  const strikerPerf = innings?.battingPerfs?.find((p: any) => p.playerId === innings?.currentStrikerId);
+  const nonStrikerPerf = innings?.battingPerfs?.find((p: any) => p.playerId === innings?.currentNonStrikerId);
+  const bowlerPerf = innings?.bowlingPerfs?.find((p: any) => p.playerId === over?.bowlerId);
+
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end">
-      <div className="w-full bg-[#0f1117] rounded-t-3xl border-t border-[#1a1d26] p-5 flex flex-col gap-4"
+      <div className="w-full bg-[#0f1117] rounded-t-3xl border-t border-[#1a1d26] p-6 flex flex-col gap-4"
         style={{ animation: 'slideUpSheet 0.3s ease-out' }}>
         <style>{`@keyframes slideUpSheet { from { transform: translateY(100%); } to { transform: translateY(0); } }`}</style>
 
         <div className="text-center">
           <p className="text-[10px] text-neutral-500 uppercase tracking-widest font-black">Over {over?.overNumber} Complete</p>
-          <div className="flex items-center justify-center gap-6 mt-2">
+          <div className="flex flex-wrap items-center justify-center gap-6 mt-4">
             <div className="text-center">
               <p className="text-4xl font-black text-white">{over?.runs}</p>
-              <p className="text-[9px] text-neutral-500 uppercase tracking-wider font-bold">Runs</p>
+              <p className="text-[9px] text-neutral-500 uppercase tracking-wider font-bold mt-1">Runs</p>
             </div>
             <div className="text-center">
               <p className="text-4xl font-black text-red-400">{over?.wickets}</p>
-              <p className="text-[9px] text-neutral-500 uppercase tracking-wider font-bold">Wkts</p>
+              <p className="text-[9px] text-neutral-500 uppercase tracking-wider font-bold mt-1">Wkts</p>
             </div>
             {over?.wides > 0 && (
               <div className="text-center">
                 <p className="text-4xl font-black text-[#a78bfa]">{over.wides}</p>
-                <p className="text-[9px] text-neutral-500 uppercase tracking-wider font-bold">Wides</p>
+                <p className="text-[9px] text-neutral-500 uppercase tracking-wider font-bold mt-1">Wides</p>
               </div>
             )}
+            {over?.noBalls > 0 && (
+              <div className="text-center">
+                <p className="text-4xl font-black text-amber-500">{over.noBalls}</p>
+                <p className="text-[9px] text-neutral-500 uppercase tracking-wider font-bold mt-1">No Balls</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Current Players Status */}
+        <div className="flex flex-col gap-2 my-2 bg-white/5 border border-white/10 rounded-2xl p-4">
+          <div className="flex justify-between items-center pb-2 border-b border-white/5">
+            <div className="flex-1 truncate pr-2">
+              <p className="text-xs font-black text-white truncate">🏏 {strikerName} *</p>
+            </div>
+            <p className="text-xs font-black text-white text-right">{strikerPerf?.runs ?? 0} <span className="text-[10px] text-neutral-500 font-bold">({strikerPerf?.ballsFaced ?? 0})</span></p>
+          </div>
+          <div className="flex justify-between items-center pb-2 border-b border-white/5">
+            <div className="flex-1 truncate pr-2">
+              <p className="text-xs font-bold text-neutral-400 truncate">🏏 {nonStrikerName}</p>
+            </div>
+            <p className="text-xs font-bold text-neutral-400 text-right">{nonStrikerPerf?.runs ?? 0} <span className="text-[10px] text-neutral-600 font-bold">({nonStrikerPerf?.ballsFaced ?? 0})</span></p>
+          </div>
+          <div className="flex justify-between items-center pt-1">
+            <div className="flex-1 truncate pr-2">
+              <p className="text-xs font-black text-[#3b82f6] truncate">⚾ {bowlerName}</p>
+            </div>
+            <p className="text-xs font-black text-[#3b82f6] text-right">
+              {Math.floor((bowlerPerf?.legalBalls ?? 0)/6)}.{ (bowlerPerf?.legalBalls ?? 0)%6 } <span className="text-[10px] text-[#3b82f6]/60 font-bold">ov</span> · {bowlerPerf?.wickets ?? 0}/{bowlerPerf?.runs ?? 0}
+            </p>
           </div>
         </div>
 
@@ -1382,7 +1574,7 @@ function OverCompleteModal({ over, innings, match, myTeamId, isOMC, onConfirmOve
                 else if (selectedBowlerId === m.playerId) { statusColor = 'text-[#3b82f6] bg-[#3b82f6]/20'; }
 
                 return (
-                  <MatchPlayerCard
+              <MatchPlayerCard
                     key={m.playerId}
                     member={m}
                     onClick={() => !isDisabled && setSelectedBowlerId(m.playerId)}
@@ -1421,58 +1613,102 @@ function SignOffButton({ onClick, label }: { onClick: () => void; label: string 
 }
 
 // ─── Match End Overlay ────────────────────────────────────────────────────────
-function MatchEndOverlay({ result, match, myTeamId, isTeamA, onSignOff, onBack, alreadySigned }: any) {
+function MatchEndOverlay({ result, rawMatchResult, match, myTeamId, isTeamA, onSignOff, onBack, alreadySigned }: any) {
   const [loading, setLoading] = useState(false);
 
-  const myMmrChange   = isTeamA ? result.mmrChangeA : result.mmrChangeB;
-  const iWon          = result.winnerId === myTeamId;
-  const isDraw        = result.winnerId === null;
-  const outcomeLabel  = isDraw ? 'Draw' : iWon ? 'Victory!' : 'Defeat';
+  // If rawMatchResult is null, the match is NOT YET fully signed off by both parties.
+  if (!rawMatchResult) {
+    return (
+      <div className="fixed inset-0 z-[200] bg-[#07080e] flex flex-col items-center justify-center px-6 text-white" style={{ animation: 'fadeIn 0.5s ease-out' }}>
+        <style>{`@keyframes fadeIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }`}</style>
+        
+        <div className="text-5xl mb-4">🏁</div>
+        <p className="text-3xl font-black mb-2 text-white text-center">Match Concluded</p>
+        
+        <div className="flex items-center gap-4 my-6 p-6 rounded-3xl bg-white/5 border border-white/10 shadow-2xl">
+          <div className="flex flex-col items-center">
+            <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-1">Innings 1</p>
+            <p className="text-3xl font-black text-white">{result.innings1Runs}</p>
+          </div>
+          <div className="text-neutral-600 font-black text-2xl mx-2">VS</div>
+          <div className="flex flex-col items-center">
+            <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-1">Innings 2</p>
+            <p className="text-3xl font-black text-white">{result.innings2Runs}</p>
+          </div>
+        </div>
+
+        <p className="text-sm text-neutral-500 mb-8 text-center max-w-xs leading-relaxed">
+          Both captains must sign off on the final scorecard to lock in the result and distribute MMR.
+        </p>
+
+        {!alreadySigned ? (
+          <button onClick={async () => { setLoading(true); await onSignOff(); setLoading(false); }} disabled={loading}
+            className="w-full max-w-xs py-4 rounded-2xl bg-[#3b82f6] text-white font-black text-sm active:scale-95 transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] disabled:opacity-50">
+            {loading ? <Loader2 size={16} className="animate-spin mx-auto" /> : '✓ Sign Off Match Result'}
+          </button>
+        ) : (
+          <div className="flex flex-col items-center gap-3 w-full max-w-xs p-5 rounded-2xl bg-[#00ff41]/5 border border-[#00ff41]/20">
+            <div className="w-12 h-12 rounded-full bg-[#00ff41]/10 flex items-center justify-center text-2xl text-[#00ff41]">✓</div>
+            <p className="text-sm font-black text-[#00ff41]">Signed Off</p>
+            <p className="text-xs text-neutral-400 text-center">Waiting for opponent to confirm the result...</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // If rawMatchResult EXISTS, both have signed off! Show the Animated Rank Modal!
+  const myMmrChange   = isTeamA ? rawMatchResult.mmrChangeA : rawMatchResult.mmrChangeB;
+  const iWon          = rawMatchResult.winnerId === myTeamId;
+  const isDraw        = rawMatchResult.winnerId === null;
+  const outcomeLabel  = isDraw ? 'Draw' : iWon ? 'Victory' : 'Defeat';
   const outcomeColor  = isDraw ? '#94a3b8' : iWon ? '#00ff41' : '#ef4444';
+  const victoryString = rawMatchResult.victoryString;
 
   return (
-    <div className="fixed inset-0 z-[200] bg-[#07080e] flex flex-col items-center justify-center px-6 text-white"
-      style={{ animation: 'fadeIn 0.5s ease-out' }}>
-      <style>{`@keyframes fadeIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }`}</style>
+    <div className="fixed inset-0 z-[500] bg-[#07080e]/98 backdrop-blur-3xl flex flex-col items-center justify-center px-6 text-white overflow-hidden">
+      <style>{`
+        @keyframes stamp { 0% { opacity: 0; transform: scale(3) rotate(-20deg); } 100% { opacity: 1; transform: scale(1) rotate(0deg); } }
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
+        @keyframes glowPulse { 0% { box-shadow: 0 0 40px ${outcomeColor}40; } 50% { box-shadow: 0 0 80px ${outcomeColor}80; } 100% { box-shadow: 0 0 40px ${outcomeColor}40; } }
+      `}</style>
+      
+      {/* Background ambient glow */}
+      <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ background: `radial-gradient(circle at center, ${outcomeColor} 0%, transparent 70%)` }} />
 
-      <div className="text-6xl mb-4">{isDraw ? '🤝' : iWon ? '🏆' : '💀'}</div>
-      <p className="text-5xl font-black mb-2" style={{ color: outcomeColor }}>{outcomeLabel}</p>
-
-      <div className="flex items-center gap-3 my-4">
-        <p className="text-2xl font-black text-neutral-400">{result.innings1Runs}</p>
-        <p className="text-neutral-600 font-black">&</p>
-        <p className="text-2xl font-black text-neutral-400">(target: {result.target})</p>
-        <p className="text-neutral-600 font-black">/</p>
-        <p className="text-2xl font-black text-neutral-400">{result.innings2Runs}</p>
+      <div style={{ animation: 'stamp 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards' }} className="flex flex-col items-center relative z-10">
+         <div className="text-[100px] leading-none mb-4" style={{ filter: `drop-shadow(0 0 20px ${outcomeColor}80)` }}>
+           {isDraw ? '🤝' : iWon ? '🏆' : '💀'}
+         </div>
+         <h1 className="text-6xl font-black uppercase tracking-tighter" style={{ color: outcomeColor, textShadow: `0 0 40px ${outcomeColor}80` }}>
+           {outcomeLabel}
+         </h1>
+         <p className="text-sm font-bold text-white mt-3 uppercase tracking-widest bg-white/10 px-4 py-1.5 rounded-full border border-white/20 backdrop-blur-md text-center max-w-[90%]">
+           {victoryString}
+         </p>
       </div>
 
-      <div className={`px-8 py-4 rounded-3xl border mb-8 text-center ${myMmrChange > 0 ? 'bg-[#00ff41]/10 border-[#00ff41]/30' : myMmrChange < 0 ? 'bg-red-500/10 border-red-500/30' : 'bg-neutral-800 border-white/10'}`}>
-        <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-1">Rank Points</p>
-        <p className={`text-4xl font-black ${myMmrChange > 0 ? 'text-[#00ff41]' : myMmrChange < 0 ? 'text-red-400' : 'text-neutral-400'}`}>
-          {myMmrChange > 0 ? `+${myMmrChange}` : myMmrChange === 0 ? '±0' : `${myMmrChange}`}
+      <div className="mt-16 mb-16 flex flex-col items-center relative z-10" style={{ animation: 'float 4s ease-in-out infinite' }}>
+        <div className={`w-48 h-48 rounded-[2.5rem] border-4 flex flex-col items-center justify-center relative backdrop-blur-xl ${
+          myMmrChange > 0 ? 'border-[#00ff41] bg-[#00ff41]/10 text-[#00ff41]' : myMmrChange < 0 ? 'border-red-500 bg-red-500/10 text-red-500' : 'border-[#3b82f6] bg-[#3b82f6]/10 text-[#3b82f6]'
+        }`} style={{ animation: 'glowPulse 3s infinite' }}>
+           <div className={`absolute -top-4 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-[#07080e] border-2 shadow-xl ${
+             myMmrChange > 0 ? 'border-[#00ff41]' : myMmrChange < 0 ? 'border-red-500' : 'border-[#3b82f6]'
+           }`}>MMR Updated</div>
+           
+           <span className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">Rank Change</span>
+           <span className="text-7xl font-black tracking-tighter">
+             {myMmrChange > 0 ? `+${myMmrChange}` : myMmrChange === 0 ? `+${myMmrChange}` : `${myMmrChange}`}
+           </span>
+        </div>
+        
+        <p className="text-xs text-neutral-400 mt-6 font-bold max-w-[240px] text-center leading-relaxed">
+          {myMmrChange > 0 ? 'Incredible performance! Your team rank and personal MMR has increased.' : myMmrChange < 0 ? 'Tough match. Your team rank and personal MMR has decreased.' : 'A hard-fought draw. MMR split equally among both teams.'}
         </p>
       </div>
 
-      {!alreadySigned && (
-        <button onClick={async () => { setLoading(true); await onSignOff(); setLoading(false); }}
-          disabled={loading}
-          className="w-full max-w-xs py-4 rounded-2xl bg-[#3b82f6] text-white font-black text-sm mb-3 disabled:opacity-40 active:scale-95 transition-all">
-          {loading ? <Loader2 size={16} className="animate-spin mx-auto" /> : '✓ Sign Off Match Result'}
-        </button>
-      )}
-      {alreadySigned && (
-        <div className="flex flex-col items-center gap-2 mb-5">
-          <div className="w-10 h-10 rounded-full bg-[#00ff41]/10 border border-[#00ff41]/30 flex items-center justify-center text-xl">✓</div>
-          <p className="text-sm font-black text-[#00ff41]">Signed Off</p>
-          <p className="text-xs text-neutral-500 text-center px-4">Waiting for the opponent captain to sign off the result…</p>
-        </div>
-      )}
-
-      <button onClick={onBack} className="w-full max-w-xs py-3 rounded-2xl bg-white/10 border border-white/10 text-white font-black text-sm mb-2">
-        🏆 View Match History
-      </button>
-      <button onClick={() => onBack('arena')} className="text-xs text-neutral-600 font-bold underline mt-1">
-        Back to Arena
+      <button onClick={onBack} className="w-full max-w-xs py-4 rounded-2xl bg-white text-black font-black text-sm hover:scale-[1.02] active:scale-95 transition-all shadow-[0_0_30px_rgba(255,255,255,0.2)] relative z-10">
+        Proceed to Match History →
       </button>
     </div>
   );
@@ -1484,6 +1720,9 @@ export default function CricketScoringPage() {
   const router  = useRouter();
   const matchId = params.matchId as string;
   const locale  = (params.locale as string) || 'en';
+  const { showMatchResult } = useMatchResult();
+
+  const battingFeedRef = useRef<HTMLDivElement>(null);
 
   const [state, setState]           = useState<any>(null);
   const [view, setView]             = useState<ViewState>('LOADING');
@@ -1493,8 +1732,8 @@ export default function CricketScoringPage() {
   const [matchResult, setMatchResult]         = useState<any>(null);
   const [alreadySigned, setAlreadySigned]     = useState(false);
   const [showLog, setShowLog]                 = useState(false);
-  const [liveTab, setLiveTab]                 = useState<'LIVE' | 'DISPUTES'>('LIVE');
-  const [matchProposal, setMatchProposal]     = useState<{ type: 'pause' | 'cancel'; fromTeamId: string } | null>(null);
+  const [showDisputesModal, setShowDisputesModal] = useState(false);
+  const [matchProposal, setMatchProposal]     = useState<{ type: 'pause' | 'cancel' | 'dispute_denial' | 'super_over'; fromTeamId?: string; deliveryId?: string } | null>(null);
 
   const loadState = useCallback(async () => {
     try {
@@ -1510,14 +1749,12 @@ export default function CricketScoringPage() {
 
       const { match, currentInnings, innings, matchResult: apiMatchResult } = d;
 
-      // Hydrate matchResult from state if match is already completed
       if (apiMatchResult) {
         setMatchResult(apiMatchResult);
         setView('MATCH_END');
         return;
       }
 
-      // Determine view
       if (!match.agreedOvers) {
         setView('OVERS_AGREEMENT');
       } else if (!match.cricketToss?.confirmedAt) {
@@ -1532,7 +1769,6 @@ export default function CricketScoringPage() {
         const overJustCompleted = latestOver && latestOver.status === 'CONFIRMED' && !currentInnings.currentBowlerId;
 
         if (overJustCompleted) {
-          // Over done — both teams need to confirm and bowling team picks next bowler
           setCompletedOver(latestOver);
           setView('OVER_COMPLETE');
         } else {
@@ -1542,8 +1778,12 @@ export default function CricketScoringPage() {
       } else if (currentInnings.status === 'COMPLETED') {
         setView('INNINGS_SIGNOFF');
       } else if (currentInnings.status === 'SIGNED_OFF') {
-        const allDone = innings.every((i: any) => i.status === 'SIGNED_OFF') && innings.length === 2;
-        if (allDone) setView('MATCH_END');
+        const isTie2ndInnings = innings.length === 2 && innings[1].totalRuns === (innings[0].totalRuns);
+        const allDoneNormal = innings.every((i: any) => i.status === 'SIGNED_OFF') && innings.length === 2;
+        const allDoneSuperOver = innings.every((i: any) => i.status === 'SIGNED_OFF') && innings.length === 4;
+
+        if (allDoneNormal && isTie2ndInnings) setView('SUPER_OVER_PROMPT');
+        else if (allDoneNormal || allDoneSuperOver) setView('MATCH_END');
         else setView('SECOND_INNINGS_SETUP');
       }
     } catch (e: any) {
@@ -1554,6 +1794,20 @@ export default function CricketScoringPage() {
   }, [matchId]);
 
   useEffect(() => { loadState(); }, [loadState]);
+
+  // Auto-scroll batting feed on any innings state change
+  useEffect(() => {
+    if (battingFeedRef.current) {
+      battingFeedRef.current.scrollTop = battingFeedRef.current.scrollHeight;
+    }
+  }, [state?.innings]);
+
+  // Auto-poll while in INNINGS_SETUP so both teams transition without manual refresh
+  useEffect(() => {
+    if (view !== 'INNINGS_SETUP' && view !== 'SECOND_INNINGS_SETUP') return;
+    const iv = setInterval(() => loadState(), 2500);
+    return () => clearInterval(iv);
+  }, [view, loadState]);
 
   // WebSocket
   useEffect(() => {
@@ -1580,9 +1834,14 @@ export default function CricketScoringPage() {
       }
 
       if (event === 'MATCH_COMPLETE')     { setMatchResult(data); setView('MATCH_END'); }
-      // Match control proposals
       if (event === 'PAUSE_PROPOSED')  setMatchProposal({ type: 'pause',   fromTeamId: data.proposingTeamId });
       if (event === 'CANCEL_PROPOSED') setMatchProposal({ type: 'cancel',  fromTeamId: data.proposingTeamId });
+      if (event === 'DISPUTE_DENIAL_PROPOSED') setMatchProposal({ type: 'dispute_denial', deliveryId: data.deliveryId });
+      if (event === 'SUPER_OVER_PROPOSAL') setMatchProposal({ type: 'super_over', fromTeamId: data.fromTeamId });
+      if (event === 'SUPER_OVER_STARTED') {
+         setMatchProposal(null);
+         loadState();
+      }
       if (event === 'PAUSE_ACCEPTED')  { setMatchProposal(null); setMsg('⏸️ Match paused by mutual agreement.'); }
       if (event === 'PAUSE_DENIED')    { setMatchProposal(null); setMsg('Pause request denied. Match continues.'); }
       if (event === 'CANCEL_ACCEPTED') { setMatchProposal(null); setMsg('❌ Match cancelled by mutual agreement.'); }
@@ -1692,7 +1951,8 @@ export default function CricketScoringPage() {
   };
 
   const handleDenyDispute = async (deliveryId: string) => {
-    await patch(`/api/cricket/${matchId}/delivery/${deliveryId}`, { action: 'deny_dispute' });
+    await patch(`/api/cricket/${matchId}/delivery/${deliveryId}`, { action: 'propose_deny_dispute' });
+    setMsg('Denial proposed. Waiting for bowling team to drop dispute.');
     await loadState();
   };
 
@@ -1743,6 +2003,44 @@ export default function CricketScoringPage() {
     if (d?.bothSigned) { /* already handled by WS */ }
     else { setAlreadySigned(true); }
   };
+
+  // ── Trigger global rank modal when match result lands ──────────────────────────
+  // matchResult is set by both the WS MATCH_COMPLETE event and loadState()
+  useEffect(() => {
+    if (!matchResult || !state) return;
+    const { match: m, myTeamId: tid, isTeamA: amA } = state;
+    if (!m || !tid) return;
+
+    const mmrDelta  = amA ? matchResult.mmrChangeA : matchResult.mmrChangeB;
+    const sportType = m.teamA?.sportType ?? 'CRICKET_7';
+    const myTeam    = amA ? m.teamA : m.teamB;
+    const oppTeam   = amA ? m.teamB : m.teamA;
+    const isCricketMatch = sportType.includes('CRICKET');
+    const currentMmr = isCricketMatch
+      ? (myTeam?.cricketMmr ?? myTeam?.teamMmr ?? 1000)
+      : (myTeam?.footballMmr ?? myTeam?.teamMmr ?? 1000);
+
+    const outcome: 'win' | 'loss' | 'draw' =
+      matchResult.winnerId === null ? 'draw' :
+      matchResult.winnerId === tid ? 'win' : 'loss';
+
+    showMatchResult({
+      outcome,
+      sportType,
+      victoryString : matchResult.victoryString ?? (outcome === 'draw' ? 'Match Tied — MMR Split Equally' : ''),
+      myTeamName    : myTeam?.name ?? '',
+      oppTeamName   : oppTeam?.name ?? '',
+      myScore       : amA ? m.scoreA : m.scoreB,
+      oppScore      : amA ? m.scoreB : m.scoreA,
+      myWickets     : isCricketMatch ? (amA ? m.wicketsA : m.wicketsB) : null,
+      oppWickets    : isCricketMatch ? (amA ? m.wicketsB : m.wicketsA) : null,
+      myOvers       : isCricketMatch ? (amA ? m.oversA : m.oversB) : null,
+      oppOvers      : isCricketMatch ? (amA ? m.oversB : m.oversA) : null,
+      mmrDelta,
+      currentMmr,
+      matchId       : m.id,
+    });
+  }, [matchResult]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSwapStrikers = async () => {
     if (!currentInnings || !isOMC) return;
@@ -1832,117 +2130,7 @@ export default function CricketScoringPage() {
 
         {view === 'LIVE_SCORING' && currentInnings && (
           <>
-            {/* Tab bar for batting scorer */}
-            {isBattingTeam && isOMC && (() => {
-              const conflicted = currentInnings.deliveries?.filter((d: any) => d.status === 'CONFLICTED') ?? [];
-              return (
-                <div className="px-4 pt-2 pb-0 flex gap-1.5">
-                  {(['LIVE', 'DISPUTES'] as const).map(tab => (
-                    <button key={tab} onClick={() => setLiveTab(tab)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-                        liveTab === tab
-                          ? tab === 'DISPUTES'
-                            ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
-                            : 'bg-white/10 text-white border border-white/15'
-                          : 'text-neutral-600 border border-transparent'
-                      }`}>
-                      {tab}
-                      {tab === 'DISPUTES' && conflicted.length > 0 && (
-                        <span className="w-4 h-4 rounded-full bg-orange-500 text-black text-[8px] flex items-center justify-center font-black">{conflicted.length}</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              );
-            })()}
-
-            {/* Content area */}
-            <div className="flex-1 min-h-0 overflow-y-auto px-4 py-2 flex flex-col gap-2 custom-scrollbar" style={{ overscrollBehavior: 'contain' }}>
-
-              {/* LIVE tab — current over summary */}
-              {(!isBattingTeam || !isOMC || liveTab === 'LIVE') && (
-                <>
-                  {currentInnings.overs?.length === 0 && (
-                    <div className="py-8 text-center text-neutral-700">
-                      <p className="text-sm font-bold">First ball incoming 🏏</p>
-                    </div>
-                  )}
-                  {currentInnings.overs?.slice().reverse().map((o: any) => {
-                    const ovDeliveries = currentInnings.deliveries?.filter((d: any) => d.overNumber === o.overNumber) ?? [];
-                    if (ovDeliveries.length === 0 && o.status !== 'CONFIRMED' && currentInnings.overs.length === 1) {
-                      return <div key={o.id} className="py-8 text-center text-neutral-700"><p className="text-sm font-bold">First ball incoming 🏏</p></div>;
-                    }
-                    if (ovDeliveries.length === 0) return null;
-                    const oversText = o.legalBalls === 6 ? `${o.overNumber}.0` : `${o.overNumber - 1}.${o.legalBalls}`;
-                    return (
-                      <div key={o.id} className="flex items-start gap-2 p-3 rounded-2xl bg-[#0f1117] border border-white/5 shadow-sm animate-in slide-in-from-bottom-2 duration-300">
-                        <span className="text-[10px] font-black text-[#3b82f6] w-8 pt-1.5 uppercase tracking-wider">Ov {o.overNumber}</span>
-                        <div className="flex-1 flex gap-1.5 flex-wrap">
-                          {ovDeliveries.map((d: any, i: number) => <DeliveryDot key={i} d={d} />)}
-                        </div>
-                        <div className="flex flex-col items-end shrink-0 pl-3 border-l border-white/5 min-w-[70px]">
-                          <span className="text-xs text-white font-black">{oversText} <span className="text-[9px] text-neutral-500 uppercase tracking-wide">ov</span></span>
-                          <span className="text-[10px] text-neutral-400 font-bold mt-1">{o.runs}r · {o.wickets}w</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </>
-              )}
-
-              {/* DISPUTES tab — batting team can accept/deny */}
-              {isBattingTeam && isOMC && liveTab === 'DISPUTES' && (() => {
-                const conflicted = currentInnings.deliveries?.filter((d: any) => d.status === 'CONFLICTED') ?? [];
-                if (conflicted.length === 0) return (
-                  <div className="flex flex-col items-center justify-center py-12 gap-3 text-neutral-700">
-                    <Flag size={28} />
-                    <p className="text-sm font-bold">No active disputes</p>
-                    <p className="text-[10px] text-neutral-800">Bowling team can dispute individual deliveries during play.</p>
-                  </div>
-                );
-                return conflicted.map((d: any) => {
-                  const overLabel = `Ball ${Math.floor((d.ballNumber ?? 0) / 6)}.${(d.ballNumber ?? 0) % 6}`;
-                  return (
-                    <div key={d.id} className="p-4 rounded-2xl bg-orange-500/7 border border-orange-500/25 flex flex-col gap-3">
-                      <div className="flex items-center gap-3">
-                        <DeliveryDot d={d} />
-                        <div className="flex-1">
-                          <p className="text-sm font-black text-white">
-                            {d.deliveryType === 'WIDE' ? 'Wide' : d.deliveryType === 'NO_BALL' ? 'No Ball' : 'Legal'}
-                            {d.isWicket ? ' · 🏏 Wicket' : ` · ${d.runs} run${d.runs !== 1 ? 's' : ''}`}
-                          </p>
-                          <p className="text-[10px] text-neutral-500">{overLabel} · Disputed by bowling team</p>
-                        </div>
-                        <span className="text-[9px] font-black text-orange-400 border border-orange-500/30 px-1.5 py-0.5 rounded-md uppercase">Disputed</span>
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => handleResolveDispute(d.id)}
-                          className="flex-1 py-2.5 rounded-xl bg-[#00ff41]/10 border border-[#00ff41]/30 text-[#00ff41] font-black text-[11px] hover:bg-[#00ff41]/20 transition-all">
-                          ✓ Accept (void delivery)
-                        </button>
-                        <button onClick={() => handleDenyDispute(d.id)}
-                          className="flex-1 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 font-black text-[11px] hover:bg-red-500/20 transition-all">
-                          ✕ Deny (keep runs)
-                        </button>
-                      </div>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-
-            {/* Input panel — bottom */}
-            {isBattingTeam && isOMC && (
-              <ScoringActionPad
-                innings={currentInnings}
-                match={match}
-                myTeamId={myTeamId}
-                onSubmit={handleSubmitDelivery}
-                pendingDelivery={pendingDelivery}
-                onOpenLog={() => setShowLog(true)}
-                onPropose={handleProposal}
-              />
-            )}
+            {/* ── BOWLING TEAM: BowlingLiveView is the entire flex-1 content (tabs+feed+more unified) ── */}
             {isBowlingTeam && isOMC && (
               <BowlingLiveView
                 delivery={pendingDelivery}
@@ -1952,15 +2140,82 @@ export default function CricketScoringPage() {
                 onConfirm={() => handleConfirmDelivery({ action: 'acknowledge_wicket' })}
                 onDispute={handleDisputeDelivery}
                 onOpenLog={() => setShowLog(true)}
+                onPropose={handleProposal}
+                onOpenDisputes={() => setShowDisputesModal(true)}
               />
             )}
-            {!isOMC && (
-              <div className="border-t border-[#1a1d26] px-4 py-3 text-center text-neutral-600 text-xs">
-                Observer view — scoring managed by OMC
-              </div>
+
+            {/* ── BATTING TEAM + OBSERVER ── */}
+            {!isBowlingTeam && (
+              <>
+                {/* Tab bar / Header — batting scorer only */}
+                {isBattingTeam && isOMC && (() => {
+                  const conflicted = currentInnings.deliveries?.filter((d: any) => d.status === 'CONFLICTED') ?? [];
+                  return (
+                    <div className="px-4 pt-2 pb-0 flex gap-2 mb-2 items-center justify-between shrink-0">
+                      <p className="text-xs font-black uppercase tracking-widest text-neutral-500">Live Feed</p>
+                      <button onClick={() => setShowDisputesModal(true)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border ${
+                           conflicted.length > 0
+                             ? 'bg-orange-500/10 text-orange-400 border-orange-500/30 hover:bg-orange-500/20'
+                             : 'bg-white/5 text-neutral-400 border-white/10 hover:bg-white/10'
+                        }`}>
+                        Disputes
+                        {conflicted.length > 0 && (
+                          <span className="w-4 h-4 rounded-full bg-orange-500 text-black text-[8px] flex items-center justify-center font-black">{conflicted.length}</span>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                {/* Content area */}
+                <div ref={battingFeedRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-2 flex flex-col gap-2 custom-scrollbar" style={{ overscrollBehavior: 'contain' }}>
+
+                  {/* LIVE tab — per-delivery chat bubbles */}
+                  {(() => {
+                    const allD: any[] = currentInnings.deliveries ?? [];
+                    const confirmed = allD.filter((d: any) => ['CONFIRMED','CONFLICTED','VOIDED'].includes(d.status));
+                    if (confirmed.length === 0) return (
+                      <div className="flex-1 flex flex-col items-center justify-center py-12 gap-3 text-neutral-700">
+                        <div className="text-4xl">🏏</div>
+                        <p className="text-sm font-black">First ball incoming</p>
+                        <div className="w-2 h-2 rounded-full bg-neutral-800 animate-ping" />
+                      </div>
+                    );
+                    return (
+                      <div className="flex flex-col gap-2 pb-2">
+                        {confirmed.map((d: any, idx: number) => (
+                          <DeliveryBubble key={d.id} d={d} idx={idx} match={match} isBowlingTeamView={false} />
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Input panel — batting team */}
+                {isBattingTeam && isOMC && (
+                  <ScoringActionPad
+                    innings={currentInnings}
+                    match={match}
+                    myTeamId={myTeamId}
+                    onSubmit={handleSubmitDelivery}
+                    pendingDelivery={pendingDelivery}
+                    onOpenLog={() => setShowLog(true)}
+                    onPropose={handleProposal}
+                  />
+                )}
+                {!isOMC && (
+                  <div className="border-t border-[#1a1d26] px-4 py-3 text-center text-neutral-600 text-xs">
+                    Observer view — scoring managed by OMC
+                  </div>
+                )}
+              </>
             )}
           </>
         )}
+
+
 
 
         {view === 'INNINGS_SIGNOFF' && currentInnings && (() => {
@@ -2059,7 +2314,7 @@ export default function CricketScoringPage() {
               {isOMC && conflicted.length === 0 && !mySigned && (
                 <SignOffButton
                   onClick={currentInnings.inningsNumber === 2 ? handleFinishMatch : handleInningsSignOff}
-                  label={currentInnings.inningsNumber === 2 ? '🏆 Finish Match' : '✓ Sign Off Innings Scorecard'}
+                  label={currentInnings.inningsNumber === 2 ? '🏆 Sign Off Match' : '➡️ Next Innings'}
                 />
               )}
               {isOMC && mySigned && !bothSigned && (
@@ -2077,9 +2332,34 @@ export default function CricketScoringPage() {
           );
         })()}
 
-        {view === 'MATCH_END' && (matchResult || view === 'MATCH_END') && (
+        {view === 'SUPER_OVER_PROMPT' && (
+          <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 gap-6 animate-in zoom-in duration-300">
+            <div className="text-6xl">⚖️</div>
+            <div className="text-center">
+              <h2 className="text-3xl font-black text-white">MATCH TIED</h2>
+              <p className="text-sm text-neutral-400 mt-2">Both teams scored exactly {innings[0]?.totalRuns} runs.</p>
+            </div>
+            
+            <div className="w-full flex flex-col gap-3 mt-4">
+              <button onClick={() => setView('MATCH_END')}
+                className="w-full py-4 rounded-2xl bg-white/10 border border-white/20 text-white font-black text-sm hover:bg-white/20 transition-all">
+                🤝 Split MMR (Draw)
+              </button>
+              <button onClick={async () => {
+                await patch(`/api/cricket/${matchId}/delivery/dummy`, { action: 'super_over_proposal' });
+                setMsg('Proposed Super Over to opponent...');
+              }}
+                className="w-full py-4 rounded-2xl bg-[#00ff41] text-black font-black text-sm hover:opacity-90 shadow-[0_0_20px_rgba(0,255,65,0.2)] transition-all">
+                ⚔️ Propose Super Over
+              </button>
+            </div>
+          </div>
+        )}
+
+        {view === 'MATCH_END' && (
           <MatchEndOverlay
-            result={matchResult ?? { winnerId: null, mmrChangeA: 0, mmrChangeB: 0, innings1Runs: innings?.[0]?.totalRuns ?? 0, innings2Runs: innings?.[1]?.totalRuns ?? 0, target: innings?.[0] ? innings[0].totalRuns + 1 : 0 }}
+            result={matchResult ?? { winnerId: null, mmrChangeA: 0, mmrChangeB: 0, innings1Runs: innings?.[0]?.totalRuns ?? 0, innings2Runs: innings?.[1]?.totalRuns ?? 0, target: innings?.[0] ? innings[0].totalRuns + 1 : 0, victoryString: 'Match Tied' }}
+            rawMatchResult={null}
             match={match}
             myTeamId={myTeamId}
             isTeamA={isTeamA}
@@ -2107,7 +2387,7 @@ export default function CricketScoringPage() {
       )}
 
       {/* ── Delivery Log Overlay (shared by both teams) ── */}
-      {showLog && currentInnings && (
+      {showLog && (
         <div className="fixed inset-0 z-[60] bg-[#07080e] flex flex-col" style={{ animation: 'slideUpSheet 0.25s ease-out' }}>
           {/* Header */}
           <div className="flex items-center gap-3 px-4 pt-5 pb-4 border-b border-white/5 bg-[#07080e]/90 backdrop-blur-md shrink-0">
@@ -2115,63 +2395,44 @@ export default function CricketScoringPage() {
               <X size={16} />
             </button>
             <div className="flex-1">
-              <p className="font-black text-base">Delivery Log</p>
-              <p className="text-[10px] text-neutral-500">Innings {currentInnings.inningsNumber} · All deliveries</p>
+              <p className="font-black text-base">Match Delivery Log</p>
+              <p className="text-[10px] text-neutral-500">All innings history</p>
             </div>
           </div>
 
-          {/* Chat feed — oldest at top, newest at bottom */}
-          <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2">
-            {currentInnings.deliveries?.length === 0 && (
+          {/* Chat feed — oldest at top, newest at bottom, grouped by Innings */}
+          <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-6 custom-scrollbar">
+            {innings?.map((inn: any) => {
+              const innTeam = match.teamA_Id === inn.battingTeamId ? match.teamA : match.teamB;
+              if (!inn.deliveries || inn.deliveries.length === 0) return null;
+              
+              // Deliveries are reversed in backend so older is last. We want oldest at top.
+              const sortedDeliveries = [...inn.deliveries].reverse();
+
+              return (
+                <div key={inn.id} className="flex flex-col gap-3 relative">
+                  <div className="sticky top-0 z-10 py-2 bg-[#07080e]/95 backdrop-blur-md border-b border-white/5 mb-1 -mx-4 px-4 shadow-sm">
+                    <p className="text-xs font-black text-[#3b82f6] uppercase tracking-widest">Innings {inn.inningsNumber} · {innTeam.name}</p>
+                    <p className="text-[10px] text-neutral-500 font-bold">{inn.totalRuns}/{inn.totalWickets} ({inn.totalOvers} ov)</p>
+                  </div>
+                  {sortedDeliveries.map((d: any, idx: number) => (
+                    <DeliveryBubble key={d.id} d={d} idx={idx} match={match} isBowlingTeamView={false} />
+                  ))}
+                </div>
+              );
+            })}
+            
+            {(!innings || innings.length === 0 || innings.every((i: any) => !i.deliveries || i.deliveries.length === 0)) && (
               <div className="flex-1 flex items-center justify-center py-16 text-neutral-700">
                 <p className="text-sm font-bold">No deliveries yet</p>
               </div>
             )}
-            {currentInnings.deliveries?.map((d: any, idx: number) => {
-              const overN = Math.floor((d.ballNumber ?? idx) / 6) + 1;
-              const ballN = (d.ballNumber ?? idx) % 6;
-              const isConflict = d.status === 'CONFLICTED';
-              const isVoided   = d.status === 'VOIDED';
-              const typeLabel  = d.deliveryType === 'WIDE' ? 'Wide' : d.deliveryType === 'NO_BALL' ? 'No Ball' : 'Legal';
-              const runsLabel  = d.isWicket ? '🏏 Wicket' : `${d.runs} run${d.runs !== 1 ? 's' : ''}`;
-              const extraLabel = d.isBye ? ' (Bye/Leg Bye)' : '';
-              return (
-                <div key={d.id}
-                  className="flex gap-3 animate-in fade-in"
-                  style={{ opacity: isVoided ? 0.35 : 1 }}>
-                  {/* Ball indicator */}
-                  <div className="shrink-0 flex flex-col items-center gap-0.5 pt-1">
-                    <DeliveryDot d={d} />
-                    <span className="text-[8px] text-neutral-700 font-black">{overN}.{ballN}</span>
-                  </div>
-                  {/* Chat bubble */}
-                  <div className={`flex-1 rounded-2xl rounded-tl-none px-3 py-2 text-left max-w-[340px] ${
-                    isConflict ? 'bg-orange-500/10 border border-orange-500/20' :
-                    isVoided   ? 'bg-neutral-900/50 border border-white/5' :
-                    d.isWicket ? 'bg-red-500/10 border border-red-500/15' :
-                    d.runs >= 6 ? 'bg-amber-500/10 border border-amber-500/15' :
-                    'bg-[#0f1117] border border-white/5'
-                  }`}>
-                    <p className="text-xs font-black text-white">
-                      {typeLabel} · {runsLabel}{extraLabel}
-                      {isVoided && <span className="ml-1.5 text-[8px] text-neutral-600 font-black uppercase">VOIDED</span>}
-                    </p>
-                    {isConflict && (
-                      <p className="text-[9px] text-orange-400 font-black mt-0.5 uppercase tracking-wider">⚠ Disputed — pending resolution</p>
-                    )}
-                    {d.dismissalType && (
-                      <p className="text-[9px] text-red-400 mt-0.5">{d.dismissalType.replace('_', ' ')} · Over {overN}</p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
       )}
 
       {/* ── Match Proposal Overlay (Pause / Cancel from opponent) ── */}
-      {matchProposal && (
+      {matchProposal && (matchProposal.type === 'pause' || matchProposal.type === 'cancel') && (
         <div className="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center px-6">
           <div className="w-full max-w-sm bg-[#0f1117] border border-white/10 rounded-3xl p-6 flex flex-col gap-5 shadow-2xl animate-in zoom-in duration-300">
             <div className="text-center">
@@ -2198,6 +2459,128 @@ export default function CricketScoringPage() {
           </div>
         </div>
       )}
+
+      {/* ── Super Over Proposal Overlay ── */}
+      {matchProposal && matchProposal.type === 'super_over' && matchProposal.fromTeamId !== myTeamId && (
+        <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center px-6">
+           <div className="w-full max-w-sm bg-[#0f1117] border border-[#00ff41]/30 rounded-3xl p-6 flex flex-col gap-5 shadow-2xl animate-in zoom-in duration-300">
+             <div className="text-center">
+               <div className="text-4xl mb-3">⚔️</div>
+               <p className="text-xl font-black text-white">Super Over Proposed</p>
+               <p className="text-sm text-neutral-400 mt-1">
+                 The opponent wants to settle the tie with a Super Over. Do you accept?
+               </p>
+             </div>
+             <div className="flex flex-col gap-3">
+               <button onClick={async () => {
+                   await fetch(`/api/cricket/${matchId}/super-over`, { method: 'POST', body: JSON.stringify({ action: 'accept' }) });
+                   setMatchProposal(null);
+               }} className="w-full py-3.5 rounded-2xl bg-[#00ff41] text-black font-black text-sm shadow-[0_0_15px_rgba(0,255,65,0.2)]">
+                 ✓ Accept (Play Super Over)
+               </button>
+               <button onClick={() => {
+                   setMatchProposal(null);
+                   setView('MATCH_END'); // Deny defaults back to split MMR draw state
+               }} className="w-full py-3.5 rounded-2xl bg-neutral-800 text-neutral-400 font-black text-sm hover:bg-neutral-700">
+                 ✕ Deny (Split MMR)
+               </button>
+             </div>
+           </div>
+        </div>
+      )}
+
+      {/* ── Dispute Denial Overlay (For Bowling Team) ── */}
+      {matchProposal && matchProposal.type === 'dispute_denial' && isBowlingTeam && (
+        <div className="fixed inset-0 z-[110] bg-black/80 flex items-center justify-center px-6">
+           <div className="w-full max-w-sm bg-[#0f1117] border border-orange-500/30 rounded-3xl p-6 flex flex-col gap-5 shadow-2xl animate-in zoom-in duration-300">
+             <div className="text-center">
+               <div className="text-4xl mb-3">⚠️</div>
+               <p className="text-xl font-black text-white">Dispute Rejected</p>
+               <p className="text-sm text-neutral-400 mt-1">
+                 The batting team denied your dispute. Do you agree to drop it and keep the score?
+               </p>
+             </div>
+             <div className="flex flex-col gap-3">
+               <button onClick={() => {
+                   patch(`/api/cricket/${matchId}/delivery/${matchProposal.deliveryId}`, { action: 'deny_dispute' });
+                   setMatchProposal(null);
+               }} className="w-full py-3.5 rounded-2xl bg-[#00ff41] text-black font-black text-sm">
+                 ✓ Drop Dispute (Agree)
+               </button>
+               <button onClick={() => {
+                   setMatchProposal(null);
+               }} className="w-full py-3.5 rounded-2xl bg-neutral-800 text-neutral-400 font-black text-sm hover:bg-neutral-700">
+                 ✕ Force Dispute (Keep Active)
+               </button>
+             </div>
+           </div>
+        </div>
+      )}
+      {/* GLOBAL DISPUTES SIDE DRAWER */}
+      {showDisputesModal && (() => {
+         const conflicted = currentInnings?.deliveries?.filter((d: any) => d.status === 'CONFLICTED') ?? [];
+         return (
+          <div className="fixed inset-0 z-[100] flex justify-end bg-black/60 backdrop-blur-sm" onClick={() => setShowDisputesModal(false)}>
+            <div className="w-[85%] max-w-sm h-full bg-[#0f1117] border-l border-[#1a1d26] shadow-2xl animate-in slide-in-from-right duration-200 flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="p-5 border-b border-white/5 flex items-center justify-between bg-black/20">
+                <h3 className="font-black text-white text-lg flex items-center gap-2">
+                  <Flag size={16} className="text-orange-500" /> Active Disputes
+                </h3>
+                <button onClick={() => setShowDisputesModal(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-neutral-400 hover:text-white transition-all">
+                  ✕
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 custom-scrollbar">
+                {conflicted.length === 0 ? (
+                  <div className="flex-1 flex flex-col items-center justify-center py-12 gap-3 text-neutral-700">
+                    <Flag size={28} />
+                    <p className="text-sm font-bold">No active disputes</p>
+                    <p className="text-[10px] text-center text-neutral-500 mt-2 px-4">Bowling team can flag deliveries they believe are incorrect.</p>
+                  </div>
+                ) : conflicted.map((d: any) => {
+                  const overLabel = `Ball ${Math.floor((d.ballNumber ?? 0) / 6)}.${(d.ballNumber ?? 0) % 6}`;
+                  return (
+                    <div key={d.id} className="p-3 rounded-2xl bg-orange-500/10 border border-orange-500/30 flex flex-col gap-2 animate-in slide-in-from-right-4">
+                      <div className="flex items-center gap-2">
+                        <DeliveryDot d={d} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-black text-white truncate">
+                            {d.deliveryType === 'WIDE' ? 'Wide' : d.deliveryType === 'NO_BALL' ? 'No Ball' : 'Legal'}
+                            {d.isWicket ? ' · 🏏 Wicket' : ` · ${d.runs} run${d.runs !== 1 ? 's' : ''}`}
+                          </p>
+                          <p className="text-[10px] text-neutral-500 truncate">{overLabel} · Disputed by bowling team</p>
+                        </div>
+                      </div>
+                      
+                      {isBattingTeam && isOMC ? (
+                        <div className="flex flex-col gap-2 mt-2">
+                          <button onClick={() => handleResolveDispute(d.id)}
+                            className="w-full py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 font-black text-xs hover:bg-red-500/20 transition-all">
+                            🗑️ Void Delivery
+                          </button>
+                          <button onClick={() => { handleResolveDispute(d.id); setShowDisputesModal(false); }}
+                            className="w-full py-2.5 rounded-xl bg-[#00ff41]/10 border border-[#00ff41]/30 text-[#00ff41] font-black text-xs hover:bg-[#00ff41]/20 transition-all">
+                            📝 Log Correct Score
+                          </button>
+                          <button onClick={() => handleDenyDispute(d.id)}
+                            className="w-full mt-1 py-1.5 text-neutral-500 font-black text-[10px] hover:text-white transition-all underline decoration-neutral-500/30">
+                            Deny Dispute
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="mt-1 flex items-center justify-center py-1.5 bg-orange-500/20 rounded-xl">
+                           <span className="text-[9px] font-black text-orange-400 uppercase tracking-widest">Awaiting Batting Team</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+         );
+      })()}
     </div>
   );
 }

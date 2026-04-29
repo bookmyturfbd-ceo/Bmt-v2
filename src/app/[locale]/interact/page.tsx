@@ -8,6 +8,7 @@ import {
   Zap, Lock, AlertTriangle, History, ChevronUp, Award
 } from 'lucide-react';
 import { getRankData, TIER_RANGES, BADGES_BY_SPORT, maxBadges, type BadgeDef } from '@/lib/rankUtils';
+import { useMatchResult } from '@/context/MatchResultContext';
 
 const sportName = (s: string) => {
   if (s === 'FUTSAL_5') return '5-a-side Futsal';
@@ -26,6 +27,7 @@ export default function MarketPage() {
   const router   = useRouter();
   const pathname = usePathname();
   const locale   = pathname.split('/')[1] || 'en';
+  const { showMatchResult } = useMatchResult();
 
   // ── Tab state ──────────────────────────────────────────────────────────────
   const [masterTab, setMasterTab] = useState<MasterTab>('active');
@@ -46,7 +48,6 @@ export default function MarketPage() {
   const [wicketInput,      setWicketInput]      = useState('');
   const [overInput,        setOverInput]        = useState('');
   const [scoreSubmitting,  setScoreSubmitting]  = useState(false);
-  const [resultModal,      setResultModal]      = useState<any>(null);
 
   // ── Player stats modal ──────────────────────────────────────────────────────
   const [statsModal,     setStatsModal]     = useState<any>(null);
@@ -67,10 +68,6 @@ export default function MarketPage() {
     } catch {}
   }, []);
 
-  // Animated MMR counter
-  const [animMMR,   setAnimMMR]   = useState(0);
-  const [animWidth, setAnimWidth] = useState(0);
-
   const [loading,   setLoading]   = useState(true);
   const [myTeams,   setMyTeams]   = useState<any[]>([]);
   const [otherTeams,setOtherTeams]= useState<any[]>([]);
@@ -87,6 +84,7 @@ export default function MarketPage() {
   const [chalMsg,            setChalMsg]            = useState('');
   const [teamDetailModal,    setTeamDetailModal]    = useState<any>(null);
   const [detailTab,          setDetailTab]          = useState<'roster' | 'history'>('roster');
+
 
   // ── Data loading ────────────────────────────────────────────────────────────
   const loadMarket = useCallback(() => {
@@ -143,54 +141,59 @@ export default function MarketPage() {
     return () => ev.close();
   }, [loadChallenges]);
 
-  // Auto result modal
+  // Auto result modal — defer to global MatchResultModal via context
   useEffect(() => {
     challenges.upcoming.forEach((m: any) => {
-      const amA_check = myTeams.some((t: any) => t.id === m.teamA_Id);
-      const isSeen = amA_check ? m.resultSeenByA : m.resultSeenByB;
+      const amA = myTeams.some((t: any) => t.id === m.teamA_Id);
+      const isSeen = amA ? m.resultSeenByA : m.resultSeenByB;
       if (m.status === 'COMPLETED' && !isSeen && !shownResultIdsRef.current.has(m.id)) {
         if (myTeams.some((t: any) => t.id === m.teamA_Id || t.id === m.teamB_Id)) {
-          const amA = myTeams.some((t: any) => t.id === m.teamA_Id);
           shownResultIdsRef.current.add(m.id);
           try { localStorage.setItem('bmt_shown_results', JSON.stringify(Array.from(shownResultIdsRef.current))); } catch {}
           setScoreModalId(null);
-          setResultModal({
-            match: m, amA,
-            mmrDelta: amA ? m.mmrChangeA : m.mmrChangeB,
-            scoreA: m.scoreA, scoreB: m.scoreB, winnerId: m.winnerId,
-            won: m.winnerId === (amA ? m.teamA_Id : m.teamB_Id),
-            draw: m.winnerId === null && m.scoreA === m.scoreB,
-            myScore: amA ? m.scoreA : m.scoreB, oppScore: amA ? m.scoreB : m.scoreA,
-            myTeam: amA ? m.teamA : m.teamB, oppTeam: amA ? m.teamB : m.teamA,
+
+          const myTeam  = amA ? m.teamA : m.teamB;
+          const oppTeam = amA ? m.teamB : m.teamA;
+          const myTeamId= amA ? m.teamA_Id : m.teamB_Id;
+          const mmrDelta = amA ? m.mmrChangeA : m.mmrChangeB;
+          const sportType = myTeam?.sportType ?? 'FUTSAL_5';
+          const isCricket = sportType.includes('CRICKET');
+          const currentMmr = isCricket
+            ? (myTeam?.cricketMmr ?? myTeam?.teamMmr ?? 1000)
+            : (myTeam?.footballMmr ?? myTeam?.teamMmr ?? 1000);
+
+          const outcome: 'win' | 'loss' | 'draw' =
+            m.winnerId === null ? 'draw' :
+            m.winnerId === myTeamId ? 'win' : 'loss';
+
+          // Build victory string for non-cricket (cricket handled by signoff API)
+          let victoryString = outcome === 'draw' ? 'Match Tied — MMR Split Equally' : '';
+          if (!victoryString) {
+            const winnerName = m.winnerId === m.teamA_Id ? m.teamA?.name : m.teamB?.name;
+            const margin = Math.abs(m.scoreA - m.scoreB);
+            victoryString = `${winnerName} won ${Math.max(m.scoreA, m.scoreB)}-${Math.min(m.scoreA, m.scoreB)}`;
+          }
+
+          showMatchResult({
+            outcome,
+            sportType,
+            victoryString,
+            myTeamName  : myTeam?.name ?? '',
+            oppTeamName : oppTeam?.name ?? '',
+            myScore     : amA ? m.scoreA : m.scoreB,
+            oppScore    : amA ? m.scoreB : m.scoreA,
+            myWickets   : isCricket ? (amA ? m.wicketsA : m.wicketsB) : null,
+            oppWickets  : isCricket ? (amA ? m.wicketsB : m.wicketsA) : null,
+            myOvers     : isCricket ? (amA ? m.oversA : m.oversB) : null,
+            oppOvers    : isCricket ? (amA ? m.oversB : m.oversA) : null,
+            mmrDelta,
+            currentMmr,
+            matchId     : m.id,
           });
         }
       }
     });
-  }, [challenges.upcoming, myTeams]);
-
-  // MMR bar animation
-  useEffect(() => {
-    if (!resultModal) { setAnimMMR(0); setAnimWidth(0); return; }
-    const newMmr = resultModal.myTeam.teamMmr ?? 1000;
-    const oldMmr = newMmr - (resultModal.mmrDelta ?? 0);
-    const target = Math.abs(resultModal.mmrDelta ?? 0);
-    const sign   = resultModal.mmrDelta >= 0 ? 1 : -1;
-    setAnimMMR(oldMmr);
-    const initialRank = getRankData(oldMmr);
-    setAnimWidth(Math.min(100, Math.max(0, ((oldMmr - initialRank.min) / (initialRank.next - initialRank.min)) * 100)));
-    if (target === 0) return;
-    let cur = 0;
-    const step = Math.max(1, Math.ceil(target / 40));
-    const t = setInterval(() => {
-      cur = Math.min(cur + step, target);
-      const dyn = oldMmr + sign * cur;
-      setAnimMMR(dyn);
-      const dynR = getRankData(dyn);
-      setAnimWidth(Math.min(100, Math.max(0, ((dyn - dynR.min) / (dynR.next - dynR.min)) * 100)));
-      if (cur >= target) clearInterval(t);
-    }, 40);
-    return () => clearInterval(t);
-  }, [resultModal]);
+  }, [challenges.upcoming, myTeams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Discover helpers ────────────────────────────────────────────────────────
   const [minMmr, maxMmr] = TIER_RANGES[divisionFilter] ?? [0, 9999];
@@ -1445,71 +1448,10 @@ export default function MarketPage() {
         );
       })()}
 
-
-      {/* ═══ RESULT MODAL (MMR) ═══ */}
-      {resultModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" onClick={() => setResultModal(null)}>
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-md" />
-          <div className="relative bg-[#0f0f0f] border border-white/10 rounded-3xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className={`px-6 py-4 text-center ${resultModal.won ? 'bg-[#00ff41]/10' : resultModal.draw ? 'bg-neutral-800' : 'bg-red-500/10'}`}>
-              <p className="text-4xl mb-1">{resultModal.won ? '🏆' : resultModal.draw ? '🤝' : '😞'}</p>
-              <p className={`text-2xl font-black ${resultModal.won ? 'text-[#00ff41]' : resultModal.draw ? 'text-white' : 'text-red-400'}`}>
-                {resultModal.won ? 'Victory!' : resultModal.draw ? 'Draw' : 'Defeat'}
-              </p>
-            </div>
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-5">
-                <div className="text-center">
-                  <p className="text-[10px] text-neutral-500 font-black">{resultModal.myTeam?.name}</p>
-                  <p className="text-4xl font-black mt-1">{resultModal.myScore}</p>
-                </div>
-                <span className="text-neutral-600 font-black text-xl">–</span>
-                <div className="text-center">
-                  <p className="text-[10px] text-neutral-500 font-black">{resultModal.oppTeam?.name}</p>
-                  <p className="text-4xl font-black mt-1">{resultModal.oppScore}</p>
-                </div>
-              </div>
-              <div className="mb-5 bg-neutral-900/50 border border-white/5 rounded-2xl p-4">
-                {(() => {
-                  const dynRank = getRankData(animMMR);
-                  return (
-                    <>
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <img src={dynRank.icon} className="h-10 w-auto object-contain" />
-                          <div>
-                            <p className="text-[10px] font-black text-neutral-500 uppercase">{dynRank.label}</p>
-                            <p className="text-xl font-black leading-none">{Math.floor(animMMR)} <span className="text-[10px] text-neutral-500 font-bold">MMR</span></p>
-                          </div>
-                        </div>
-                        <p className={`text-xl font-black ${resultModal.mmrDelta > 0 ? 'text-[#00ff41]' : resultModal.mmrDelta < 0 ? 'text-red-400' : 'text-neutral-500'}`}>
-                          {resultModal.mmrDelta > 0 ? `+${resultModal.mmrDelta}` : resultModal.mmrDelta}
-                        </p>
-                      </div>
-                      <div className="h-3 bg-neutral-800 rounded-full overflow-hidden border border-white/5">
-                        <div className={`h-full rounded-full ${resultModal.mmrDelta > 0 ? 'bg-[#00ff41] shadow-[0_0_12px_rgba(0,255,65,0.5)]' : resultModal.mmrDelta < 0 ? 'bg-red-500' : 'bg-neutral-500'}`}
-                          style={{ width: `${animWidth}%`, transition: 'width 40ms linear' }} />
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-              <button onClick={() => {
-                fetch(`/api/interact/match/${resultModal.match.id}`, {
-                  method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ action: 'mark_result_seen' })
-                });
-                setResultModal(null); setMasterTab('history');
-              }} className="w-full py-3 bg-neutral-800 hover:bg-neutral-700 font-black text-sm rounded-xl transition-all">
-                View in History →
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
+
 
 // ── Small team avatar component ───────────────────────────────────────────────
 function TeamAvatar({ team, accent, flip }: { team: any; accent: 'green' | 'purple'; flip?: boolean }) {

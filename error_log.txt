@@ -1,0 +1,68 @@
+2026-04-29T15:57:26.258Z PrismaClientValidationError: 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["default"].cricketDelivery.create()` invocation in
+C:\BMT-V2\.next\dev\server\chunks\[root-of-the-server]__0o9pl2y._.js:301:178
+
+  298 // UPDATE: User requested to remove bowling confirmation. All deliveries auto-confirm.
+  299 const finalStatus = 'CONFIRMED';
+  300 // 1. Create Delivery
+→ 301 const delivery = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["default"].cricketDelivery.create({
+        data: {
+          inningsId: "cmojwf7hu000004ju2xy50da8",
+          matchId: "cmoa3crbp000604l8hll3swdc",
+          overId: "cmojyncpa0009pshwbd1kh8vb",
+          overNumber: 2,
+          ballNumber: 4,
+          deliverySequence: 14,
+          bowlerId: "test-player-24",
+          strikerId: null,
+          nonStrikerId: "cmnycrhsr0004vwhwdla4qia4",
+          deliveryType: "LEGAL",
+          runs: 0,
+          strikerRuns: 0,
+          nonStrikerRuns: 0,
+          isWicket: false,
+          dismissalType: undefined,
+          dismissedPlayerId: undefined,
+          fielderId: undefined,
+          bowlerCredited: true,
+          isBye: false,
+          isLegBye: false,
+          isFreeHit: false,
+          status: "CONFIRMED",
+          submittedByPlayerId: "cmnw1gsmq000gichw4dq4d0y7",
+          confirmedByPlayerId: "cmnw1gsmq000gichw4dq4d0y7",
+      +   innings: {
+      +     create: CricketInningsCreateWithoutDeliveriesInput | CricketInningsUncheckedCreateWithoutDeliveriesInput,
+      +     connectOrCreate: CricketInningsCreateOrConnectWithoutDeliveriesInput,
+      +     connect: CricketInningsWhereUniqueInput
+      +   }
+        }
+      })
+
+Argument `innings` is missing.
+    at ar (C:\BMT-V2\node_modules\@prisma\client\runtime\client.js:10:1374)
+    at Gr.handleRequestError (C:\BMT-V2\node_modules\@prisma\client\runtime\client.js:65:7929)
+    at Gr.handleAndLogRequestError (C:\BMT-V2\node_modules\@prisma\client\runtime\client.js:65:7581)
+    at Gr.request (C:\BMT-V2\node_modules\@prisma\client\runtime\client.js:65:7288)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async a (C:\BMT-V2\node_modules\@prisma\client\runtime\client.js:75:6730)
+    at async POST (C:\BMT-V2\.next\dev\server\chunks\[root-of-the-server]__0o9pl2y._.js:301:26)
+    at async AppRouteRouteModule.do (C:\BMT-V2\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:40115)
+    at async AppRouteRouteModule.handle (C:\BMT-V2\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:47321)
+    at async responseGenerator (C:\BMT-V2\.next\dev\server\chunks\node_modules_next_0237yh0._.js:16466:38)
+    at async AppRouteRouteModule.handleResponse (C:\BMT-V2\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:1:227216)
+    at async handleResponse (C:\BMT-V2\.next\dev\server\chunks\node_modules_next_0237yh0._.js:16529:32)
+    at async Module.handler (C:\BMT-V2\.next\dev\server\chunks\node_modules_next_0237yh0._.js:16583:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\BMT-V2\node_modules\next\dist\server\base-server.js:1454:9)
+    at async DevServer.renderPageComponent (C:\BMT-V2\node_modules\next\dist\server\base-server.js:1506:24)
+    at async DevServer.renderToResponseImpl (C:\BMT-V2\node_modules\next\dist\server\base-server.js:1556:32)
+    at async DevServer.pipeImpl (C:\BMT-V2\node_modules\next\dist\server\base-server.js:1043:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\BMT-V2\node_modules\next\dist\server\next-server.js:338:17)
+    at async DevServer.handleRequestImpl (C:\BMT-V2\node_modules\next\dist\server\base-server.js:934:17)
+    at async C:\BMT-V2\node_modules\next\dist\server\dev\next-dev-server.js:394:20
+    at async Span.traceAsyncFn (C:\BMT-V2\node_modules\next\dist\trace\trace.js:164:20)
+    at async DevServer.handleRequest (C:\BMT-V2\node_modules\next\dist\server\dev\next-dev-server.js:390:24)
+    at async invokeRender (C:\BMT-V2\node_modules\next\dist\server\lib\router-server.js:266:21)
+    at async handleRequest (C:\BMT-V2\node_modules\next\dist\server\lib\router-server.js:465:24)
+    at async requestHandlerImpl (C:\BMT-V2\node_modules\next\dist\server\lib\router-server.js:514:13)
+    at async Server.requestListener (C:\BMT-V2\node_modules\next\dist\server\lib\start-server.js:225:13)\n

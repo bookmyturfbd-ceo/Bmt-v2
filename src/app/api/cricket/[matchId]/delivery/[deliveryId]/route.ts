@@ -86,9 +86,17 @@ export async function PATCH(
     return NextResponse.json({ delivery: updated });
   }
 
-  // ── Deny dispute: batting team denies → stays CONFIRMED ───────────────────
-  if (action === 'deny_dispute') {
+  // ── Propose deny dispute: batting team proposes to drop ────────────────────
+  if (action === 'propose_deny_dispute') {
     if (!isBattingMember) return NextResponse.json({ error: 'Only batting team can deny disputes' }, { status: 403 });
+    if (delivery.status !== 'CONFLICTED') return NextResponse.json({ error: 'No active dispute' }, { status: 400 });
+    await broadcastMatchEvent(matchId, 'DISPUTE_DENIAL_PROPOSED', { deliveryId, inningsId: innings.id });
+    return NextResponse.json({ ok: true });
+  }
+
+  // ── Deny dispute: bowling team agrees to drop dispute → stays CONFIRMED ────
+  if (action === 'deny_dispute') {
+    if (!isBowlingMember) return NextResponse.json({ error: 'Only bowling team can agree to drop dispute' }, { status: 403 });
     if (delivery.status !== 'CONFLICTED') return NextResponse.json({ error: 'No active dispute' }, { status: 400 });
     const updated = await prisma.cricketDelivery.update({
       where: { id: deliveryId },

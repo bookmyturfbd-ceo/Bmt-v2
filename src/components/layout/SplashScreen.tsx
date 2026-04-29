@@ -1,16 +1,33 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useMatchResult } from '@/context/MatchResultContext';
 
 export default function SplashScreen() {
   const [show, setShow] = useState(true);
   const [fade, setFade] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const { showMatchResult } = useMatchResult();
+
+  // After splash completes (or is skipped), check for any unseen match results
+  const checkPendingResult = async () => {
+    try {
+      const res = await fetch('/api/interact/pending-result');
+      const data = await res.json();
+      if (data.result) {
+        showMatchResult(data.result);
+      }
+    } catch {
+      // silent fail — not critical
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
     const hasPlayed = sessionStorage.getItem('bmt_splash_played');
     if (hasPlayed) {
       setShow(false);
+      // Still check for pending result even if splash was skipped
+      checkPendingResult();
       return;
     }
 
@@ -19,17 +36,18 @@ export default function SplashScreen() {
       setFade(true);
     }, 800);
 
-    // Remove from DOM at 1200ms
+    // Remove from DOM at 1200ms, then check for pending result
     const removeTimer = setTimeout(() => {
       setShow(false);
       sessionStorage.setItem('bmt_splash_played', 'true');
+      checkPendingResult();
     }, 1200);
 
     return () => {
       clearTimeout(fadeTimer);
       clearTimeout(removeTimer);
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Prevent hydration mismatch (don't render on server)
   if (!mounted || !show) return null;

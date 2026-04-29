@@ -1,8 +1,8 @@
 /**
  * BMT MMR Calculator v2
  *
- * TEAM  : Win +80 / Loss -40 / Draw 0
- * PLAYER: Win +70 / Loss -40 / Draw 0 (base, applied at signoff)
+ * TEAM  : Win +80 / Loss -40 / Draw +40 (50/50 split: 80÷2)
+ * PLAYER: Win +70 / Loss -40 / Draw +35 (50/50 split: 70÷2)
  * BADGE : MVP +20 / any other badge +10 (applied after OMC distributes badges)
  */
 
@@ -14,11 +14,11 @@ export type SportType = 'FUTSAL_5' | 'FUTSAL_6' | 'FUTSAL_7' | 'CRICKET_7' | 'FO
 
 export const TEAM_WIN_MMR   =  80;
 export const TEAM_LOSS_MMR  = -40;
-export const TEAM_DRAW_MMR  =   0;
+export const TEAM_DRAW_MMR  =  40;  // 50/50 split of Win: 80÷2
 
 export const PLAYER_WIN_BASE  =  70;
 export const PLAYER_LOSS_BASE = -40;
-export const PLAYER_DRAW_BASE =   0;
+export const PLAYER_DRAW_BASE =  35;  // 50/50 split of Win: 70÷2
 
 // ─── Team MMR ─────────────────────────────────────────────────────────────────
 

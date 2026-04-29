@@ -8,6 +8,8 @@ import BottomNav from '@/components/layout/BottomNav';
 import CartDrawer from '@/components/shop/CartDrawer';
 import NextTopLoader from 'nextjs-toploader';
 import SplashScreen from '@/components/layout/SplashScreen';
+import { MatchResultProvider } from '@/context/MatchResultContext';
+import MatchResultModal from '@/components/match/MatchResultModal';
 import '../globals.css';
 
 export default async function LocaleLayout({
@@ -33,11 +35,14 @@ export default async function LocaleLayout({
         <SplashScreen />
         <ThemeProvider>
           <NextIntlClientProvider messages={messages}>
-            <main className="flex-1 flex flex-col relative pb-16">
-              {children}
-              <BottomNav />
-              <CartDrawer />
-            </main>
+            <MatchResultProvider>
+              <MatchResultModal />
+              <main className="flex-1 flex flex-col relative pb-16">
+                {children}
+                <BottomNav />
+                <CartDrawer />
+              </main>
+            </MatchResultProvider>
           </NextIntlClientProvider>
         </ThemeProvider>
       </body>
