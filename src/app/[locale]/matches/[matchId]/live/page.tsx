@@ -298,6 +298,9 @@ export default function LiveScoringPage() {
   const [timerSecs, setTimerSecs]       = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
   const timerRef = useRef<any>(null);
+  const stateRef = useRef<any>(null);
+
+  useEffect(() => { stateRef.current = state; }, [state]);
 
   const [activeTab, setActiveTab]     = useState<'timeline' | 'disputes'>('timeline');
   const [sheetType, setSheetType]     = useState<SheetType>(null);
@@ -406,10 +409,11 @@ export default function LiveScoringPage() {
       if (event === 'BOTH_SIGNED_OFF') { setMatchResult(data); }
       if (event === 'SIGN_OFF' || event === 'STATE_REQ_RELOAD') { loadState(); }
 
-      // ── Score After Match realtime events ─────────────────────────────────
       if (event === 'SCORE_MODE_REQUEST') {
-        // Show accept/reject modal to the opponent
-        setScoreModeRequest({ mode: data.mode, fromTeamId: data.fromTeamId });
+        // Show accept/reject modal only to the opponent
+        if (data.fromTeamId !== stateRef.current?.myTeamId) {
+          setScoreModeRequest({ mode: data.mode, fromTeamId: data.fromTeamId });
+        }
       }
       if (event === 'SCORE_MODE_AGREED') {
         setScoringMode(data.mode);
