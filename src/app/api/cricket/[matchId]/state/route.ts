@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { broadcastMatchEvent } from '@/lib/supabaseRealtime';
 
 function pid(req: NextRequest) { return req.cookies.get('bmt_player_id')?.value ?? null; }
 
@@ -78,6 +79,12 @@ export async function GET(
         innings2Runs: i2?.totalRuns ?? 0,
         target: i1 ? i1.totalRuns + 1 : null,
       };
+    }
+
+    // Broadcast that this player has joined/refreshed (enables instant match-start sync)
+    // Only broadcast for LIVE matches to avoid noise
+    if ((match as any).status === 'LIVE') {
+      broadcastMatchEvent(matchId, 'MATCH_JOINED', { teamId: myTeamId }).catch(() => {});
     }
 
     return NextResponse.json({

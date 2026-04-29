@@ -236,23 +236,26 @@ function ScorecardHeader({ innings, match, agreedOvers, myTeamId, onSwap, allInn
 }
 
 // ─── Toss Screen ──────────────────────────────────────────────────────────────
-function TossView({ match, myTeamId, isOMC, onAction, toss, msg }: any) {
+function TossView({ match, myTeamId, isOMC, onAction, toss, msg, liveToss }: any) {
   const [callChoice, setCallChoice] = useState<'HEADS' | 'TAILS' | ''>('');
   const [winner, setWinner]         = useState('');
   const [elected, setElected]       = useState<'BAT' | 'BOWL' | ''>('');
   const [loading, setLoading]       = useState(false);
   const [isFlipping, setIsFlipping] = useState(false);
-  
-  const isSkipped = toss?.coinLandedOn === 'SKIPPED';
-  const [showResult, setShowResult] = useState(!!toss?.coinLandedOn && !isSkipped);
+
+  // Use liveToss (from WS event) OR the toss from state — liveToss wins for instant animation
+  const effectiveToss = liveToss ?? toss;
+  const isSkipped = effectiveToss?.coinLandedOn === 'SKIPPED';
+  const [showResult, setShowResult] = useState(!!effectiveToss?.coinLandedOn && !isSkipped);
 
   const teamA = match.teamA, teamB = match.teamB;
   const isVisiting = myTeamId === match.teamB_Id;
   const isHome = myTeamId === match.teamA_Id;
-  const iWonToss = toss?.winnerTeamId === myTeamId;
+  const iWonToss = effectiveToss?.winnerTeamId === myTeamId;
 
+  // Trigger coin animation when liveToss arrives (WS-driven — fires on BOTH screens)
   useEffect(() => {
-    if (toss?.coinLandedOn && toss.coinLandedOn !== 'SKIPPED' && !showResult && !isFlipping) {
+    if (effectiveToss?.coinLandedOn && effectiveToss.coinLandedOn !== 'SKIPPED' && !showResult && !isFlipping) {
       setIsFlipping(true);
       setTimeout(() => {
         setIsFlipping(false);
@@ -260,22 +263,22 @@ function TossView({ match, myTeamId, isOMC, onAction, toss, msg }: any) {
         if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([50, 50, 50]);
       }, 3000);
     }
-  }, [toss?.coinLandedOn]);
+  }, [effectiveToss?.coinLandedOn]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const oppProposedSkip = toss?.tossCall === (isHome ? 'SKIP_PROPOSED_B' : 'SKIP_PROPOSED_A');
-  const iProposedSkip = toss?.tossCall === (isHome ? 'SKIP_PROPOSED_A' : 'SKIP_PROPOSED_B');
+  const oppProposedSkip = effectiveToss?.tossCall === (isHome ? 'SKIP_PROPOSED_B' : 'SKIP_PROPOSED_A');
+  const iProposedSkip = effectiveToss?.tossCall === (isHome ? 'SKIP_PROPOSED_A' : 'SKIP_PROPOSED_B');
 
   // Manual Toss Block
   if (isSkipped) {
-    const myConfirmed = isHome ? toss.confirmedByA : toss.confirmedByB;
-    const canConfirm = isOMC && !myConfirmed && !toss.confirmedAt;
+    const myConfirmed = isHome ? effectiveToss.confirmedByA : effectiveToss.confirmedByB;
+    const canConfirm = isOMC && !myConfirmed && !effectiveToss.confirmedAt;
 
     return (
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 gap-6 animate-in zoom-in duration-300">
         <div className="text-5xl">🤝</div>
         <h2 className="text-2xl font-black text-white text-center">Manual Toss</h2>
         
-        {!toss.winnerTeamId && isOMC && (
+        {!effectiveToss.winnerTeamId && isOMC && (
           <div className="w-full flex flex-col gap-4">
             <p className="text-xs text-neutral-500 text-center font-bold uppercase tracking-wider">Who won the real-world toss?</p>
             <div className="flex gap-3">
@@ -313,15 +316,15 @@ function TossView({ match, myTeamId, isOMC, onAction, toss, msg }: any) {
           </div>
         )}
 
-        {toss.winnerTeamId && !toss.confirmedAt && (
+        {effectiveToss.winnerTeamId && !effectiveToss.confirmedAt && (
           <div className="w-full flex flex-col gap-4">
             <div className="p-4 rounded-2xl bg-[#3b82f6]/10 border border-[#3b82f6]/30 text-center">
               <p className="text-xs text-neutral-500 mb-1 uppercase tracking-widest font-bold">Manual Result</p>
               <p className="text-lg font-black text-white">
-                {[teamA, teamB].find((t: any) => t.id === toss.winnerTeamId)?.name} won the toss
+                {[teamA, teamB].find((t: any) => t.id === effectiveToss.winnerTeamId)?.name} won the toss
               </p>
               <p className="text-sm font-bold text-[#3b82f6] mt-1">
-                Elected to {toss.electedTo === 'BAT' ? 'BAT' : 'BOWL'}
+                Elected to {effectiveToss.electedTo === 'BAT' ? 'BAT' : 'BOWL'}
               </p>
             </div>
             {canConfirm && (
@@ -338,7 +341,7 @@ function TossView({ match, myTeamId, isOMC, onAction, toss, msg }: any) {
           </div>
         )}
 
-        {toss?.confirmedAt && (
+        {effectiveToss?.confirmedAt && (
           <div className="text-center">
             <p className="text-[#00ff41] font-black text-lg">✓ Toss Confirmed!</p>
             <p className="text-neutral-500 text-sm mt-1">Setting up innings…</p>
@@ -379,7 +382,7 @@ function TossView({ match, myTeamId, isOMC, onAction, toss, msg }: any) {
 
       {/* Synchronous 3D Coin Asset */}
       <div className="coin-container my-4">
-        <div className={`coin ${isFlipping ? 'animating ' + (toss?.coinLandedOn === 'HEADS' ? 'flipping-heads' : 'flipping-tails') : (showResult && toss?.coinLandedOn === 'TAILS' ? 'landed-tails' : '')}`}>
+        <div className={`coin ${isFlipping ? 'animating ' + (effectiveToss?.coinLandedOn === 'HEADS' ? 'flipping-heads' : 'flipping-tails') : (showResult && effectiveToss?.coinLandedOn === 'TAILS' ? 'landed-tails' : '')}`}>
           <div className="coin-face coin-heads">
             <span className="text-3xl">BMT</span>
             <span className="text-[10px] tracking-widest mt-1">HEADS</span>
@@ -391,7 +394,7 @@ function TossView({ match, myTeamId, isOMC, onAction, toss, msg }: any) {
         </div>
       </div>
 
-      {!toss?.coinLandedOn && (
+      {!effectiveToss?.coinLandedOn && (
         <div className="w-full flex flex-col gap-4">
           <p className="text-xs text-neutral-500 text-center font-bold uppercase tracking-wider">
             {isVisiting ? 'Visiting Captain: Call the toss' : 'Waiting for visiting captain to call...'}
@@ -438,12 +441,12 @@ function TossView({ match, myTeamId, isOMC, onAction, toss, msg }: any) {
 
       {isFlipping && <p className="text-sm font-black text-amber-400 animate-pulse text-center">Flipping...</p>}
 
-      {showResult && !toss?.confirmedAt && (
+      {showResult && !effectiveToss?.confirmedAt && (
         <div className="w-full flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="p-4 rounded-2xl bg-[#00ff41]/10 border border-[#00ff41]/30 text-center">
             <p className="text-[10px] text-neutral-500 mb-1 uppercase tracking-widest font-bold">Toss Winner</p>
             <p className="text-xl font-black text-white">
-              {[teamA, teamB].find((t: any) => t.id === toss.winnerTeamId)?.name}
+              {[teamA, teamB].find((t: any) => t.id === effectiveToss.winnerTeamId)?.name}
             </p>
           </div>
 
@@ -472,10 +475,10 @@ function TossView({ match, myTeamId, isOMC, onAction, toss, msg }: any) {
         </div>
       )}
 
-      {toss?.confirmedAt && showResult && (
+      {effectiveToss?.confirmedAt && showResult && (
         <div className="text-center animate-in zoom-in duration-500">
           <p className="text-[#00ff41] font-black text-lg mb-1">
-            {[teamA, teamB].find((t: any) => t.id === toss.winnerTeamId)?.name} elected to {toss.electedTo === 'BAT' ? 'bat' : 'bowl'}!
+            {[teamA, teamB].find((t: any) => t.id === effectiveToss.winnerTeamId)?.name} elected to {effectiveToss.electedTo === 'BAT' ? 'bat' : 'bowl'}!
           </p>
           <p className="text-neutral-500 text-xs">Setting up innings…</p>
         </div>
@@ -486,66 +489,63 @@ function TossView({ match, myTeamId, isOMC, onAction, toss, msg }: any) {
   );
 }
 
-// ─── Overs Agreement View ───────────────────────────────────────────────────────
+// ─── Overs Agreement View ───────────────────────────────────────────────────────────
 function OversAgreementView({ match, toss, isOMC, isTeamA, onAction, msg }: any) {
   const [overs, setOvers] = useState<number | ''>('');
   const [loading, setLoading] = useState(false);
 
-  const myProposed = isTeamA ? toss?.proposedOversA : toss?.proposedOversB;
+  const myProposed  = isTeamA ? toss?.proposedOversA : toss?.proposedOversB;
   const oppProposed = isTeamA ? toss?.proposedOversB : toss?.proposedOversA;
 
+  // Auto-fill input with opponent's number so captain can Accept immediately
+  useEffect(() => {
+    if (oppProposed && !overs) setOvers(oppProposed);
+  }, [oppProposed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isMatch = overs && oppProposed && Number(overs) === oppProposed;
+
+  const handlePropose = async () => {
+    if (!overs) return;
+    setLoading(true);
+    try { await onAction('propose_overs', { overs: Number(overs) }); } finally { setLoading(false); }
+  };
+
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 gap-6">
+    <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 gap-5">
       <div className="text-5xl">⏱️</div>
       <h2 className="text-2xl font-black text-white text-center">Match Length</h2>
-      
       <p className="text-sm text-neutral-400 text-center max-w-xs">
-        How many overs will this match be? Enter the agreed number below.
+        Both captains agree on the number of overs.
       </p>
 
+      {/* Opponent proposal banner */}
       {oppProposed && (
-        <div className="w-full p-4 rounded-2xl bg-[#00ff41]/10 border border-[#00ff41]/30">
-          <p className="text-xs text-neutral-400 uppercase tracking-widest font-bold mb-1">Opponent Proposed</p>
-          <div className="flex items-center justify-between">
-            <span className="text-2xl font-black text-[#00ff41]">{oppProposed} Overs</span>
-            {isOMC && (
-              <button
-                disabled={loading}
-                onClick={async () => {
-                  setLoading(true);
-                  try {
-                    await onAction('accept_overs', {});
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                className="px-4 py-2 rounded-xl bg-[#00ff41] text-black font-black text-xs disabled:opacity-40"
-              >
-                ✓ Accept
-              </button>
-            )}
-          </div>
+        <div className="w-full p-4 rounded-2xl bg-[#00ff41]/10 border border-[#00ff41]/30 text-center animate-in zoom-in duration-300">
+          <p className="text-[10px] text-neutral-400 uppercase tracking-widest font-bold mb-1">Opponent Proposed</p>
+          <p className="text-4xl font-black text-[#00ff41]">{oppProposed}</p>
+          <p className="text-xs text-neutral-400 mt-1">overs</p>
         </div>
       )}
 
       {isOMC && (
         <div className="w-full flex flex-col gap-3">
-          <input 
-            type="number" min={1} max={50} value={overs} onChange={e => setOvers(parseInt(e.target.value) || '')}
-            placeholder="Enter overs (e.g. 20)"
-            className="w-full bg-neutral-900 border border-white/10 rounded-2xl px-4 py-4 text-center text-lg font-black text-white"
-          />
+          <div className="relative">
+            <input
+              type="number" min={1} max={50} value={overs}
+              onChange={e => setOvers(parseInt(e.target.value) || '')}
+              placeholder={oppProposed ? `Enter ${oppProposed} to accept` : 'Enter overs (e.g. 7)'}
+              className="w-full bg-neutral-900 border border-white/10 rounded-2xl px-4 py-4 text-center text-3xl font-black text-white focus:border-[#3b82f6]/60 focus:outline-none transition-colors"
+            />
+          </div>
+
           <button
             disabled={!overs || loading}
-            onClick={async () => {
-              setLoading(true);
-              try {
-                await onAction('propose_overs', { overs: Number(overs) });
-              } finally {
-                setLoading(false);
-              }
-            }}
-            className="w-full py-4 rounded-2xl bg-[#3b82f6] text-white font-black text-sm disabled:opacity-40"
+            onClick={handlePropose}
+            className={`w-full py-4 rounded-2xl font-black text-sm disabled:opacity-40 transition-all ${
+              isMatch
+                ? 'bg-[#00ff41] text-black shadow-[0_0_20px_rgba(0,255,65,0.3)]'
+                : 'bg-[#3b82f6] text-white'
+            }`}
           >
             {loading ? <Loader2 size={16} className="animate-spin mx-auto" /> : myProposed ? 'Update Proposal' : 'Propose Overs'}
           </button>
@@ -1734,6 +1734,8 @@ export default function CricketScoringPage() {
   const [showLog, setShowLog]                 = useState(false);
   const [showDisputesModal, setShowDisputesModal] = useState(false);
   const [matchProposal, setMatchProposal]     = useState<{ type: 'pause' | 'cancel' | 'dispute_denial' | 'super_over'; fromTeamId?: string; deliveryId?: string } | null>(null);
+  // liveToss: set directly from COIN_FLIPPED WS event so both screens animate simultaneously
+  const [liveToss, setLiveToss]               = useState<any>(null);
 
   const loadState = useCallback(async () => {
     try {
@@ -1813,21 +1815,29 @@ export default function CricketScoringPage() {
   useEffect(() => {
     if (!matchId) return;
     const ch = subscribeToMatchChannel(matchId, ({ event, data }) => {
-      // These events trigger a full state reload (but NOT OVER_COMPLETE — it has its own handler)
+      // Full state reload events
       if (['DELIVERY_SUBMITTED', 'DELIVERY_CONFIRMED', 'DELIVERY_CONFLICTED', 'DELIVERY_ACKNOWLEDGED',
            'WICKET_FALLEN',
            'INNINGS_STARTED', 'INNINGS_COMPLETE', 'INNINGS_SIGNED_OFF', 'INNINGS_SIGNOFF_PARTIAL',
            'MATCH_SIGNOFF_PARTIAL',
-           'TOSS_RECORDED', 'TOSS_CONFIRMED', 'OVERS_PROPOSED', 'OVERS_AGREED', 'COIN_FLIPPED', 
+           'TOSS_RECORDED', 'TOSS_CONFIRMED', 'OVERS_PROPOSED', 'OVERS_AGREED', 'COIN_FLIPPED',
            'BATTING_ORDER_SUBMITTED', 'OPENING_BOWLER_SELECTED', 'NEXT_OVER_STARTED',
            'STRIKERS_SWAPPED', 'OVER_CONFIRM_PARTIAL', 'OVER_CONFIRMED',
-           'DISPUTE_RESOLVED', 'DISPUTE_DENIED'].includes(event)) {
+           'DISPUTE_RESOLVED', 'DISPUTE_DENIED',
+           'TOSS_SKIP_PROPOSED', 'TOSS_SKIP_ACCEPTED',
+           'MATCH_JOINED'].includes(event)) {
         loadState();
       }
+
+      // Instant coin animation on both screens — don't wait for loadState()
+      if (event === 'COIN_FLIPPED' && data.toss) {
+        setLiveToss(data.toss);
+      }
+
       if (event === 'DELIVERY_SUBMITTED') setPendingDelivery(data.delivery);
       if (event === 'DELIVERY_CONFIRMED') setPendingDelivery(null);
 
-      // Over complete: loadState will detect overJustCompleted and set OVER_COMPLETE view for both teams
+      // Over complete
       if (event === 'OVER_COMPLETE') {
         setPendingDelivery(null);
         loadState();
@@ -2100,6 +2110,7 @@ export default function CricketScoringPage() {
             myTeamId={myTeamId}
             isOMC={isOMC}
             toss={match.cricketToss}
+            liveToss={liveToss}
             onAction={handleTossAction}
             msg={msg}
           />
