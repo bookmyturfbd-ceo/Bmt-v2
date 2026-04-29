@@ -1345,7 +1345,7 @@ export default function InteractionBoardPage() {
 
       {/* Chat Overlay — full screen, input above bottom nav */}
       {chatOpen && (
-        <div className="fixed inset-0 z-[150] flex flex-col bg-[#0d0d0d]">
+        <div className="fixed inset-0 z-[9000] flex flex-col bg-[#0d0d0d]">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0 bg-[#0d0d0d]">
             <div className="flex items-center gap-2">
@@ -1383,7 +1383,7 @@ export default function InteractionBoardPage() {
 
           {/* Input — pinned above bottom nav (64px) */}
           {isOMC ? (
-            <div className="shrink-0 flex gap-2 px-4 py-3 border-t border-white/10 bg-[#0d0d0d]" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 64px))' }}>
+            <div className="shrink-0 flex gap-2 px-4 pb-5 pt-3 border-t border-white/10 bg-[#0d0d0d]">
               <input
                 value={chatMsg}
                 onChange={e => setChatMsg(e.target.value)}
@@ -1401,7 +1401,7 @@ export default function InteractionBoardPage() {
               </button>
             </div>
           ) : (
-            <div className="shrink-0 px-4 py-3 text-center text-[10px] text-neutral-500 font-bold border-t border-white/5" style={{ paddingBottom: 'calc(0.75rem + 64px)' }}>Only OMC can chat</div>
+            <div className="shrink-0 px-4 pb-5 pt-3 text-center text-[10px] text-neutral-500 font-bold border-t border-white/5">Only OMC can chat</div>
           )}
         </div>
       )}
