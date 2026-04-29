@@ -903,7 +903,8 @@ model Match {
   matchDate         String?   // "YYYY-MM-DD"
 
   // Interaction Board — Venue Type (BMT vs Open WBT)
-  venueType         VenueType?
+  venueType           VenueType?
+  venueConfirmedByB   Boolean   @default(false) // Team B accepted the venue type
   // Open WBT specific fields
   wbtTurfId         String?   // WbtTurf.id
   wbtTurfName       String?   // cached name for display

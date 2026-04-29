@@ -736,10 +736,12 @@ export default function InteractionBoardPage() {
         </div>
       )}
 
-      {/* ── STEP 2: VENUE TYPE BENTO ── */}
+      {/* ── STEP 2: VENUE TYPE SELECTION ── */}
       {currentStep === 2 && (
         <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-20">
-          {isTeamA && isOMC && !match.venueType ? (
+
+          {/* Team A (challenger) — proposes venue type, not yet set */}
+          {isTeamA && isOMC && !match.venueType && (
             <div className="mt-6">
               <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-1">Both rosters locked!</p>
               <p className="text-sm font-bold text-white mb-5">How will you book the turf?</p>
@@ -750,7 +752,7 @@ export default function InteractionBoardPage() {
                     setSaving(true); setMsg('');
                     const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'set_venue_type', venueType:'BMT'}) });
                     const d = await r.json();
-                    if (r.ok) { setVenueTypeLocal('BMT'); setCurrentStep(3); }
+                    if (r.ok) { setVenueTypeLocal('BMT'); loadMatch(); }
                     else setMsg('❌ ' + d.error);
                     setSaving(false);
                   }}
@@ -769,7 +771,7 @@ export default function InteractionBoardPage() {
                     setSaving(true); setMsg('');
                     const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'set_venue_type', venueType:'OPEN_WBT'}) });
                     const d = await r.json();
-                    if (r.ok) { setVenueTypeLocal('OPEN_WBT'); setCurrentStep(3); }
+                    if (r.ok) { setVenueTypeLocal('OPEN_WBT'); loadMatch(); }
                     else setMsg('❌ ' + d.error);
                     setSaving(false);
                   }}
@@ -784,30 +786,122 @@ export default function InteractionBoardPage() {
                 </button>
               </div>
             </div>
-          ) : isTeamA && match.venueType ? (
+          )}
+
+          {/* Team A — proposed, waiting for opponent to accept */}
+          {isTeamA && match.venueType && !match.venueConfirmedByB && (
             <div className="mt-8 text-center">
-              <div className="text-4xl mb-3">{match.venueType === 'BMT' ? '🏟️' : '📋'}</div>
-              <p className="font-black text-white">{match.venueType === 'BMT' ? 'Book Turf via BMT' : 'Open WBT'} selected</p>
-              <p className="text-xs text-neutral-500 mt-1">Advancing to booking step…</p>
-              <button onClick={() => setCurrentStep(3)} className="mt-4 px-5 py-2 bg-fuchsia-600 text-white font-black rounded-xl text-sm">Continue →</button>
-            </div>
-          ) : (
-            <div className="mt-12 text-center text-neutral-500">
-              <Clock size={36} className="mx-auto mb-3 opacity-20" />
-              {match.venueType ? (
-                <>
-                  <p className="font-bold text-sm">{isTeamA ? match.teamA?.name : match.teamB?.name} chose {match.venueType === 'BMT' ? '🏟️ BMT Booking' : '📋 Open WBT'}</p>
-                  <p className="text-xs mt-1">Advancing to booking step…</p>
-                  <button onClick={() => setCurrentStep(3)} className="mt-4 px-5 py-2 bg-fuchsia-600 text-white font-black rounded-xl text-sm">Go to Booking →</button>
-                </>
-              ) : (
-                <>
-                  <p className="font-bold text-sm">Waiting for {match.teamA?.name}</p>
-                  <p className="text-xs mt-1">to choose how to book the turf…</p>
-                </>
+              <div className="text-5xl mb-3">{match.venueType === 'BMT' ? '🏟️' : '📋'}</div>
+              <p className="font-black text-white">{match.venueType === 'BMT' ? 'Book via BMT' : 'We&apos;ll Book Ourselves'} proposed</p>
+              <p className="text-xs text-neutral-500 mt-1">Waiting for {opponent?.name} to accept…</p>
+              <div className="flex gap-1 justify-center mt-3">
+                {[1,2,3].map(i => <div key={i} className="w-2 h-2 rounded-full bg-fuchsia-500 animate-bounce" style={{animationDelay:`${i*0.15}s`}} />)}
+              </div>
+              {/* Allow Team A to change their mind */}
+              {isOMC && (
+                <button
+                  onClick={async () => {
+                    setSaving(true);
+                    await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'clear_venue_type'}) });
+                    setVenueTypeLocal(null); loadMatch(); setSaving(false);
+                  }}
+                  disabled={saving}
+                  className="mt-4 text-xs text-neutral-600 hover:text-red-400 transition-colors"
+                >
+                  ↩ Change selection
+                </button>
               )}
             </div>
           )}
+
+          {/* Team A — both confirmed, advance */}
+          {isTeamA && match.venueType && match.venueConfirmedByB && (
+            <div className="mt-8 text-center">
+              <div className="text-4xl mb-3">{match.venueType === 'BMT' ? '🏟️' : '📋'}</div>
+              <p className="font-black text-[#00ff41]">✓ Opponent accepted!</p>
+              <p className="text-xs text-neutral-500 mt-1">Advancing to booking…</p>
+              <button onClick={() => setCurrentStep(3)} className="mt-4 px-5 py-2 bg-fuchsia-600 text-white font-black rounded-xl text-sm">Continue →</button>
+            </div>
+          )}
+
+          {/* Team B — waiting for Team A to propose */}
+          {!isTeamA && !match.venueType && (
+            <div className="mt-12 text-center text-neutral-500">
+              <Clock size={36} className="mx-auto mb-3 opacity-20" />
+              <p className="font-bold text-sm">Waiting for {match.teamA?.name}</p>
+              <p className="text-xs mt-1">to choose how to book the turf…</p>
+            </div>
+          )}
+
+          {/* Team B — accept or reject opponent's venue proposal */}
+          {!isTeamA && match.venueType && !match.venueConfirmedByB && isOMC && (
+            <div className="mt-6">
+              <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-4">Opponent's Venue Proposal</p>
+              <div className={`p-5 rounded-2xl border mb-5 ${
+                match.venueType === 'BMT'
+                  ? 'border-emerald-500/30 bg-gradient-to-br from-emerald-900/30 to-green-900/10'
+                  : 'border-amber-500/30 bg-gradient-to-br from-amber-900/30 to-orange-900/10'
+              }`}>
+                <div className="text-4xl mb-2">{match.venueType === 'BMT' ? '🏟️' : '📋'}</div>
+                <p className="font-black text-white text-lg">{match.venueType === 'BMT' ? 'Book Turf via BMT' : 'We&apos;ll Book Ourselves'}</p>
+                <p className="text-xs text-neutral-400 mt-1">
+                  {match.venueType === 'BMT'
+                    ? "Search our platform's verified turfs. Opponent picks the slot, you accept."
+                    : `Use an external turf. Match fee of ৳${wbtFee} applies (৳${wbtFee/2} each).`}
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    setSaving(true); setMsg('');
+                    const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'respond_venue_type', accept: false}) });
+                    const d = await r.json();
+                    if (!r.ok) setMsg('❌ ' + d.error);
+                    else { setMsg('Rejected — opponent can choose again'); loadMatch(); }
+                    setSaving(false);
+                  }}
+                  disabled={saving}
+                  className="flex-1 py-3.5 rounded-2xl border border-red-500/40 text-red-400 font-black text-sm hover:bg-red-500/10 transition-all disabled:opacity-50"
+                >
+                  ✕ Reject
+                </button>
+                <button
+                  onClick={async () => {
+                    setSaving(true); setMsg('');
+                    const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'respond_venue_type', accept: true}) });
+                    const d = await r.json();
+                    if (r.ok) { setCurrentStep(3); loadMatch(); }
+                    else setMsg('❌ ' + d.error);
+                    setSaving(false);
+                  }}
+                  disabled={saving}
+                  className="flex-[2] py-3.5 rounded-2xl bg-[#00ff41] text-black font-black text-sm hover:bg-[#00dd38] flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                >
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : '✓ Accept'}
+                </button>
+              </div>
+              {msg && <p className="text-xs text-amber-400 text-center font-bold mt-3">{msg}</p>}
+            </div>
+          )}
+
+          {/* Team B — waiting, not OMC */}
+          {!isTeamA && match.venueType && !match.venueConfirmedByB && !isOMC && (
+            <div className="mt-12 text-center text-neutral-500">
+              <Clock size={36} className="mx-auto mb-3 opacity-20" />
+              <p className="font-bold text-sm">Waiting for your captain to accept</p>
+              <p className="text-xs mt-1">{match.venueType === 'BMT' ? '🏟️ BMT Booking' : '📋 Open WBT'} proposed</p>
+            </div>
+          )}
+
+          {/* Team B — confirmed, advance */}
+          {!isTeamA && match.venueType && match.venueConfirmedByB && (
+            <div className="mt-8 text-center">
+              <div className="text-4xl mb-3">{match.venueType === 'BMT' ? '🏟️' : '📋'}</div>
+              <p className="font-black text-[#00ff41]">✓ Venue confirmed!</p>
+              <button onClick={() => setCurrentStep(3)} className="mt-4 px-5 py-2 bg-fuchsia-600 text-white font-black rounded-xl text-sm">Go to Booking →</button>
+            </div>
+          )}
+
         </div>
       )}
 
@@ -1249,54 +1343,66 @@ export default function InteractionBoardPage() {
         )}
       </button>
 
-      {/* Chat Overlay */}
+      {/* Chat Overlay — full screen, input above bottom nav */}
       {chatOpen && (
-        <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex flex-col justify-end" onClick={e => e.target === e.currentTarget && setChatOpen(false)}>
-          <div className="bg-[#0d0d0d] border-t border-white/10 rounded-t-3xl flex flex-col" style={{maxHeight:'70vh'}}>
-            <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 shrink-0">
-              <div className="flex items-center gap-2">
-                <Wifi size={13} className="text-[#00ff41]" />
-                <span className="text-sm font-black">Match Chat</span>
-                <span className="text-[9px] text-neutral-500">OMC only</span>
-              </div>
-              <button onClick={() => setChatOpen(false)} className="w-7 h-7 rounded-full bg-white/5 flex items-center justify-center text-neutral-400"><X size={13} /></button>
+        <div className="fixed inset-0 z-[150] flex flex-col bg-[#0d0d0d]">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0 bg-[#0d0d0d]">
+            <div className="flex items-center gap-2">
+              <Wifi size={13} className="text-[#00ff41]" />
+              <span className="text-sm font-black">Match Chat</span>
+              <span className="text-[9px] text-neutral-500">OMC only</span>
             </div>
-            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3 min-h-0">
-              {chatMessages.length === 0 && <p className="text-center text-neutral-500 text-xs italic py-8">No messages yet.</p>}
-              {chatMessages.map((m: any) => {
-                const isMe = m.teamId === myTeamId;
-                const senderTeam = isMe ? myTeam : opponent;
-                const memberEntry = senderTeam?.members?.find((mem: any) => mem.playerId === m.player?.id);
-                const senderRole = memberEntry?.role || (senderTeam?.ownerId === m.player?.id ? 'owner' : '');
-                const roleLabel = senderRole === 'owner' ? 'Owner' : senderRole === 'manager' ? 'Manager' : senderRole === 'captain' ? 'Captain' : 'OMC';
-                return (
-                  <div key={m.id} className={`flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
-                    <div className={`flex items-center gap-1.5 px-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                      <span className="text-[9px] text-neutral-500 font-bold">{m.player?.fullName}</span>
-                      <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full ${ isMe ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30' }`}>{roleLabel}</span>
-                    </div>
-                    <div className={`px-3 py-2 rounded-2xl max-w-[78%] text-sm ${ isMe ? 'bg-fuchsia-600 text-white rounded-tr-sm' : 'bg-neutral-800 border border-white/10 text-white rounded-tl-sm' }`}>{m.message}</div>
-                    <span className="text-[9px] text-neutral-600 px-1">{new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>
-                  </div>
-                );
-              })}
-              <div ref={chatBottomRef} />
-            </div>
-            {isOMC ? (
-              <div className="flex gap-2 px-4 py-3 border-t border-white/5 shrink-0">
-                <input value={chatMsg} onChange={e => setChatMsg(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && sendChat()}
-                  placeholder="Message opponent OMC…"
-                  className="flex-1 bg-neutral-900 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-neutral-600 outline-none focus:border-fuchsia-500/50" />
-                <button onClick={sendChat} disabled={chatSending || !chatMsg.trim()}
-                  className="w-10 h-10 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 flex items-center justify-center disabled:opacity-50">
-                  {chatSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                </button>
-              </div>
-            ) : (
-              <div className="px-4 py-3 text-center text-[10px] text-neutral-500 font-bold border-t border-white/5">Only OMC can chat</div>
-            )}
+            <button onClick={() => setChatOpen(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-neutral-400">
+              <X size={15} />
+            </button>
           </div>
+
+          {/* Messages — fills remaining space */}
+          <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3 min-h-0">
+            {chatMessages.length === 0 && <p className="text-center text-neutral-500 text-xs italic py-8">No messages yet.</p>}
+            {chatMessages.map((m: any) => {
+              const isMe = m.teamId === myTeamId;
+              const senderTeam = isMe ? myTeam : opponent;
+              const memberEntry = senderTeam?.members?.find((mem: any) => mem.playerId === m.player?.id);
+              const senderRole = memberEntry?.role || (senderTeam?.ownerId === m.player?.id ? 'owner' : '');
+              const roleLabel = senderRole === 'owner' ? 'Owner' : senderRole === 'manager' ? 'Manager' : senderRole === 'captain' ? 'Captain' : 'OMC';
+              return (
+                <div key={m.id} className={`flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
+                  <div className={`flex items-center gap-1.5 px-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                    <span className="text-[9px] text-neutral-500 font-bold">{m.player?.fullName}</span>
+                    <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full ${isMe ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>{roleLabel}</span>
+                  </div>
+                  <div className={`px-3 py-2 rounded-2xl max-w-[78%] text-sm ${isMe ? 'bg-fuchsia-600 text-white rounded-tr-sm' : 'bg-neutral-800 border border-white/10 text-white rounded-tl-sm'}`}>{m.message}</div>
+                  <span className="text-[9px] text-neutral-600 px-1">{new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>
+                </div>
+              );
+            })}
+            <div ref={chatBottomRef} />
+          </div>
+
+          {/* Input — pinned above bottom nav (64px) */}
+          {isOMC ? (
+            <div className="shrink-0 flex gap-2 px-4 py-3 border-t border-white/10 bg-[#0d0d0d]" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 64px))' }}>
+              <input
+                value={chatMsg}
+                onChange={e => setChatMsg(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && sendChat()}
+                placeholder="Message opponent OMC…"
+                autoFocus
+                className="flex-1 bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-neutral-600 outline-none focus:border-fuchsia-500/50"
+              />
+              <button
+                onClick={sendChat}
+                disabled={chatSending || !chatMsg.trim()}
+                className="w-11 h-11 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 flex items-center justify-center disabled:opacity-50 shrink-0"
+              >
+                {chatSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              </button>
+            </div>
+          ) : (
+            <div className="shrink-0 px-4 py-3 text-center text-[10px] text-neutral-500 font-bold border-t border-white/5" style={{ paddingBottom: 'calc(0.75rem + 64px)' }}>Only OMC can chat</div>
+          )}
         </div>
       )}
     </div>

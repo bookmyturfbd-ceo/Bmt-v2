@@ -252,10 +252,38 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (!match.rosterLockedA || !match.rosterLockedB) return NextResponse.json({ error: 'Both rosters must be locked first' }, { status: 400 });
       const { venueType } = body;
       if (!['BMT', 'OPEN_WBT'].includes(venueType)) return NextResponse.json({ error: 'Invalid venue type' }, { status: 400 });
-      await prisma.match.update({ where: { id: matchId }, data: { venueType } });
+      await prisma.match.update({ where: { id: matchId }, data: { venueType, venueConfirmedByB: false } });
       await broadcastMatchEvent(matchId, 'venue_type_set', { venueType });
       return NextResponse.json({ ok: true });
     }
+
+    // ── respond_venue_type ────────────────────────────────────────────────────
+    // Team B (challenged) accepts or rejects Team A's venue type proposal
+    if (action === 'respond_venue_type') {
+      if (!isOMC || !isTeamB) return NextResponse.json({ error: 'Only challenged OMC can respond' }, { status: 403 });
+      if (!match.venueType) return NextResponse.json({ error: 'No venue type proposed yet' }, { status: 400 });
+      const { accept } = body;
+      if (accept) {
+        await prisma.match.update({ where: { id: matchId }, data: { venueConfirmedByB: true } });
+        await broadcastMatchEvent(matchId, 'venue_type_confirmed', { venueType: match.venueType });
+      } else {
+        // Rejected — clear so Team A can re-choose
+        await prisma.match.update({ where: { id: matchId }, data: { venueType: null, venueConfirmedByB: false } });
+        await broadcastMatchEvent(matchId, 'venue_type_rejected', {});
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    // ── clear_venue_type ──────────────────────────────────────────────────────
+    // Team A changes their mind before Team B accepts
+    if (action === 'clear_venue_type') {
+      if (!isOMC || !isTeamA) return NextResponse.json({ error: 'Only challenger OMC can clear venue type' }, { status: 403 });
+      if ((match as any).venueConfirmedByB) return NextResponse.json({ error: 'Opponent already accepted' }, { status: 400 });
+      await prisma.match.update({ where: { id: matchId }, data: { venueType: null, venueConfirmedByB: false } });
+      await broadcastMatchEvent(matchId, 'venue_type_cleared', {});
+      return NextResponse.json({ ok: true });
+    }
+
 
     // ── book_bmt_slot ─────────────────────────────────────────────────────────
     // Challenger picks a slot and sends it to opponent for accept/decline
