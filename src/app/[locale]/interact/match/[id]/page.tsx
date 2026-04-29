@@ -7,27 +7,12 @@ import {
   Lock, Send, AlertCircle, CheckCircle, Swords, Clock, Search, X, Edit3, ChevronDown, ChevronUp, BarChart2,
   Globe, ChevronRight, Wifi, Building2
 } from 'lucide-react';
+import { getRankData } from '@/lib/rankUtils';
 
 // Sport-specific constants
 const FUTSAL5_FORMATIONS = ['2-2', '2-1-1', '1-2-1', '3-1', '1-3'];
 const FUTSAL6_FORMATIONS = ['3-2', '2-3', '2-2-1', '1-3-1', '3-1-1'];
 const MIN_STARTERS: Record<string, number> = { FUTSAL_5: 5, FUTSAL_6: 6, FUTSAL_7: 7, CRICKET_7: 7, CRICKET_FULL: 11, FOOTBALL_FULL: 11 };
-
-function getRankData(mmr: number) {
-  if (mmr <= 699)  return { label: 'Bronze III', rank: 'Bronze', tier: 'III', color: 'from-[#6e462d] to-[#4a2e1b]', text: 'text-[#cd7f32]', border: 'border-[#cd7f32]/30', min: 0, next: 700, glow: '165,80,0', icon: '/ranks/Bronze.svg' };
-  if (mmr <= 799)  return { label: 'Bronze II',  rank: 'Bronze', tier: 'II', color: 'from-[#6e462d] to-[#4a2e1b]', text: 'text-[#cd7f32]', border: 'border-[#cd7f32]/40', min: 700, next: 800, glow: '165,80,0', icon: '/ranks/Bronze.svg' };
-  if (mmr <= 899)  return { label: 'Bronze I',   rank: 'Bronze', tier: 'I', color: 'from-[#6e462d] to-[#4a2e1b]', text: 'text-[#cd7f32]', border: 'border-[#cd7f32]/50', min: 800, next: 900, glow: '165,80,0', icon: '/ranks/Bronze.svg' };
-  if (mmr <= 999)  return { label: 'Silver III', rank: 'Silver', tier: 'III', color: 'from-[#606060] to-[#3a3a3a]', text: 'text-[#c0c0c0]', border: 'border-[#c0c0c0]/30', min: 900, next: 1000, glow: '180,180,180', icon: '/ranks/Silver.svg' };
-  if (mmr <= 1099) return { label: 'Silver II',  rank: 'Silver', tier: 'II',  color: 'from-[#606060] to-[#3a3a3a]', text: 'text-[#c0c0c0]', border: 'border-[#c0c0c0]/40', min: 1000, next: 1100, glow: '180,180,180', icon: '/ranks/Silver.svg' };
-  if (mmr <= 1199) return { label: 'Silver I',   rank: 'Silver', tier: 'I',   color: 'from-[#606060] to-[#3a3a3a]', text: 'text-[#c0c0c0]', border: 'border-[#c0c0c0]/50', min: 1100, next: 1200, glow: '180,180,180', icon: '/ranks/Silver.svg' };
-  if (mmr <= 1299) return { label: 'Gold III',   rank: 'Gold', tier: 'III',   color: 'from-[#8a6800] to-[#4d3a00]', text: 'text-[#ffd700]', border: 'border-[#ffd700]/30', min: 1200, next: 1300, glow: '200,160,0', icon: '/ranks/Gold.svg' };
-  if (mmr <= 1399) return { label: 'Gold II',    rank: 'Gold', tier: 'II',    color: 'from-[#8a6800] to-[#4d3a00]', text: 'text-[#ffd700]', border: 'border-[#ffd700]/40', min: 1300, next: 1400, glow: '200,160,0', icon: '/ranks/Gold.svg' };
-  if (mmr <= 1499) return { label: 'Gold I',     rank: 'Gold', tier: 'I',     color: 'from-[#8a6800] to-[#4d3a00]', text: 'text-[#ffd700]', border: 'border-[#ffd700]/50', min: 1400, next: 1500, glow: '200,160,0', icon: '/ranks/Gold.svg' };
-  if (mmr <= 1599) return { label: 'Platinum III', rank: 'Platinum', tier: 'III', color: 'from-[#005e66] to-[#003338]', text: 'text-[#00e5ff]', border: 'border-[#00e5ff]/30', min: 1500, next: 1600, glow: '0,200,220', icon: '/ranks/Platinum.svg' };
-  if (mmr <= 1699) return { label: 'Platinum II',  rank: 'Platinum', tier: 'II',  color: 'from-[#005e66] to-[#003338]', text: 'text-[#00e5ff]', border: 'border-[#00e5ff]/40', min: 1600, next: 1700, glow: '0,200,220', icon: '/ranks/Platinum.svg' };
-  if (mmr <= 1799) return { label: 'Platinum I',   rank: 'Platinum', tier: 'I',   color: 'from-[#005e66] to-[#003338]', text: 'text-[#00e5ff]', border: 'border-[#00e5ff]/50', min: 1700, next: 1800, glow: '0,200,220', icon: '/ranks/Platinum.svg' };
-  return { label: 'BMT Legend', rank: 'BMT Legend', tier: '', color: 'from-[#800080] to-[#330033]', text: 'text-[#ff00ff]', border: 'border-[#ff00ff]/60', min: 1800, next: 2000, glow: '200,0,200', icon: '/ranks/Legend.svg' };
-}
 
 export default function InteractionBoardPage() {
   const { id: matchId, locale } = useParams() as { id: string; locale: string };
@@ -314,6 +299,11 @@ export default function InteractionBoardPage() {
   const formations = sportType === 'FUTSAL_5' ? FUTSAL5_FORMATIONS : sportType === 'FUTSAL_6' ? FUTSAL6_FORMATIONS : [];
   const minStarters = MIN_STARTERS[sportType] ?? 5;
 
+  const getSportMmr = (entity: any) => {
+    if (!entity) return 1000;
+    return isCricket ? (entity.cricketMmr ?? entity.teamMmr ?? entity.mmr ?? 1000) : (entity.footballMmr ?? entity.teamMmr ?? entity.mmr ?? 1000);
+  };
+
   const myMembers = myTeam.members || [];
   const starterCount = Object.values(picks).filter(Boolean).length;
   const venueConfirmed = !!match.venueBookedAt;
@@ -366,7 +356,7 @@ export default function InteractionBoardPage() {
             <div className="min-w-0">
               <p className="text-[12px] font-black text-white truncate leading-tight">{myTeam.name}</p>
               {(() => {
-                const r = getRankData(myTeam.teamMmr ?? 1000);
+                const r = getRankData(getSportMmr(myTeam));
                 return <span className={`inline-flex items-center gap-1 text-[9px] font-bold ${r.text}`}><img src={r.icon} className="w-3 h-3 object-contain" alt="" />{r.label}</span>;
               })()}
             </div>
@@ -394,7 +384,7 @@ export default function InteractionBoardPage() {
             <div className="min-w-0 text-right">
               <p className="text-[12px] font-black text-white truncate leading-tight">{opponent.name}</p>
               {(() => {
-                const r = getRankData(opponent.teamMmr ?? 1000);
+                const r = getRankData(getSportMmr(opponent));
                 return <span className={`inline-flex items-center justify-end gap-1 text-[9px] font-bold ${r.text}`}><img src={r.icon} className="w-3 h-3 object-contain" alt="" />{r.label}</span>;
               })()}
             </div>
@@ -501,7 +491,7 @@ export default function InteractionBoardPage() {
                       const inPick = picks.hasOwnProperty(m.id);
                       const isStarter = picks[m.id] === true;
                       const isSub = inPick && !isStarter;
-                      const rank = getRankData(m.player?.mmr ?? 1000);
+                      const rank = getRankData(getSportMmr(m.player));
                       return (
                         <button key={m.id}
                           onClick={() => {
@@ -554,7 +544,7 @@ export default function InteractionBoardPage() {
                           </div>
 
                           {/* MMR */}
-                          <span className="text-[8px] text-neutral-600 font-bold">{m.player?.mmr ?? 1000} MMR</span>
+                          <span className="text-[8px] text-neutral-600 font-bold">{getSportMmr(m.player)} MMR</span>
                         </button>
                       );
                     })}
@@ -598,7 +588,7 @@ export default function InteractionBoardPage() {
                       <p className="text-[9px] font-black uppercase tracking-wider text-[#00ff41] mb-2">Starters</p>
                       <div className="grid grid-cols-3 gap-2 mb-4">
                         {myStarters.map((p: any) => {
-                          const rank = getRankData(p.player?.mmr ?? 1000);
+                          const rank = getRankData(getSportMmr(p.player));
                           return (
                             <div key={p.id} className="flex flex-col items-center gap-1 pt-2.5 pb-2 px-1 rounded-2xl bg-[#00ff41]/5 border border-[#00ff41]/20 text-center">
                               <div className="w-11 h-11 rounded-xl bg-neutral-800 overflow-hidden flex items-center justify-center border-2 border-[#00ff41]/40">
@@ -623,7 +613,7 @@ export default function InteractionBoardPage() {
                       <p className="text-[9px] font-black uppercase tracking-wider text-amber-400 mb-2">Substitutes</p>
                       <div className="grid grid-cols-3 gap-2 mb-3">
                         {mySubs.map((p: any) => {
-                          const rank = getRankData(p.player?.mmr ?? 1000);
+                          const rank = getRankData(getSportMmr(p.player));
                           return (
                             <div key={p.id} className="flex flex-col items-center gap-1 pt-2.5 pb-2 px-1 rounded-2xl bg-amber-500/5 border border-amber-500/20 text-center">
                               <div className="w-11 h-11 rounded-xl bg-neutral-800 overflow-hidden flex items-center justify-center border-2 border-amber-500/35">
@@ -681,7 +671,7 @@ export default function InteractionBoardPage() {
                       <p className="text-[9px] font-black uppercase tracking-wider text-[#00ff41] mb-2">Starters</p>
                       <div className="grid grid-cols-3 gap-2 mb-4">
                         {opStarters.map((p: any) => {
-                          const rank = getRankData(p.player?.mmr ?? 1000);
+                          const rank = getRankData(getSportMmr(p.player));
                           return (
                             <div key={p.id} className="flex flex-col items-center gap-1 pt-2.5 pb-2 px-1 rounded-2xl bg-[#00ff41]/5 border border-[#00ff41]/15 text-center">
                               <div className="w-11 h-11 rounded-xl bg-neutral-800 overflow-hidden flex items-center justify-center border-2 border-[#00ff41]/35">
@@ -706,7 +696,7 @@ export default function InteractionBoardPage() {
                       <p className="text-[9px] font-black uppercase tracking-wider text-amber-400 mb-2">Substitutes</p>
                       <div className="grid grid-cols-3 gap-2">
                         {opSubs.map((p: any) => {
-                          const rank = getRankData(p.player?.mmr ?? 1000);
+                          const rank = getRankData(getSportMmr(p.player));
                           return (
                             <div key={p.id} className="flex flex-col items-center gap-1 pt-2.5 pb-2 px-1 rounded-2xl bg-amber-500/5 border border-amber-500/15 text-center">
                               <div className="w-11 h-11 rounded-xl bg-neutral-800 overflow-hidden flex items-center justify-center border-2 border-amber-500/30">
