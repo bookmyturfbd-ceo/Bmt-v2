@@ -544,10 +544,15 @@ function OversAgreementView({ match, toss, isOMC, isTeamA, onAction, msg }: any)
             className={`w-full py-4 rounded-2xl font-black text-sm disabled:opacity-40 transition-all ${
               isMatch
                 ? 'bg-[#00ff41] text-black shadow-[0_0_20px_rgba(0,255,65,0.3)]'
+                : oppProposed
+                ? 'bg-amber-500 text-black shadow-[0_0_20px_rgba(245,158,11,0.2)]'
                 : 'bg-[#3b82f6] text-white'
             }`}
           >
-            {loading ? <Loader2 size={16} className="animate-spin mx-auto" /> : myProposed ? 'Update Proposal' : 'Propose Overs'}
+            {loading ? <Loader2 size={16} className="animate-spin mx-auto" /> : 
+             isMatch ? `✓ Accept ${oppProposed} Overs` :
+             oppProposed ? 'Counter Propose' :
+             myProposed ? 'Update Proposal' : 'Propose Overs'}
           </button>
         </div>
       )}

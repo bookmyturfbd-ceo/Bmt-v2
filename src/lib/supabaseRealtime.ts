@@ -26,7 +26,7 @@ export function subscribeToMatchChannel(
   onEvent: (payload: { event: string; data: any }) => void
 ) {
   const client = getSupabaseClient();
-  const channelName = `match:${matchId}:scoring:${++_subCounter}`;
+  const channelName = `match:${matchId}:scoring`;
 
   const channel = client.channel(channelName, {
     config: { broadcast: { self: false } },
