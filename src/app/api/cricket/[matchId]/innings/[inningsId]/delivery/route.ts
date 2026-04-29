@@ -38,6 +38,7 @@ export async function POST(
       },
       overs: { orderBy: { overNumber: 'desc' }, take: 1 },
       deliveries: { orderBy: { deliverySequence: 'desc' }, take: 1 },
+      battingPerfs: true,
     },
   });
   if (!innings) return NextResponse.json({ error: 'Innings not found' }, { status: 404 });
