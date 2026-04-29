@@ -161,7 +161,10 @@ export default function InteractionBoardPage() {
         ch = sb.channel(`interact:${matchId}`);
         ch.on('broadcast', { event: 'chat_message' }, (payload: any) => {
           const m = payload.payload?.message;
-          if (m) { setChatMessages(prev => [...prev, m]); if (!chatOpen) setChatUnread(u => u+1); }
+          if (m) { 
+            setChatMessages(prev => prev.some((x: any) => x.id === m.id) ? prev : [...prev, m]); 
+            if (!chatOpen) setChatUnread(u => u+1); 
+          }
         });
         ch.on('broadcast', { event: 'venue_type_set' }, (payload: any) => {
           const vt = payload.payload?.venueType;
