@@ -1860,6 +1860,44 @@ export default function CricketScoringPage() {
     return () => { ch?.unsubscribe?.(); };
   }, [matchId, loadState]);
 
+  // ── Trigger global rank modal when match result lands ──────────────────────────
+  // matchResult is set by both the WS MATCH_COMPLETE event and loadState()
+  useEffect(() => {
+    if (!matchResult || !state) return;
+    const { match: m, myTeamId: tid, isTeamA: amA } = state;
+    if (!m || !tid) return;
+
+    const mmrDelta  = amA ? matchResult.mmrChangeA : matchResult.mmrChangeB;
+    const sportType = m.teamA?.sportType ?? 'CRICKET_7';
+    const myTeam    = amA ? m.teamA : m.teamB;
+    const oppTeam   = amA ? m.teamB : m.teamA;
+    const isCricketMatch = sportType.includes('CRICKET');
+    const currentMmr = isCricketMatch
+      ? (myTeam?.cricketMmr ?? myTeam?.teamMmr ?? 1000)
+      : (myTeam?.footballMmr ?? myTeam?.teamMmr ?? 1000);
+
+    const outcome: 'win' | 'loss' | 'draw' =
+      matchResult.winnerId === null ? 'draw' :
+      matchResult.winnerId === tid ? 'win' : 'loss';
+
+    showMatchResult({
+      outcome,
+      sportType,
+      victoryString : matchResult.victoryString ?? (outcome === 'draw' ? 'Match Tied — MMR Split Equally' : ''),
+      myTeamName    : myTeam?.name ?? '',
+      oppTeamName   : oppTeam?.name ?? '',
+      myScore       : amA ? m.scoreA : m.scoreB,
+      oppScore      : amA ? m.scoreB : m.scoreA,
+      myWickets     : isCricketMatch ? (amA ? m.wicketsA : m.wicketsB) : null,
+      oppWickets    : isCricketMatch ? (amA ? m.wicketsB : m.wicketsA) : null,
+      myOvers       : isCricketMatch ? (amA ? m.oversA : m.oversB) : null,
+      oppOvers      : isCricketMatch ? (amA ? m.oversB : m.oversA) : null,
+      mmrDelta,
+      currentMmr,
+      matchId       : m.id,
+    });
+  }, [matchResult, state, showMatchResult]); // Include dependencies to ensure it's up to date
+
   // ── Error / denied first — before state null check ──────────────────────────
   if (view === 'ACCESS_DENIED') {
     return (
@@ -2013,44 +2051,6 @@ export default function CricketScoringPage() {
     if (d?.bothSigned) { /* already handled by WS */ }
     else { setAlreadySigned(true); }
   };
-
-  // ── Trigger global rank modal when match result lands ──────────────────────────
-  // matchResult is set by both the WS MATCH_COMPLETE event and loadState()
-  useEffect(() => {
-    if (!matchResult || !state) return;
-    const { match: m, myTeamId: tid, isTeamA: amA } = state;
-    if (!m || !tid) return;
-
-    const mmrDelta  = amA ? matchResult.mmrChangeA : matchResult.mmrChangeB;
-    const sportType = m.teamA?.sportType ?? 'CRICKET_7';
-    const myTeam    = amA ? m.teamA : m.teamB;
-    const oppTeam   = amA ? m.teamB : m.teamA;
-    const isCricketMatch = sportType.includes('CRICKET');
-    const currentMmr = isCricketMatch
-      ? (myTeam?.cricketMmr ?? myTeam?.teamMmr ?? 1000)
-      : (myTeam?.footballMmr ?? myTeam?.teamMmr ?? 1000);
-
-    const outcome: 'win' | 'loss' | 'draw' =
-      matchResult.winnerId === null ? 'draw' :
-      matchResult.winnerId === tid ? 'win' : 'loss';
-
-    showMatchResult({
-      outcome,
-      sportType,
-      victoryString : matchResult.victoryString ?? (outcome === 'draw' ? 'Match Tied — MMR Split Equally' : ''),
-      myTeamName    : myTeam?.name ?? '',
-      oppTeamName   : oppTeam?.name ?? '',
-      myScore       : amA ? m.scoreA : m.scoreB,
-      oppScore      : amA ? m.scoreB : m.scoreA,
-      myWickets     : isCricketMatch ? (amA ? m.wicketsA : m.wicketsB) : null,
-      oppWickets    : isCricketMatch ? (amA ? m.wicketsB : m.wicketsA) : null,
-      myOvers       : isCricketMatch ? (amA ? m.oversA : m.oversB) : null,
-      oppOvers      : isCricketMatch ? (amA ? m.oversB : m.oversA) : null,
-      mmrDelta,
-      currentMmr,
-      matchId       : m.id,
-    });
-  }, [matchResult]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSwapStrikers = async () => {
     if (!currentInnings || !isOMC) return;
