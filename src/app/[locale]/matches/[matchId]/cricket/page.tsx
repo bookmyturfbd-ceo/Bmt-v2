@@ -638,7 +638,7 @@ function InningsSetupView({ match, innings, myTeamId, isOMC, onAction, agreedOve
   const battingTeam   = battingTeamId === match.teamA_Id ? match.teamA : match.teamB;
   const bowlingTeam   = bowlingTeamId === match.teamA_Id ? match.teamA : match.teamB;
 
-  const battingSubmitted  = innings && (innings.battingOrder as any[])?.length > 0;
+  const battingSubmitted  = innings && (innings.battingPerfs as any[])?.length > 0;
   const bowlingSubmitted  = innings?.openingBowlerId;
 
   // Sorted Batters: Batsman -> Allrounder -> Wicket Keeper -> Bowler
@@ -924,8 +924,8 @@ function ScoringActionPad({ innings, match, myTeamId, onSubmit, pendingDelivery,
       const perf = innings.battingPerfs?.find((p: any) => p.playerId === m.playerId);
       return !perf || (!perf.hasBatted && !perf.isOut);
     }).map((m: any) => {
-      const orderEntry = (innings.battingOrder as any[]).find((b: any) => b.playerId === m.playerId);
-      return { ...m, position: orderEntry?.position ?? 999 };
+      const perf = (innings.battingPerfs as any[])?.find((p: any) => p.playerId === m.playerId);
+      return { ...m, position: perf?.battingPosition ?? 999 };
     }).sort((a: any, b: any) => a.position - b.position);
   };
 
@@ -1145,7 +1145,7 @@ function ScoringActionPad({ innings, match, myTeamId, onSubmit, pendingDelivery,
                                  </div>
                                  <div className="flex-1 min-w-0">
                                      <p className="text-base font-black text-white leading-tight truncate">{matchM?.player?.fullName}</p>
-                                     <p className="text-xs text-[#00ff41] uppercase tracking-wider truncate font-bold">Position {b.position}</p>
+                                     <p className="text-xs text-[#00ff41] uppercase tracking-wider truncate font-bold">{b.position === 999 ? 'Bench / Unassigned' : `Position ${b.position}`}</p>
                                  </div>
                                  <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-[#00ff41] group-hover:text-black transition-colors">
                                      <span className="text-[10px] font-black">✓</span>
@@ -1167,7 +1167,10 @@ function ScoringActionPad({ innings, match, myTeamId, onSubmit, pendingDelivery,
                         <div className="flex-1 min-w-0">
                             <p className="text-lg font-black text-white truncate">{nextBatsmanName}</p>
                             <p className="text-xs text-[#00ff41] font-bold uppercase tracking-wider truncate">
-                                Position {unbatted.find((u: any) => u.playerId === activeNextBatsmanId)?.position ?? '?'}
+                                {(() => {
+                                    const p = unbatted.find((u: any) => u.playerId === activeNextBatsmanId)?.position;
+                                    return p === 999 ? 'Bench / Unassigned' : `Position ${p ?? '?'}`;
+                                })()}
                             </p>
                         </div>
                     </div>
