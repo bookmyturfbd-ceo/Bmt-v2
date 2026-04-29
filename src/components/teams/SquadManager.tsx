@@ -78,7 +78,7 @@ function StatDonut({ w, l, d, size = 64 }: { w: number, l: number, d: number, si
   const lPct = (l / total) * 100;
   const conic = `conic-gradient(from 0deg, #00ff41 0% ${wPct}%, #ef4444 ${wPct}% ${wPct + lPct}%, #3b82f6 ${wPct + lPct}% 100%)`;
   return (
-    <div className="relative rounded-full flex items-center justify-center shadow-lg shadow-black/40" style={{ width: size, height: size, background: conic }}>
+    <div className="relative rounded-full flex items-center justify-center shadow-lg shadow-black/40 shrink-0" style={{ width: size, height: size, background: conic }}>
       <div className="absolute inset-[4px] bg-neutral-900 rounded-full flex flex-col items-center justify-center">
         <span className="text-[12px] font-black leading-none">{Math.round(wPct)}%</span>
         <span className="text-[7px] text-[var(--muted)] tracking-widest leading-none mt-1">WIN</span>
@@ -489,10 +489,10 @@ export default function SquadManager({ team, setTeam, myRole }: SquadManagerProp
               <StatDonut w={stats.w} l={stats.l} d={stats.d} size={60} />
               <div className="flex flex-col">
                 <span className="text-xs font-black text-white">{stats.played} <span className="text-[10px] text-[var(--muted)] uppercase tracking-wider font-bold">Played</span></span>
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#00ff41]"></span><span className="text-[10px] font-bold text-white">{stats.w} W</span></div>
-                  <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500"></span><span className="text-[10px] font-bold text-white">{stats.l} L</span></div>
-                  <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500"></span><span className="text-[10px] font-bold text-white">{stats.d} D</span></div>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <div className="flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-[#00ff41] shrink-0"></span><span className="text-[10px] font-bold text-white">{stats.w} W</span></div>
+                  <div className="flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span><span className="text-[10px] font-bold text-white">{stats.l} L</span></div>
+                  <div className="flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span><span className="text-[10px] font-bold text-white">{stats.d} D</span></div>
                 </div>
               </div>
             </div>
