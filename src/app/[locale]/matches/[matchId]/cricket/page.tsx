@@ -1829,8 +1829,7 @@ export default function CricketScoringPage() {
            'BATTING_ORDER_SUBMITTED', 'OPENING_BOWLER_SELECTED', 'NEXT_OVER_STARTED',
            'STRIKERS_SWAPPED', 'OVER_CONFIRM_PARTIAL', 'OVER_CONFIRMED',
            'DISPUTE_RESOLVED', 'DISPUTE_DENIED',
-           'TOSS_SKIP_PROPOSED', 'TOSS_SKIP_ACCEPTED',
-           'MATCH_JOINED'].includes(event)) {
+           'TOSS_SKIP_PROPOSED', 'TOSS_SKIP_ACCEPTED'].includes(event)) {
         loadState();
       }
 

@@ -81,11 +81,7 @@ export async function GET(
       };
     }
 
-    // Broadcast that this player has joined/refreshed (enables instant match-start sync)
-    // Only broadcast for LIVE matches to avoid noise
-    if ((match as any).status === 'LIVE') {
-      broadcastMatchEvent(matchId, 'MATCH_JOINED', { teamId: myTeamId }).catch(() => {});
-    }
+    // No MATCH_JOINED broadcast here — prevents infinite reload loop.
 
     return NextResponse.json({
       match,
