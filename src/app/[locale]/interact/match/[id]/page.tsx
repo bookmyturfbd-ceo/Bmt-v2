@@ -575,6 +575,13 @@ export default function InteractionBoardPage() {
                 const myFormation  = isTeamA ? match.formationA : match.formationB;
                 return (
                   <div className="mt-1">
+                    {!opponentLocked && (
+                      <div className="mb-4 px-3 py-3 bg-fuchsia-500/10 border border-fuchsia-500/20 rounded-2xl flex flex-col items-center justify-center text-center animate-pulse shadow-[0_0_15px_rgba(168,85,247,0.1)]">
+                        <Clock size={18} className="text-fuchsia-400 mb-1.5" />
+                        <span className="text-xs font-black text-fuchsia-300">Waiting for {opponent.name}</span>
+                        <span className="text-[10px] text-fuchsia-400/60 font-bold mt-0.5">They need to lock their roster before moving to step 2</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between mb-3 px-1">
                       <div className="flex items-center gap-2 text-[#00ff41]">
                         <CheckCircle size={13} />
