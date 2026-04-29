@@ -1345,7 +1345,7 @@ export default function InteractionBoardPage() {
 
       {/* Chat Overlay — full screen, input above bottom nav */}
       {chatOpen && (
-        <div className="fixed top-0 left-0 right-0 z-[150] flex flex-col bg-[#0d0d0d]" style={{ bottom: '64px' }}>
+        <div className="fixed top-0 left-0 right-0 z-[150] flex flex-col bg-[#0d0d0d]" style={{ bottom: '84px' }}>
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0 bg-[#0d0d0d]">
             <div className="flex items-center gap-2">
