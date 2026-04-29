@@ -94,7 +94,7 @@ export default function InteractionBoardPage() {
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   const loadMatch = useCallback(async () => {
-    const res = await fetch(`/api/interact/match/${matchId}`);
+    const res = await fetch(`/api/interact/match/${matchId}?t=${Date.now()}`, { cache: 'no-store' });
     if (res.ok) {
       const d = await res.json();
       setMatchData(d);

@@ -1744,7 +1744,7 @@ export default function CricketScoringPage() {
 
   const loadState = useCallback(async () => {
     try {
-      const r = await fetch(`/api/cricket/${matchId}/state`);
+      const r = await fetch(`/api/cricket/${matchId}/state?t=${Date.now()}`, { cache: 'no-store' });
       if (!r.ok) {
         const err = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
         setMsg(err.error ?? `HTTP ${r.status}`);
