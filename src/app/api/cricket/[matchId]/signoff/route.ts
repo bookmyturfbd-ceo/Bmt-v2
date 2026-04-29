@@ -26,6 +26,7 @@ export async function POST(
     },
   });
   if (!match) return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+  if (match.status === 'COMPLETED') return NextResponse.json({ error: 'Match already completed' }, { status: 400 });
 
   const isA = match.teamA.ownerId === playerId || match.teamA.members.some(m => m.playerId === playerId);
   const isB = match.teamB.ownerId === playerId || match.teamB.members.some(m => m.playerId === playerId);
