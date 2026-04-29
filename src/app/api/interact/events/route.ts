@@ -30,10 +30,12 @@ export async function GET(request: NextRequest) {
           // Fetch active matches where this player participates (via team membership)
           const matches = await prisma.match.findMany({
             where: {
-              status: { in: ['INTERACTION', 'SCHEDULED', 'LIVE', 'SCORE_ENTRY', 'COMPLETED', 'DISPUTED'] },
+              status: { in: ['PENDING', 'INTERACTION', 'SCHEDULED', 'LIVE', 'SCORE_ENTRY', 'COMPLETED', 'DISPUTED'] },
               OR: [
                 { teamA: { members: { some: { playerId } } } },
                 { teamB: { members: { some: { playerId } } } },
+                { teamA: { ownerId: playerId } },
+                { teamB: { ownerId: playerId } },
               ],
             },
             select: {
