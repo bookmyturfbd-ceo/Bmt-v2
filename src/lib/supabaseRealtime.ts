@@ -61,7 +61,7 @@ export async function broadcastMatchEvent(
   data: Record<string, any>
 ): Promise<boolean> {
   try {
-    const topic = `realtime:match:${matchId}:scoring`;
+    const topic = `match:${matchId}:scoring`;
     const res = await fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
       method: 'POST',
       headers: {
