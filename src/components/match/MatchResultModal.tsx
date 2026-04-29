@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { useMatchResult } from '@/context/MatchResultContext';
 import { getRankData } from '@/lib/rankUtils';
 
@@ -29,6 +30,14 @@ function isCricket(sportType: string): boolean {
 
 export default function MatchResultModal() {
   const { result, clearResult } = useMatchResult();
+  const router = useRouter();
+  const params = useParams();
+  const locale = params?.locale as string || 'en';
+
+  const handleDismiss = () => {
+    clearResult();
+    router.push(`/${locale}/arena?tab=history`);
+  };
 
   // Animation phases: 'hidden' | 'stamp' | 'stats' | 'mmr' | 'visible'
   const [phase,     setPhase]     = useState<'hidden'|'stamp'|'stats'|'mmr'>('hidden');
@@ -83,7 +92,7 @@ export default function MatchResultModal() {
     setCountdown(15);
     countdownRef.current = setInterval(() => {
       setCountdown(prev => {
-        if (prev <= 1) { clearResult(); return 15; }
+        if (prev <= 1) { handleDismiss(); return 15; }
         return prev - 1;
       });
     }, 1000);
@@ -286,7 +295,7 @@ export default function MatchResultModal() {
           </div>
 
           <button
-            onClick={clearResult}
+            onClick={handleDismiss}
             className="w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all active:scale-95"
             style={{
               background: `linear-gradient(135deg, ${outcomeColor}22, ${outcomeColor}11)`,
