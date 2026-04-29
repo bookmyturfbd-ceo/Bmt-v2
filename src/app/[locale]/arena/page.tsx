@@ -51,7 +51,7 @@ export default function ArenaPage() {
             {mounted && theme === 'dark' ? <Sun size={18} className="text-yellow-400" /> : <Moon size={18} className="text-blue-500" />}
           </button>
           
-          <Link href={`/${locale}/profile`}
+          <Link href="/profile"
             className="w-10 h-10 rounded-full bg-white dark:bg-white/5 border border-neutral-200 dark:border-white/10 flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-white/10 transition-colors shadow-sm">
             <User size={18} className="text-[var(--muted)]" />
           </Link>
