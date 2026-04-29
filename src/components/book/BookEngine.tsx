@@ -14,6 +14,7 @@ export default function BookEngine({
 }) {
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get('tab') === 'history' ? 'history' : 'turf') as 'turf' | 'pros' | 'history';
+  const groupId = searchParams.get('groupId') ?? undefined; // set when coming from Play With Friends
 
   const categories = Array.from(new Set(sports.map(s => s.category || s.name)));
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -104,7 +105,7 @@ export default function BookEngine({
             selectedCategory={selectedCategory} 
             setSelectedCategory={setSelectedCategory} 
           />
-          <TurfList turfs={filteredTurfs} cities={cities} sports={sports} />
+          <TurfList turfs={filteredTurfs} cities={cities} sports={sports} groupId={groupId} />
         </div>
       )}
     </>

@@ -16,12 +16,54 @@ interface PlayerProfile {
   id: string; fullName: string; email: string; phone: string;
   joinedAt: string; walletBalance?: number; loyaltyPoints?: number;
   level?: number; levelProgress?: number; avatarBase64?: string; avatarUrl?: string;
-  banStatus?: 'none' | 'soft' | 'perma'; banUntil?: string;
+  banStatus?: 'none' | 'soft' | 'perma'; banUntil?: string; banReason?: string;
   mmr?: number; footballMmr?: number; cricketMmr?: number;
   teamMemberships?: any[]; matchStats?: any[];
+  badges?: any[];
+  battingPerformances?: any[];
+  bowlingPerformances?: any[];
 }
 interface Booking { id: string; slotId: string; date: string; price?: number; playerName?: string; playerId?: string; }
 interface Slot    { id: string; turfId: string; startTime: string; endTime: string; price: number; }
+
+// ── Rank Badge Component ───────────────────────────────────────────────────
+function RankBadge({ mmr, inline = false }: { mmr: number, inline?: boolean }) {
+  const d = getRankData(mmr);
+  if (inline) return <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-white/10 bg-white/5 shrink-0"><img src={d.icon} className="h-4 w-auto object-contain drop-shadow-sm" alt="Rank" /><span className={`font-black text-[10px]`} style={{ color: d.color }}>{d.label} · {mmr}</span></span>;
+  return null;
+}
+
+function BentoRank({ mmr, sport, provCount }: { mmr: number, sport: 'Football' | 'Cricket', provCount?: number }) {
+  const d = getRankData(mmr);
+  const isProv = isProvisional(provCount ?? 0);
+  
+  return (
+    <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-white/[0.02] border border-white/5 relative overflow-hidden group">
+      <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="absolute top-3 left-3 flex items-center gap-1.5">
+        <span className="text-xs">{sport === 'Football' ? '⚽' : '🏏'}</span>
+        <span className="text-[9px] text-[var(--muted)] font-black uppercase tracking-widest">{sport === 'Football' ? 'Futsal' : 'Cricket'}</span>
+      </div>
+      
+      {isProv ? (
+         <div className="mt-8 mb-2 flex flex-col items-center gap-2">
+            <div className="w-10 h-10 rounded-full border-2 border-dashed border-white/20 flex items-center justify-center text-white/30 text-lg font-black">?</div>
+            <div className="text-center">
+               <p className="text-[10px] font-black text-white/80 uppercase">Provisional</p>
+               <p className="text-[9px] font-bold text-[var(--muted)]">{provCount}/3 Matches</p>
+            </div>
+         </div>
+      ) : (
+         <div className="mt-8 mb-2 flex flex-col items-center gap-1 relative z-10">
+            <img src={d.icon} className="h-14 w-auto object-contain drop-shadow-2xl mb-1 filter hover:brightness-125 transition-all" alt="Rank" />
+            <span className="text-xs uppercase font-black tracking-widest drop-shadow-md leading-none" style={{ color: d.color }}>{d.tier}</span>
+            {d.division && <span className="text-[9px] font-black opacity-80 leading-none mt-0.5" style={{ color: d.color }}>{d.division}</span>}
+            <span className="text-[10px] font-bold text-white/50 mt-1 tracking-wider">{mmr} MMR</span>
+         </div>
+      )}
+    </div>
+  );
+}
 interface Turf    { id: string; name: string; }
 
 function slotHours(s: Slot) {
@@ -72,6 +114,8 @@ export default function ProfilePage() {
   const [editName, setEditName]   = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [savingName, setSavingName] = useState(false);
+  const [showBadgeModal, setShowBadgeModal] = useState(false);
+  const [togglingBadge, setTogglingBadge] = useState<string | null>(null);
   const avatarRef = useRef<HTMLInputElement>(null);
 
   const loadData = useCallback(async (pid: string) => {
@@ -158,7 +202,17 @@ export default function ProfilePage() {
   const currentTeam = fbTeam ?? profile?.teamMemberships?.[0]?.team;
 
   const totalSpent   = myBookings.reduce((s, b) => { const slot = allSlots.find(sl => sl.id === b.slotId); return s + (b.price ?? slot?.price ?? 0); }, 0);
-  const totalMinutes = myBookings.reduce((s, b) => { const slot = allSlots.find(sl => sl.id === b.slotId); return s + (slot ? slotHours(slot) * 60 : 0); }, 0);
+  const totalMinutes = myBookings.reduce((s, b) => { 
+    const slot = allSlots.find(sl => sl.id === b.slotId); 
+    if (!slot || !slot.startTime || !slot.endTime) return s;
+    const [sh, sm] = slot.startTime.split(':').map(Number);
+    const [eh, em] = slot.endTime.split(':').map(Number);
+    if (isNaN(sh) || isNaN(sm) || isNaN(eh) || isNaN(em)) return s;
+    return s + Math.max(0, (eh * 60 + em - sh * 60 - sm));
+  }, 0);
+
+  const showcasedBadges = (profile?.badges || []).filter((b: any) => b.isShowcased).slice(0, 3);
+  const cmTeams = profile?.teamMemberships?.map((m: any) => m.team)?.filter((t: any) => t && (t.isSubscribed || t.challengeSubscription?.active)) || [];
 
   // Group stats
   const statsBySport = (profile?.matchStats || []).reduce((acc: any, stat: any) => {
@@ -198,6 +252,27 @@ export default function ProfilePage() {
     window.location.href = '/en';
   };
 
+  const toggleBadgeShowcase = async (badgeId: string, currentlyShowcased: boolean) => {
+    if (!currentlyShowcased && showcasedBadges.length >= 3) return;
+    setTogglingBadge(badgeId);
+    try {
+      const res = await fetch(`/api/bmt/players/${playerId}/badges`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ badgeId, isShowcased: !currentlyShowcased })
+      });
+      if (res.ok) {
+        setProfile(p => {
+          if (!p) return p;
+          const updatedBadges = p.badges?.map(b => b.id === badgeId ? { ...b, isShowcased: !currentlyShowcased } : b);
+          return { ...p, badges: updatedBadges };
+        });
+      }
+    } finally {
+      setTogglingBadge(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col pb-28">
       {/* Header */}
@@ -222,9 +297,9 @@ export default function ProfilePage() {
               </div>
               <input ref={avatarRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleAvatar(f); }} />
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 flex flex-col justify-center">
               {isEditing ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 mb-1">
                   <input value={editName} onChange={e => setEditName(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveName()}
                     className="flex-1 bg-white/5 border border-white/20 rounded-xl px-3 py-1.5 text-sm font-black outline-none focus:border-accent/50" autoFocus />
                   <button onClick={saveName} disabled={savingName} className="text-accent hover:brightness-125">
@@ -233,34 +308,44 @@ export default function ProfilePage() {
                   <button onClick={() => setIsEditing(false)} className="text-[var(--muted)] hover:text-white"><X size={14} /></button>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-black truncate">{name}</h2>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h2 className="text-xl font-black truncate leading-tight">{name}</h2>
                   <button onClick={() => { setEditName(name); setIsEditing(true); }} className="text-[var(--muted)] hover:text-accent transition-colors"><Edit3 size={13} /></button>
                 </div>
               )}
-              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                <span className="flex items-center gap-1 text-[10px] font-bold text-[var(--muted)] bg-white/5 px-2 py-0.5 rounded-full border border-white/10 shrink-0"><Shield size={9} /> Player</span>
-
-                {/* Football Rank */}
-                <span className={`flex items-center gap-1 text-[10px] font-bold shrink-0 px-2 py-0.5 rounded-full border border-white/10 bg-white/5`}
-                  style={{ color: fbProvisional ? '#888' : fbRank.color }}>
-                  ⚽ {fbProvisional ? `Provisional (${fbMatchCount}/3)` : `${fbRank.label} · ${footballMmr}`}
-                </span>
-
-                {/* Cricket Rank */}
-                <span className={`flex items-center gap-1 text-[10px] font-bold shrink-0 px-2 py-0.5 rounded-full border border-white/10 bg-white/5`}
-                  style={{ color: ckProvisional ? '#888' : ckRank.color }}>
-                  🏏 {ckProvisional ? `Provisional (${ckMatchCount}/3)` : `${ckRank.label} · ${cricketMmr}`}
-                </span>
-
-                {/* Current team */}
-                {currentTeam && (
-                  <span className="flex items-center gap-1 text-[10px] font-bold text-white bg-white/5 px-2 py-0.5 rounded-full border border-white/10 shrink-0">
-                    <img src={currentTeam.logoUrl || '/team-placeholder.svg'} className="w-3 h-3 rounded-sm object-cover" /> {currentTeam.name}
-                  </span>
-                )}
-              </div>
+              {profile?.id && (
+                <p className="text-[10px] text-[var(--muted)] font-bold tracking-widest uppercase flex items-center gap-1">
+                  <Hash size={10} /> {profile.id.slice(0, 8)}
+                </p>
+              )}
             </div>
+          </div>
+          
+          {/* Bento Grid layout */}
+          <div className="grid grid-cols-2 gap-3 mt-1">
+            <BentoRank mmr={footballMmr} sport="Football" provCount={fbMatchCount} />
+            <BentoRank mmr={cricketMmr} sport="Cricket" provCount={ckMatchCount} />
+            
+            {cmTeams.length > 0 && (
+              <div className="col-span-2 bg-white/[0.02] border border-white/5 rounded-2xl p-3 flex flex-col gap-2 relative overflow-hidden group">
+                <div className="absolute inset-0 bg-gradient-to-r from-fuchsia-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                <p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)] px-1 mb-1">Challenge Market Teams</p>
+                <div className="flex flex-col gap-1.5">
+                  {cmTeams.map((t: any) => (
+                    <div key={t.id} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {t.logoUrl ? (
+                          <img src={t.logoUrl} className="w-6 h-6 rounded-md object-cover bg-neutral-800 shrink-0" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden'); }} />
+                        ) : null}
+                        <Shield size={16} className={`text-[var(--muted)] shrink-0 ${t.logoUrl ? 'hidden' : ''}`} />
+                        <span className="text-xs font-bold text-white truncate leading-tight">{t.name}</span>
+                      </div>
+                      <span className="text-[9px] font-black uppercase text-fuchsia-400 bg-fuchsia-500/10 px-2 py-1 rounded-md border border-fuchsia-500/20 shrink-0 shadow-[0_0_10px_rgba(255,0,255,0.1)]">Listed</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Balance + LP + Level */}
@@ -315,27 +400,47 @@ export default function ProfilePage() {
             {(() => {
               const stats = statsBySport[activeSport] || [];
               const matches = stats.length;
+              const badgesCount = profile?.badges?.length || 0;
+
               if (activeSport.includes('CRICKET')) {
-                const runs = stats.reduce((s:number, st:any) => s + (st.runs || 0), 0);
-                const wickets = stats.reduce((s:number, st:any) => s + (st.wickets || 0), 0);
+                const bPerf = profile?.battingPerformances || [];
+                const bwPerf = profile?.bowlingPerformances || [];
+                const runs = bPerf.reduce((s:number, p:any) => s + (p.runs || 0), 0);
+                const ballsFaced = bPerf.reduce((s:number, p:any) => s + (p.ballsFaced || 0), 0);
+                const sr = ballsFaced > 0 ? ((runs / ballsFaced) * 100).toFixed(1) : '0.0';
+                
+                const wickets = bwPerf.reduce((s:number, p:any) => s + (p.wickets || 0), 0);
+                const runsConceded = bwPerf.reduce((s:number, p:any) => s + (p.runs || 0), 0);
+                const legalBalls = bwPerf.reduce((s:number, p:any) => s + (p.legalBalls || 0), 0);
+                const overs = Math.floor(legalBalls / 6) + (legalBalls % 6) / 6;
+                const economy = overs > 0 ? (runsConceded / overs).toFixed(1) : '0.0';
+
                 const mmrDelta = stats.reduce((s:number, st:any) => s + (st.mmrChange || 0), 0);
                 return (
                   <>
-                    <div className="flex-1 min-w-[45%] bg-white/5 rounded-2xl p-3 border border-white/5">
-                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Matches</p>
-                      <p className="text-xl font-black">{matches}</p>
-                    </div>
-                    <div className="flex-1 min-w-[45%] bg-white/5 rounded-2xl p-3 border border-white/5">
+                    <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
                       <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Runs</p>
                       <p className="text-xl font-black text-amber-400">{runs}</p>
                     </div>
-                    <div className="flex-1 min-w-[45%] bg-white/5 rounded-2xl p-3 border border-white/5">
+                    <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
+                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Strike Rate</p>
+                      <p className="text-xl font-black text-white">{sr}</p>
+                    </div>
+                    <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
                       <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Wickets</p>
                       <p className="text-xl font-black text-rose-400">{wickets}</p>
                     </div>
-                    <div className="flex-1 min-w-[45%] bg-white/5 rounded-2xl p-3 border border-white/5">
+                    <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
+                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Economy</p>
+                      <p className="text-xl font-black text-white">{economy}</p>
+                    </div>
+                    <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
                       <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Form (MMR)</p>
                       <p className={`text-xl font-black ${mmrDelta >= 0 ? 'text-green-400' : mmrDelta < 0 ? 'text-red-400' : 'text-white'}`}>{mmrDelta > 0 ? '+' : ''}{mmrDelta}</p>
+                    </div>
+                    <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
+                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Badges</p>
+                      <p className="text-xl font-black text-yellow-400">{badgesCount}</p>
                     </div>
                   </>
                 );
@@ -345,21 +450,25 @@ export default function ProfilePage() {
                 const mmrDelta = stats.reduce((s:number, st:any) => s + (st.mmrChange || 0), 0);
                 return (
                   <>
-                    <div className="flex-1 min-w-[45%] bg-white/5 rounded-2xl p-3 border border-white/5">
+                    <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
                       <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Matches</p>
-                      <p className="text-xl font-black">{matches}</p>
+                      <p className="text-xl font-black text-white">{matches}</p>
                     </div>
-                    <div className="flex-1 min-w-[45%] bg-white/5 rounded-2xl p-3 border border-white/5">
+                    <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
                       <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Goals</p>
                       <p className="text-xl font-black text-sky-400">{goals}</p>
                     </div>
-                    <div className="flex-1 min-w-[45%] bg-white/5 rounded-2xl p-3 border border-white/5">
+                    <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
                       <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Assists</p>
                       <p className="text-xl font-black text-indigo-400">{assists}</p>
                     </div>
-                    <div className="flex-1 min-w-[45%] bg-white/5 rounded-2xl p-3 border border-white/5">
+                    <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
                       <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Form (MMR)</p>
                       <p className={`text-xl font-black ${mmrDelta >= 0 ? 'text-green-400' : mmrDelta < 0 ? 'text-red-400' : 'text-white'}`}>{mmrDelta > 0 ? '+' : ''}{mmrDelta}</p>
+                    </div>
+                    <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
+                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Badges</p>
+                      <p className="text-xl font-black text-yellow-400">{badgesCount}</p>
                     </div>
                   </>
                 );
@@ -376,12 +485,24 @@ export default function ProfilePage() {
             <div className="w-8 h-8 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center"><Star size={13} className="text-yellow-400" /></div>
             <p className="font-black text-sm">Badge Showcase</p>
           </div>
-          <span className="text-[10px] text-[var(--muted)] font-bold">0/3 slots</span>
+          <span className="text-[10px] text-[var(--muted)] font-bold">{showcasedBadges.length}/3 slots</span>
         </div>
         <div className="border-t border-white/5 px-4 py-5 flex gap-3 items-center justify-center">
-          {[0, 1, 2].map(i => <div key={i} className="w-16 h-16 rounded-2xl border-2 border-dashed border-white/10 flex items-center justify-center"><Star size={16} className="text-white/20" /></div>)}
+          {[0, 1, 2].map(i => {
+            const badge = showcasedBadges[i];
+            return (
+              <div key={i} onClick={() => setShowBadgeModal(true)}
+                className="w-16 h-16 rounded-2xl border-2 border-dashed border-white/10 flex items-center justify-center bg-white/5 relative group cursor-pointer hover:border-yellow-500/30 transition-colors">
+                {badge ? (
+                  <span className="text-3xl filter drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]" title={badge.title}>{badge.icon}</span>
+                ) : (
+                  <Star size={16} className="text-white/20 group-hover:text-yellow-500/40 transition-colors" />
+                )}
+              </div>
+            );
+          })}
         </div>
-        <div className="pb-3 text-center text-[10px] text-[var(--muted)]">Unlock badges in the Challenge Market</div>
+        <div className="pb-3 text-center text-[10px] text-[var(--muted)]">Tap to manage your showcased badges</div>
       </div>
 
       {/* ── Hall of Fame ── */}
@@ -473,6 +594,62 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+      {/* ── Badge Showcase Modal ── */}
+      {showBadgeModal && (
+        <div className="fixed inset-0 z-[100] flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowBadgeModal(false)} />
+          <div className="relative z-10 w-full max-w-md mx-auto rounded-t-3xl border-t border-x border-white/10 overflow-hidden flex flex-col pb-6"
+            style={{ background: 'linear-gradient(180deg, #0f1a0f 0%, #080808 100%)' }}>
+            <div className="flex justify-center pt-3 pb-1 shrink-0"><div className="w-10 h-1 rounded-full bg-white/20" /></div>
+            <div className="h-0.5 mx-6 rounded-full" style={{ background: 'linear-gradient(90deg, transparent, #eab308, transparent)' }} />
+            <div className="px-5 pt-4 pb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-black">Manage Showcase</h2>
+                <p className="text-xs text-[var(--muted)]">Select up to 3 badges to display</p>
+              </div>
+              <button onClick={() => setShowBadgeModal(false)} className="w-8 h-8 rounded-xl border border-white/10 flex items-center justify-center hover:bg-white/5"><X size={14} /></button>
+            </div>
+            <div className="px-5 py-2 flex flex-col gap-3 max-h-[50vh] overflow-y-auto">
+              {(!profile?.badges || profile.badges.length === 0) ? (
+                <div className="py-8 text-center flex flex-col items-center">
+                  <Star size={32} className="text-white/10 mb-2" />
+                  <p className="text-sm font-bold text-neutral-500">No badges earned yet</p>
+                  <p className="text-[10px] text-neutral-600 mt-1">Play matches and perform well to earn badges.</p>
+                </div>
+              ) : (
+                profile.badges.map(b => {
+                  const isShowcased = b.isShowcased;
+                  const canToggle = isShowcased || showcasedBadges.length < 3;
+                  const isLoading = togglingBadge === b.id;
+                  
+                  return (
+                    <div key={b.id} className={`flex items-center gap-3 p-3 rounded-2xl border ${isShowcased ? 'border-yellow-500/30 bg-yellow-500/10' : 'border-white/5 bg-white/[0.02]'}`}>
+                      <div className="w-12 h-12 rounded-xl bg-black/50 border border-white/10 flex items-center justify-center text-2xl shrink-0">
+                        {b.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-black truncate">{b.title}</p>
+                        {b.description && <p className="text-[10px] text-neutral-400 leading-tight mt-0.5">{b.description}</p>}
+                        <p className="text-[9px] text-neutral-600 font-bold mt-1">Earned {new Date(b.earnedAt).toLocaleDateString()}</p>
+                      </div>
+                      <button
+                        onClick={() => toggleBadgeShowcase(b.id, isShowcased)}
+                        disabled={isLoading || !canToggle}
+                        className={`w-8 h-8 rounded-full border flex items-center justify-center shrink-0 transition-all ${
+                          isShowcased ? 'bg-yellow-500 border-yellow-400 text-black' : 
+                          canToggle ? 'bg-white/5 border-white/20 text-white hover:bg-white/10' : 'bg-black border-white/5 text-white/20 cursor-not-allowed'
+                        }`}
+                      >
+                        {isLoading ? <RefreshCw size={12} className="animate-spin" /> : isShowcased ? <Check size={12} strokeWidth={3} /> : <div className="w-3 h-3 rounded-full border-2 border-current opacity-50" />}
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

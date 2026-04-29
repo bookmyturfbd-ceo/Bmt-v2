@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import {
   Swords, Users, Trophy, ArrowLeftRight, BarChart2,
-  Plus, User, ChevronRight, Shield, Flame, Star, Zap, Sun, Moon
+  Plus, User, ChevronRight, Shield, Flame, Star, Zap, Sun, Moon, Video
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Link } from '@/i18n/routing';
@@ -167,6 +167,25 @@ export default function ArenaPage() {
             </div>
           </button>
         </div>
+
+        {/* ── Highlights & Reels ── */}
+        <button
+          onClick={() => router.push(`/${locale}/interact/reels`)}
+          className="w-full rounded-3xl bg-zinc-900 border border-white/10 p-5 text-left group hover:border-[#00ff41]/30 transition-all active:scale-[0.99] flex items-center gap-5 overflow-hidden relative"
+        >
+          <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-[#00ff41]/5 to-transparent pointer-events-none" />
+          <div className="w-12 h-12 rounded-2xl bg-[#00ff41]/10 border border-[#00ff41]/20 flex items-center justify-center shrink-0">
+            <Video size={20} className="text-[#00ff41]" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-black text-base text-white">Highlights</p>
+            <p className="text-xs text-[var(--muted)] mt-0.5">Watch and upload global player reels</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[11px] text-[#00ff41]/70 font-black bg-[#00ff41]/10 border border-[#00ff41]/20 px-2 py-1 rounded-full">Watch</span>
+            <ChevronRight size={16} className="text-[#00ff41]/40 group-hover:text-[#00ff41] transition-colors" />
+          </div>
+        </button>
 
         {/* ── Bottom Banners ── */}
 

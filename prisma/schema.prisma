@@ -100,6 +100,11 @@ enum InviteRole {
   Coach
 }
 
+enum VenueType {
+  BMT
+  OPEN_WBT
+}
+
 enum TeamRole {
   owner
   manager
@@ -115,6 +120,11 @@ enum SportType {
   CRICKET_7
   FOOTBALL_FULL
   CRICKET_FULL
+}
+
+enum ScoringMode {
+  LIVE         // Real-time event logging (existing)
+  SCORE_AFTER  // Both OMCs submit final score after the match
 }
 
 enum MatchStatus {
@@ -224,6 +234,7 @@ model Division {
 
   cities City[]
   turfs  Turf[]
+  wbtTurfs WbtTurf[]
 
   @@map("divisions")
 }
@@ -237,6 +248,7 @@ model City {
   division Division @relation(fields: [divisionId], references: [id], onDelete: Cascade)
   turfs    Turf[]
   homeTeams Team[]  @relation("TeamHomeAreas")
+  wbtTurfs WbtTurf[]
 
   @@unique([name, divisionId])
   @@map("cities")
@@ -306,10 +318,43 @@ model Player {
   teamMemberships TeamMember[]
   matchStats     PlayerMatchStat[]
   chatMessages   MatchChatMessage[] @relation("PlayerChatMessages")
+  bookingSplits  BookingSplit[]
   teamAnnouncements TeamAnnouncement[]
   shopOrders     ShopOrder[]
+  playGroupMemberships PlayGroupMember[]
+  playJoinRequests     PlayJoinRequest[]
+  playGroupChats       PlayGroupChat[]
+  playRequestChats     PlayRequestChat[]
+
+  // Gamification & Badges
+  badges               PlayerBadge[]
+
+  // Cricket Stats Relations
+  battingPerformances  BattingPerformance[]
+  bowlingPerformances  BowlingPerformance[]
+
+  // Reels
+  reels                Reel[]
 
   @@map("players")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BADGES — Achievements and titles earned by players
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PlayerBadge {
+  id          String   @id @default(cuid())
+  playerId    String
+  title       String   // e.g. "Man of the Match", "Century", "Fifer"
+  description String?
+  icon        String   // Emoji or identifier
+  earnedAt    DateTime @default(now())
+  isShowcased Boolean  @default(false)
+
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("player_badges")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -515,7 +560,24 @@ model Booking {
   player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
   slot   Slot   @relation(fields: [slotId], references: [id], onDelete: Restrict)
 
+  // Group split booking — links all member bookings to the same group session
+  groupId          String?  // PlayGroup.id — set when booked via play-group flow
+  groupBookingCode String?  // shared code shown to all members
+  splits           BookingSplit[]
+
   @@map("bookings")
+}
+
+model BookingSplit {
+  id        String  @id @default(cuid())
+  bookingId String
+  playerId  String
+  amount    Float
+
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  player    Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("booking_splits")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -840,6 +902,18 @@ model Match {
   venueBookedAt     DateTime?
   matchDate         String?   // "YYYY-MM-DD"
 
+  // Interaction Board — Venue Type (BMT vs Open WBT)
+  venueType         VenueType?
+  // Open WBT specific fields
+  wbtTurfId         String?   // WbtTurf.id
+  wbtTurfName       String?   // cached name for display
+  wbtFrom           String?   // e.g. "18:00"
+  wbtTo             String?   // e.g. "19:00"
+  wbtPaymentA       Boolean   @default(false)
+  wbtPaymentB       Boolean   @default(false)
+  wbtCouponCode     String?
+  wbtCouponDiscount Float     @default(0) // amount discounted per team
+
   // Match Lifecycle flags
   matchStartedByA   Boolean @default(false)
   matchStartedByB   Boolean @default(false)
@@ -856,6 +930,11 @@ model Match {
   resultSeenByA     Boolean @default(false)
   resultSeenByB     Boolean @default(false)
   finalOutcome      String? // "agreed" | "disputed"
+
+  // Scoring mode — agreed by both OMCs before match starts
+  scoringMode          ScoringMode @default(LIVE)
+  scoreModeRequestedBy String?     // teamId that proposed the mode
+  scoreModeAgreed      Boolean     @default(false)
 
   seasonId    String?
 
@@ -1161,6 +1240,148 @@ model ShopProductSize {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PLAY WITH FRIENDS — Casual groups for cost-splitting turf bookings
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PlayGroup {
+  id        String   @id @default(cuid())
+  name      String   @default("My Group")
+  sport     String?  // free-text sport name from sports table
+  ownerId   String   // Player who created the group
+  createdAt DateTime @default(now())
+
+  members       PlayGroupMember[]
+  listings      PlayListing[]
+  chatMsgs      PlayGroupChat[]
+  splitRequests PlaySplitRequest[]
+
+  @@map("play_groups")
+}
+
+model PlayGroupMember {
+  id          String   @id @default(cuid())
+  groupId     String
+  playerId    String
+  splitAmount Float    @default(0)
+  joinedAt    DateTime @default(now())
+
+  group         PlayGroup          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  player        Player             @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  splitRequests PlaySplitRequest[]
+
+  @@unique([groupId, playerId])
+  @@map("play_group_members")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAY SPLIT REQUESTS — Owner-to-member cost allocation requests
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum PlaySplitStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model PlaySplitRequest {
+  id        String          @id @default(cuid())
+  groupId   String
+  memberId  String          // PlayGroupMember.id
+  amount    Float
+  status    PlaySplitStatus @default(PENDING)
+  createdAt DateTime        @default(now())
+
+  group  PlayGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member PlayGroupMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@map("play_split_requests")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAY LISTINGS — "Looking for Players" public posts
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PlayListing {
+  id               String   @id @default(cuid())
+  groupId          String
+  sport            String?
+  playersNeeded    Int      @default(1)
+  description      String?
+  date             String?  // "YYYY-MM-DD"
+  timeSlot         String?
+  turfId           String?  // optional — published turf reference
+  turfName         String?  // denormalised for display
+  minFootballRank  Int?     // optional min MMR
+  minCricketRank   Int?
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  group    PlayGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  requests PlayJoinRequest[]
+
+  @@map("play_listings")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAY JOIN REQUESTS — Players requesting to join via a listing
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum PlayJoinStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model PlayJoinRequest {
+  id        String         @id @default(cuid())
+  listingId String
+  playerId  String         // requester
+  status    PlayJoinStatus @default(PENDING)
+  createdAt DateTime       @default(now())
+
+  listing  PlayListing      @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  player   Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  chatMsgs PlayRequestChat[]
+
+  @@unique([listingId, playerId])   // one request per player per listing
+  @@map("play_join_requests")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAY GROUP CHAT — Real-time group messages (broadcast via Supabase)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PlayGroupChat {
+  id        String   @id @default(cuid())
+  groupId   String
+  playerId  String
+  message   String
+  createdAt DateTime @default(now())
+
+  group  PlayGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  player Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("play_group_chat")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAY REQUEST CHAT — DM between accepted requester and group owner
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PlayRequestChat {
+  id        String   @id @default(cuid())
+  requestId String
+  playerId  String
+  message   String
+  createdAt DateTime @default(now())
+
+  request PlayJoinRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  player  Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("play_request_chat")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // SHOP ORDERS
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1343,6 +1564,7 @@ model BattingPerformance {
   createdAt       DateTime       @default(now())
 
   innings  CricketInnings @relation(fields: [inningsId], references: [id], onDelete: Cascade)
+  player   Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@unique([inningsId, playerId])
   @@map("batting_performances")
@@ -1362,6 +1584,7 @@ model BowlingPerformance {
   createdAt   DateTime @default(now())
 
   innings  CricketInnings @relation(fields: [inningsId], references: [id], onDelete: Cascade)
+  player   Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@unique([inningsId, playerId])
   @@map("bowling_performances")
@@ -1392,4 +1615,82 @@ model CricketDispute {
   delivery CricketDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
 
   @@map("cricket_disputes")
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SPONSORS — Frontend Banner Layer
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Sponsor {
+  id         String   @id @default(cuid())
+  imageUrl   String
+  ctaText    String?
+  ctaLink    String?
+  order      Int      @default(0)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  @@map("sponsors")
+}
+
+model SponsorSettings {
+  id         String   @id @default("singleton")
+  autoSlide  Boolean  @default(true)
+  intervalMs Int      @default(3500)
+  updatedAt  DateTime @updatedAt
+
+  @@map("sponsor_settings")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REELS — Mux Video Integration
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Reel {
+  id            String   @id @default(cuid())
+  playerId      String
+  muxUploadId   String?  @unique // Temporary tracking ID
+  muxAssetId    String?  @unique // Final processed video
+  muxPlaybackId String?  // ID used for streaming
+  status        String   @default("uploading") // uploading, processing, ready, error
+  caption       String?
+  views         Int      @default(0)
+  likes         Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("reels")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OPEN WBT — External turf registry for paid match booking
+// ─────────────────────────────────────────────────────────────────────────────
+
+model WbtTurf {
+  id         String   @id @default(cuid())
+  name       String
+  divisionId String
+  cityId     String
+  createdAt  DateTime @default(now())
+
+  division   Division @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+  city       City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  @@map("wbt_turfs")
+}
+
+model WbtCoupon {
+  id            String       @id @default(cuid())
+  code          String       @unique
+  discountType  DiscountType
+  discountValue Float
+  maxUses       Int          @default(0)  // 0 = unlimited
+  usedCount     Int          @default(0)
+  expiresAt     DateTime?
+  active        Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+
+  @@map("wbt_coupons")
 }

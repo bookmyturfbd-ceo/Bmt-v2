@@ -7,10 +7,12 @@ import prisma from '@/lib/prisma';
 
 interface PageProps {
   params: Promise<{ locale: string; id: string }>;
+  searchParams: Promise<{ groupId?: string }>;
 }
 
-export default async function TurfDetailPage({ params }: PageProps) {
+export default async function TurfDetailPage({ params, searchParams }: PageProps) {
   const resolvedParams = await params;
+  const { groupId } = await searchParams;
   
   const rawTurf = await prisma.turf.findFirst({
     where: { id: resolvedParams.id, status: 'published' },
@@ -87,6 +89,7 @@ export default async function TurfDetailPage({ params }: PageProps) {
               bookings={bookings}
               grounds={grounds}
               sports={uniqueSports}
+              groupId={groupId}
             />
             <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/10 to-transparent my-1" />
             <TurfLocationReviews turf={turf} reviews={turfReviews} />

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { Users, Trophy, Plus, Camera, X, Loader2, ChevronRight, Shield, Swords } from 'lucide-react';
+import { Users, Plus, Camera, X, Loader2, ChevronRight, Shield } from 'lucide-react';
 import { uploadFileToCDN } from '@/lib/supabase';
 import { Link } from '@/i18n/routing';
 
@@ -207,41 +207,9 @@ function TeamCard({ team }: { team: Team }) {
   );
 }
 
-// ── Leaderboard placeholder ───────────────────────────────────────────────────
-function LeaderboardTab() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-4 py-16 px-4 text-center">
-      <div className="w-20 h-20 rounded-3xl bg-accent/10 border border-accent/20 flex items-center justify-center">
-        <Trophy size={36} className="text-accent opacity-60" />
-      </div>
-      <div>
-        <h3 className="font-black text-lg">Leaderboard</h3>
-        <p className="text-sm text-[var(--muted)] mt-1">Rankings coming soon — create your team to get on the board!</p>
-      </div>
-    </div>
-  );
-}
-
-// ── Play placeholder ──────────────────────────────────────────────────────────
-function PlayTab() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-4 py-16 px-4 text-center">
-      <div className="w-20 h-20 rounded-3xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-        <Swords size={36} className="text-blue-400 opacity-60" />
-      </div>
-      <div>
-        <h3 className="font-black text-lg">Play with Friends</h3>
-        <p className="text-sm text-[var(--muted)] mt-1">Challenge other teams and schedule matches — coming soon!</p>
-      </div>
-    </div>
-  );
-}
-
 // ── Main Teams Page ───────────────────────────────────────────────────────────
-type Tab = 'teams' | 'play' | 'board';
 
 export default function TeamsPage() {
-  const [tab,        setTab]        = useState<Tab>('teams');
   const [teams,      setTeams]      = useState<Team[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -273,38 +241,8 @@ export default function TeamsPage() {
           </div>
         </div>
 
-        {/* Sub-tabs */}
-        <div className="px-4 py-3">
-          <div className="flex gap-2 p-1 bg-[var(--panel-bg)] rounded-2xl border border-[var(--panel-border)]">
-            {([
-              { id: 'teams', label: 'Teams',     icon: Users },
-              { id: 'play',  label: 'Play',       icon: Swords },
-              { id: 'board', label: 'Board',      icon: Trophy },
-            ] as const).map(t => {
-              const Icon = t.icon;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => setTab(t.id)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-black transition-all ${
-                    tab === t.id
-                      ? 'bg-accent text-black shadow-[0_2px_12px_rgba(0,255,65,0.25)]'
-                      : 'text-[var(--muted)] hover:text-foreground'
-                  }`}
-                >
-                  <Icon size={13} />
-                  {t.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
         {/* Content */}
-        {tab === 'play'  && <PlayTab />}
-        {tab === 'board' && <LeaderboardTab />}
-        {tab === 'teams' && (
-          <div className="flex flex-col gap-3 px-4">
+        <div className="flex flex-col gap-3 px-4 pt-3">
 
             {/* Create button */}
             <button
@@ -339,7 +277,6 @@ export default function TeamsPage() {
               teams.map(team => <TeamCard key={team.id} team={team} />)
             )}
           </div>
-        )}
       </div>
 
       {showCreate && (

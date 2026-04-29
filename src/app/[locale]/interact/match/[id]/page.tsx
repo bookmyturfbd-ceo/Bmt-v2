@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Users, MapPin, MessageCircle, ChevronLeft, Loader2, Shield,
-  Lock, Send, AlertCircle, CheckCircle, Swords, Clock, Search, X, Edit3, ChevronDown, ChevronUp, BarChart2
+  Lock, Send, AlertCircle, CheckCircle, Swords, Clock, Search, X, Edit3, ChevronDown, ChevronUp, BarChart2,
+  Globe, ChevronRight, Wifi, Building2
 } from 'lucide-react';
 
 // Sport-specific constants
@@ -32,6 +33,26 @@ export default function InteractionBoardPage() {
   const { id: matchId, locale } = useParams() as { id: string; locale: string };
   const router = useRouter();
 
+  // Step navigation: 1=roster, 2=venueType, 3a=bmt, 3b=wbt, 4=complete
+  const [currentStep, setCurrentStep] = useState(1);
+  const [venueTypeLocal, setVenueTypeLocal] = useState<'BMT' | 'OPEN_WBT' | null>(null);
+  // BMT booking state
+  const [pendingBmtSlot, setPendingBmtSlot] = useState<{slotId:string;date:string;turfName:string;startTime:string;endTime:string;price:number}|null>(null);
+  // WBT state
+  const [wbtTurfSearch, setWbtTurfSearch] = useState('');
+  const [wbtTurfs, setWbtTurfs] = useState<any[]>([]);
+  const [selectedWbtTurf, setSelectedWbtTurf] = useState<any>(null);
+  const [wbtFrom, setWbtFrom] = useState('');
+  const [wbtTo, setWbtTo] = useState('');
+  const [wbtMatchDate, setWbtMatchDate] = useState(() => { const d=new Date(); d.setDate(d.getDate()+1); return d.toISOString().split('T')[0]; });
+  const [couponCode, setCouponCode] = useState('');
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [wbtFee, setWbtFee] = useState(500);
+  // Chat overlay state
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatUnread, setChatUnread] = useState(0);
+  const realtimeRef = useRef<any>(null);
+  // Legacy tab kept for stats only
   const [activeTab, setActiveTab] = useState<'roster' | 'venue' | 'chat' | 'stats'>('roster');
   
   // Stats entry state
@@ -77,7 +98,6 @@ export default function InteractionBoardPage() {
     if (res.ok) {
       const d = await res.json();
       setMatchData(d);
-      // Only initialize picks once — never overwrite user's unsaved selections
       if (!picksInitialized.current) {
         const existing: Record<string, boolean> = {};
         d.match.rosterPicks?.forEach((p: any) => {
@@ -89,13 +109,18 @@ export default function InteractionBoardPage() {
           picksInitialized.current = true;
         }
       }
-      // Auto-redirect once venue is booked (SCHEDULED) — the Start button is on the active tab
-      if (d.match?.status === 'SCHEDULED' || d.match?.venueBookedAt) {
-        router.replace(`/${locale}/interact`);
-        return;
+      // Auto-advance step based on match state
+      if (d.match?.venueBookedAt || d.match?.status === 'SCHEDULED') {
+        setCurrentStep(4);
+      } else if (d.match?.venueType === 'BMT') {
+        setCurrentStep(s => s < 3 ? 3 : s); setVenueTypeLocal('BMT');
+      } else if (d.match?.venueType === 'OPEN_WBT') {
+        setCurrentStep(s => s < 3 ? 3 : s); setVenueTypeLocal('OPEN_WBT');
+      } else if (d.match?.rosterLockedA && d.match?.rosterLockedB) {
+        setCurrentStep(s => s < 2 ? 2 : s);
       }
     }
-    if (!loading) return; // only set loading false once
+    if (!loading) return;
     setLoading(false);
   }, [matchId, locale]);
 
@@ -122,22 +147,66 @@ export default function InteractionBoardPage() {
 
   // Poll every 5s
   useEffect(() => {
-    const t = setInterval(() => {
-      loadMatch();
-      if (activeTab === 'chat') loadChat();
-    }, 5000);
+    const t = setInterval(() => { loadMatch(); }, 5000);
     return () => clearInterval(t);
-  }, [activeTab, loadMatch, loadChat]);
+  }, [loadMatch]);
 
+  // Supabase realtime
   useEffect(() => {
-    if (activeTab === 'chat') loadChat();
-    if (activeTab === 'venue' && matchData) {
+    let ch: any;
+    const setup = async () => {
+      try {
+        const { getSupabaseClient } = await import('@/lib/supabaseRealtime');
+        const sb = getSupabaseClient();
+        ch = sb.channel(`interact:${matchId}`);
+        ch.on('broadcast', { event: 'chat_message' }, (payload: any) => {
+          const m = payload.payload?.message;
+          if (m) { setChatMessages(prev => [...prev, m]); if (!chatOpen) setChatUnread(u => u+1); }
+        });
+        ch.on('broadcast', { event: 'venue_type_set' }, (payload: any) => {
+          const vt = payload.payload?.venueType;
+          if (vt) { setVenueTypeLocal(vt); setCurrentStep(3); }
+        });
+        ch.on('broadcast', { event: 'bmt_slot_selected' }, (payload: any) => {
+          setPendingBmtSlot(payload.payload); setCurrentStep(3);
+        });
+        ch.on('broadcast', { event: 'bmt_slot_response' }, (payload: any) => {
+          if (payload.payload?.accepted) { setCurrentStep(4); loadMatch(); }
+          else { setPendingBmtSlot(null); setMsg('❌ Opponent declined — pick another slot'); }
+        });
+        ch.on('broadcast', { event: 'wbt_turf_selected' }, () => { loadMatch(); });
+        ch.on('broadcast', { event: 'wbt_payment_update' }, () => { loadMatch(); });
+        ch.on('broadcast', { event: 'wbt_booking_complete' }, () => { setCurrentStep(4); loadMatch(); });
+        ch.subscribe();
+        realtimeRef.current = ch;
+      } catch {}
+    };
+    setup();
+    return () => { if (realtimeRef.current) { try { const sb = realtimeRef.current?._client; sb?.removeChannel(realtimeRef.current); } catch {} } };
+  }, [matchId]);
+
+  // Load WBT turfs & match fee
+  useEffect(() => {
+    const loadWbt = async () => {
+      const [tRes, fRes] = await Promise.all([fetch('/api/interact/wbt/turfs'), fetch('/api/admin/wbt/settings')]);
+      if (tRes.ok) { const d = await tRes.json(); setWbtTurfs(d.turfs || []); }
+      if (fRes.ok) { const d = await fRes.json(); setWbtFee(d.fee ?? 500); }
+    };
+    loadWbt();
+  }, []);
+
+  // Load BMT turfs when entering step 3 BMT
+  useEffect(() => {
+    const vt = venueTypeLocal ?? matchData?.match.venueType;
+    if (currentStep === 3 && vt === 'BMT' && matchData) {
       loadVenues(matchData.match.teamA.sportType);
     }
-  }, [activeTab]);
+  }, [currentStep, venueTypeLocal]);
 
+  // Reload turfs when date changes (BMT step 3)
   useEffect(() => {
-    if (activeTab === 'venue' && matchData) {
+    const vt = venueTypeLocal ?? matchData?.match.venueType;
+    if (currentStep === 3 && vt === 'BMT' && matchData) {
       loadVenues(matchData.match.teamA.sportType);
     }
   }, [venueDate]);
@@ -335,16 +404,19 @@ export default function InteractionBoardPage() {
         </div>
       </div>
 
-      {/* ── TABS ── */}
-      <div className="shrink-0 flex gap-1 px-4 pt-3 pb-2">
-        {(['roster','venue','chat'] as const).map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab as any)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-black rounded-xl transition-all ${
-              activeTab === tab ? 'bg-fuchsia-600 text-white' : 'bg-neutral-900 text-neutral-500 hover:text-white border border-white/5'
-            }`}>
-            {tab === 'roster' ? <><Users size={12} /> Roster</> : tab === 'venue' ? <><MapPin size={12} /> Venue</> : <><MessageCircle size={12} /> Chat</>}
-          </button>
-        ))}
+      {/* ── STEP INDICATOR ── */}
+      <div className="shrink-0 px-4 pt-2 pb-2">
+        <div className="flex items-center gap-1">
+          {[{n:1,label:'Roster'},{n:2,label:'Venue Type'},{n:3,label:'Booking'},{n:4,label:'Complete'}].map(({n,label},i,arr) => (
+            <Fragment key={n}>
+              <div className={`flex items-center gap-1 ${ currentStep === n ? 'text-[#00ff41]' : currentStep > n ? 'text-[#00ff41]/50' : 'text-neutral-700' }`}>
+                <span className={`w-5 h-5 rounded-full text-[9px] font-black flex items-center justify-center border ${ currentStep === n ? 'bg-[#00ff41]/20 border-[#00ff41]/50 text-[#00ff41]' : currentStep > n ? 'bg-[#00ff41]/10 border-[#00ff41]/20' : 'bg-neutral-900 border-white/10' }`}>{n}</span>
+                {currentStep === n && <span className="text-[9px] font-black">{label}</span>}
+              </div>
+              {i < arr.length-1 && <div className={`flex-1 h-px ${ currentStep > n ? 'bg-[#00ff41]/30' : 'bg-white/5' }`} />}
+            </Fragment>
+          ))}
+        </div>
       </div>
 
       {/* ── STATUS MSG ── */}
@@ -354,10 +426,8 @@ export default function InteractionBoardPage() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          TAB 1: ROSTER & FORMATION
-      ═══════════════════════════════════════════════════════════════════════ */}
-      {activeTab === 'roster' && (
+      {/* ── STEP 1: ROSTER ── */}
+      {currentStep === 1 && (
         <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-20">
 
           {/* ── ROSTER SIDE TABS ── */}
@@ -422,10 +492,12 @@ export default function InteractionBoardPage() {
                     </p>
                   </div>
 
-                  <div className="flex flex-col gap-2">
+                  {/* 3-col grid of box cards */}
+                  <div className="grid grid-cols-3 gap-2.5">
                     {myMembers.map((m: any) => {
                       const inPick = picks.hasOwnProperty(m.id);
                       const isStarter = picks[m.id] === true;
+                      const isSub = inPick && !isStarter;
                       const rank = getRankData(m.player?.mmr ?? 1000);
                       return (
                         <button key={m.id}
@@ -439,31 +511,53 @@ export default function InteractionBoardPage() {
                               return next;
                             });
                           }}
-                          className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all w-full hover:border-fuchsia-500/30 active:scale-[0.98] ${
-                            inPick ? (isStarter ? 'bg-[#00ff41]/5 border-[#00ff41]/20' : 'bg-amber-500/5 border-amber-500/20') : 'bg-neutral-900 border-white/5'
+                          className={`relative flex flex-col items-center gap-1.5 pt-3 pb-2.5 px-1.5 rounded-2xl border text-center transition-all active:scale-[0.96] ${
+                            isStarter ? 'bg-[#00ff41]/8 border-[#00ff41]/35'
+                            : isSub   ? 'bg-amber-500/8 border-amber-500/30'
+                            :           'bg-neutral-900 border-white/6'
                           }`}>
-                          <div className="w-9 h-9 rounded-full bg-neutral-800 flex items-center justify-center overflow-hidden shrink-0 border border-white/10">
-                            {m.player?.avatarUrl ? <img src={m.player.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-xs font-black text-white/50">{m.player?.fullName?.[0]}</span>}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-sm truncate">{m.player?.fullName}</p>
-                            <p className="text-[10px] text-neutral-500 capitalize">{m.sportRole || m.role}</p>
-                          </div>
-                          <div className="flex flex-col items-end gap-0.5 shrink-0">
-                            <div className={`flex items-center justify-center gap-1 text-[10px] font-bold ${rank.text}`}><img src={rank.icon} className="w-3.5 h-3.5 object-contain" alt="" />{rank.label}</div>
-                            <span className="text-[10px] text-neutral-500 font-bold">{m.player?.mmr ?? 1000}</span>
-                          </div>
-                          <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[9px] font-black ${
-                            inPick ? (isStarter ? 'bg-[#00ff41]/20 text-[#00ff41]' : 'bg-amber-500/20 text-amber-400') : 'bg-white/5 text-white/20'
+                          {/* Status badge — top right */}
+                          <span className={`absolute top-1.5 right-1.5 text-[8px] font-black px-1.5 py-0.5 rounded-md ${
+                            isStarter ? 'bg-[#00ff41]/20 text-[#00ff41]'
+                            : isSub   ? 'bg-amber-500/20 text-amber-400'
+                            :           'bg-white/5 text-white/20'
                           }`}>
-                            {inPick ? (isStarter ? '▶' : 'S') : '—'}
+                            {isStarter ? '▶ START' : isSub ? 'SUB' : '—'}
+                          </span>
+
+                          {/* Avatar */}
+                          <div className={`w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center border-2 shrink-0 ${
+                            isStarter ? 'border-[#00ff41]/50'
+                            : isSub   ? 'border-amber-500/40'
+                            :           'border-white/10'
+                          } bg-neutral-800`}>
+                            {m.player?.avatarUrl
+                              ? <img src={m.player.avatarUrl} className="w-full h-full object-cover" alt="" />
+                              : <span className="text-base font-black text-white/40">{m.player?.fullName?.[0]}</span>}
                           </div>
+
+                          {/* Name */}
+                          <p className="text-[11px] font-black text-white leading-tight w-full truncate px-0.5">{m.player?.fullName}</p>
+
+                          {/* Position */}
+                          {(m.sportRole || m.role) && (
+                            <p className="text-[9px] text-neutral-500 capitalize leading-none truncate w-full px-0.5">{m.sportRole || m.role}</p>
+                          )}
+
+                          {/* Rank */}
+                          <div className={`flex items-center justify-center gap-0.5 ${rank.text}`}>
+                            <img src={rank.icon} className="w-3.5 h-3.5 object-contain" alt="" />
+                            <span className="text-[9px] font-black">{rank.label}</span>
+                          </div>
+
+                          {/* MMR */}
+                          <span className="text-[8px] text-neutral-600 font-bold">{m.player?.mmr ?? 1000} MMR</span>
                         </button>
                       );
                     })}
                   </div>
 
-                  <p className="text-[9px] text-neutral-600 mt-2 mb-4 italic text-center">Tap: Not selected → Starter → Sub → Remove</p>
+                  <p className="text-[9px] text-neutral-600 mt-2 mb-4 italic text-center">Tap: Unselected → Starter → Sub → Remove</p>
 
                   {isOMC && (
                     <div className="flex flex-col gap-2">
@@ -496,70 +590,66 @@ export default function InteractionBoardPage() {
                       {myFormation && <span className="text-[10px] font-black text-[#00ff41] bg-[#00ff41]/20 border border-[#00ff41]/30 px-2 py-0.5 rounded-lg">{myFormation}</span>}
                     </div>
 
-                    {myStarters.length > 0 && (
-                      <>
-                        <p className="text-[9px] font-black uppercase tracking-wider text-[#00ff41] mb-1.5">Starters</p>
-                        <div className="flex flex-col gap-1.5 mb-3">
-                          {myStarters.map((p: any) => {
-                            const rank = getRankData(p.player?.mmr ?? 1000);
-                            return (
-                              <div key={p.id} className="flex items-center gap-2.5 px-3 py-2.5 bg-neutral-900 border border-[#00ff41]/15 rounded-xl">
-                                <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center overflow-hidden shrink-0 border border-white/10">
-                                  {p.player?.avatarUrl ? <img src={p.player.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-xs font-black text-white/40">{p.player?.fullName?.[0]}</span>}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-bold truncate">{p.player?.fullName ?? 'Player'}</p>
-                                  <p className="text-[9px] text-neutral-500 capitalize">{p.sportRole || p.role}</p>
-                                </div>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <span className={`inline-flex items-center gap-1 text-[9px] font-bold ${rank.text}`}><img src={rank.icon} className="w-3.5 h-3.5 object-contain" alt="" />{rank.label}</span>
-                                  <span className="text-[9px] text-neutral-600">{p.player?.mmr ?? 1000}</span>
-                                  <span className="text-[9px] font-black text-[#00ff41] bg-[#00ff41]/10 px-1.5 py-0.5 rounded">▶</span>
-                                </div>
+                  {myStarters.length > 0 && (
+                    <>
+                      <p className="text-[9px] font-black uppercase tracking-wider text-[#00ff41] mb-2">Starters</p>
+                      <div className="grid grid-cols-3 gap-2 mb-4">
+                        {myStarters.map((p: any) => {
+                          const rank = getRankData(p.player?.mmr ?? 1000);
+                          return (
+                            <div key={p.id} className="flex flex-col items-center gap-1 pt-2.5 pb-2 px-1 rounded-2xl bg-[#00ff41]/5 border border-[#00ff41]/20 text-center">
+                              <div className="w-11 h-11 rounded-xl bg-neutral-800 overflow-hidden flex items-center justify-center border-2 border-[#00ff41]/40">
+                                {p.player?.avatarUrl ? <img src={p.player.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-base font-black text-white/40">{p.player?.fullName?.[0]}</span>}
                               </div>
-                            );
-                          })}
-                        </div>
-                      </>
-                    )}
-
-                    {mySubs.length > 0 && (
-                      <>
-                        <p className="text-[9px] font-black uppercase tracking-wider text-amber-400 mb-1.5">Substitutes</p>
-                        <div className="flex flex-col gap-1.5 mb-3">
-                          {mySubs.map((p: any) => {
-                            const rank = getRankData(p.player?.mmr ?? 1000);
-                            return (
-                              <div key={p.id} className="flex items-center gap-2.5 px-3 py-2.5 bg-neutral-900 border border-amber-500/10 rounded-xl">
-                                <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center overflow-hidden shrink-0 border border-white/10">
-                                  {p.player?.avatarUrl ? <img src={p.player.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-xs font-black text-white/40">{p.player?.fullName?.[0]}</span>}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-bold truncate">{p.player?.fullName ?? 'Player'}</p>
-                                  <p className="text-[9px] text-neutral-500 capitalize">{p.sportRole || p.role}</p>
-                                </div>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <span className={`inline-flex items-center gap-1 text-[9px] font-bold ${rank.text}`}><img src={rank.icon} className="w-3.5 h-3.5 object-contain" alt="" />{rank.label}</span>
-                                  <span className="text-[9px] text-neutral-600">{p.player?.mmr ?? 1000}</span>
-                                  <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">S</span>
-                                </div>
+                              <p className="text-[11px] font-black text-white truncate w-full px-0.5 leading-tight">{p.player?.fullName ?? 'Player'}</p>
+                              {(p.sportRole || p.role) && <p className="text-[9px] text-neutral-500 capitalize truncate w-full px-0.5">{p.sportRole || p.role}</p>}
+                              <div className={`flex items-center justify-center gap-0.5 ${rank.text}`}>
+                                <img src={rank.icon} className="w-3 h-3 object-contain" alt="" />
+                                <span className="text-[8px] font-black">{rank.label}</span>
                               </div>
-                            );
-                          })}
-                        </div>
-                      </>
-                    )}
+                              <span className="text-[8px] text-[#00ff41]/60 font-black">▶ START</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
 
-                    {/* Edit Roster button — only before venue confirmed */}
-                    {isOMC && !boardLocked && (
-                      <button onClick={() => doAction('unlock_roster')} disabled={saving}
-                        className="w-full mt-1 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 font-black text-xs rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
-                        <Edit3 size={13} /> Edit Roster
-                      </button>
-                    )}
-                  </div>
-                );
-              })()}
+                  {mySubs.length > 0 && (
+                    <>
+                      <p className="text-[9px] font-black uppercase tracking-wider text-amber-400 mb-2">Substitutes</p>
+                      <div className="grid grid-cols-3 gap-2 mb-3">
+                        {mySubs.map((p: any) => {
+                          const rank = getRankData(p.player?.mmr ?? 1000);
+                          return (
+                            <div key={p.id} className="flex flex-col items-center gap-1 pt-2.5 pb-2 px-1 rounded-2xl bg-amber-500/5 border border-amber-500/20 text-center">
+                              <div className="w-11 h-11 rounded-xl bg-neutral-800 overflow-hidden flex items-center justify-center border-2 border-amber-500/35">
+                                {p.player?.avatarUrl ? <img src={p.player.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-base font-black text-white/40">{p.player?.fullName?.[0]}</span>}
+                              </div>
+                              <p className="text-[11px] font-black text-white truncate w-full px-0.5 leading-tight">{p.player?.fullName ?? 'Player'}</p>
+                              {(p.sportRole || p.role) && <p className="text-[9px] text-neutral-500 capitalize truncate w-full px-0.5">{p.sportRole || p.role}</p>}
+                              <div className={`flex items-center justify-center gap-0.5 ${rank.text}`}>
+                                <img src={rank.icon} className="w-3 h-3 object-contain" alt="" />
+                                <span className="text-[8px] font-black">{rank.label}</span>
+                              </div>
+                              <span className="text-[8px] text-amber-400/70 font-black">SUB</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Edit Roster button — only before venue confirmed */}
+                  {isOMC && !boardLocked && (
+                    <button onClick={() => doAction('unlock_roster')} disabled={saving}
+                      className="w-full mt-1 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 font-black text-xs rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
+                      <Edit3 size={13} /> Edit Roster
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
             </>
           )}
 
@@ -585,24 +675,22 @@ export default function InteractionBoardPage() {
 
                   {opStarters.length > 0 && (
                     <>
-                      <p className="text-[9px] font-black uppercase tracking-wider text-[#00ff41] mb-1.5">Starters</p>
-                      <div className="flex flex-col gap-1.5 mb-3">
+                      <p className="text-[9px] font-black uppercase tracking-wider text-[#00ff41] mb-2">Starters</p>
+                      <div className="grid grid-cols-3 gap-2 mb-4">
                         {opStarters.map((p: any) => {
                           const rank = getRankData(p.player?.mmr ?? 1000);
                           return (
-                            <div key={p.id} className="flex items-center gap-2.5 px-3 py-2.5 bg-neutral-900 border border-[#00ff41]/10 rounded-xl">
-                              <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center overflow-hidden shrink-0 border border-white/10">
-                                {p.player?.avatarUrl ? <img src={p.player.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-xs font-black text-white/40">{p.player?.fullName?.[0]}</span>}
+                            <div key={p.id} className="flex flex-col items-center gap-1 pt-2.5 pb-2 px-1 rounded-2xl bg-[#00ff41]/5 border border-[#00ff41]/15 text-center">
+                              <div className="w-11 h-11 rounded-xl bg-neutral-800 overflow-hidden flex items-center justify-center border-2 border-[#00ff41]/35">
+                                {p.player?.avatarUrl ? <img src={p.player.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-base font-black text-white/40">{p.player?.fullName?.[0]}</span>}
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-bold truncate">{p.player?.fullName ?? 'Player'}</p>
-                                <p className="text-[9px] text-neutral-500 capitalize">{p.sportRole || p.role}</p>
+                              <p className="text-[11px] font-black text-white truncate w-full px-0.5 leading-tight">{p.player?.fullName ?? 'Player'}</p>
+                              {(p.sportRole || p.role) && <p className="text-[9px] text-neutral-500 capitalize truncate w-full px-0.5">{p.sportRole || p.role}</p>}
+                              <div className={`flex items-center justify-center gap-0.5 ${rank.text}`}>
+                                <img src={rank.icon} className="w-3 h-3 object-contain" alt="" />
+                                <span className="text-[8px] font-black">{rank.label}</span>
                               </div>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <span className={`inline-flex items-center gap-1 text-[9px] font-bold ${rank.text}`}><img src={rank.icon} className="w-3.5 h-3.5 object-contain" alt="" />{rank.label}</span>
-                                <span className="text-[9px] text-neutral-600">{p.player?.mmr ?? 1000}</span>
-                                <span className="text-[9px] font-black text-[#00ff41] bg-[#00ff41]/10 px-1.5 py-0.5 rounded">▶</span>
-                              </div>
+                              <span className="text-[8px] text-[#00ff41]/60 font-black">▶ START</span>
                             </div>
                           );
                         })}
@@ -612,24 +700,22 @@ export default function InteractionBoardPage() {
 
                   {opSubs.length > 0 && (
                     <>
-                      <p className="text-[9px] font-black uppercase tracking-wider text-amber-400 mb-1.5">Substitutes</p>
-                      <div className="flex flex-col gap-1.5">
+                      <p className="text-[9px] font-black uppercase tracking-wider text-amber-400 mb-2">Substitutes</p>
+                      <div className="grid grid-cols-3 gap-2">
                         {opSubs.map((p: any) => {
                           const rank = getRankData(p.player?.mmr ?? 1000);
                           return (
-                            <div key={p.id} className="flex items-center gap-2.5 px-3 py-2.5 bg-neutral-900 border border-amber-500/10 rounded-xl">
-                              <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center overflow-hidden shrink-0 border border-white/10">
-                                {p.player?.avatarUrl ? <img src={p.player.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-xs font-black text-white/40">{p.player?.fullName?.[0]}</span>}
+                            <div key={p.id} className="flex flex-col items-center gap-1 pt-2.5 pb-2 px-1 rounded-2xl bg-amber-500/5 border border-amber-500/15 text-center">
+                              <div className="w-11 h-11 rounded-xl bg-neutral-800 overflow-hidden flex items-center justify-center border-2 border-amber-500/30">
+                                {p.player?.avatarUrl ? <img src={p.player.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-base font-black text-white/40">{p.player?.fullName?.[0]}</span>}
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-bold truncate">{p.player?.fullName ?? 'Player'}</p>
-                                <p className="text-[9px] text-neutral-500 capitalize">{p.sportRole || p.role}</p>
+                              <p className="text-[11px] font-black text-white truncate w-full px-0.5 leading-tight">{p.player?.fullName ?? 'Player'}</p>
+                              {(p.sportRole || p.role) && <p className="text-[9px] text-neutral-500 capitalize truncate w-full px-0.5">{p.sportRole || p.role}</p>}
+                              <div className={`flex items-center justify-center gap-0.5 ${rank.text}`}>
+                                <img src={rank.icon} className="w-3 h-3 object-contain" alt="" />
+                                <span className="text-[8px] font-black">{rank.label}</span>
                               </div>
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <span className={`inline-flex items-center gap-1 text-[9px] font-bold ${rank.text}`}><img src={rank.icon} className="w-3.5 h-3.5 object-contain" alt="" />{rank.label}</span>
-                                <span className="text-[9px] text-neutral-600">{p.player?.mmr ?? 1000}</span>
-                                <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">S</span>
-                              </div>
+                              <span className="text-[8px] text-amber-400/70 font-black">SUB</span>
                             </div>
                           );
                         })}
@@ -650,434 +736,565 @@ export default function InteractionBoardPage() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          TAB 2: VENUE
-      ═══════════════════════════════════════════════════════════════════════ */}
-      {activeTab === 'venue' && (
+      {/* ── STEP 2: VENUE TYPE BENTO ── */}
+      {currentStep === 2 && (
         <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-20">
-          {venueConfirmed ? (
-            <div className="mt-4 flex flex-col gap-3">
-              {/* Venue confirmed info */}
-              <div className="p-4 bg-[#00ff41]/5 border border-[#00ff41]/20 rounded-2xl">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle size={16} className="text-[#00ff41]" />
-                  <p className="text-[#00ff41] font-black text-sm">Venue Confirmed!</p>
-                </div>
-                <p className="text-xs text-neutral-400">📅 {match.matchDate}</p>
-                {match.bookingCode && (
-                  <div className="mt-3 py-2 px-3 bg-neutral-900 border border-white/10 rounded-xl">
-                    <p className="text-[9px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Booking Code</p>
-                    <p className="text-2xl font-black tracking-[0.3em] text-white">{match.bookingCode}</p>
-                    <p className="text-[9px] text-neutral-600 mt-0.5">Show to turf manager on match day</p>
-                  </div>
-                )}
-              </div>
-
-              {/* ── Start Match (SCHEDULED) ── */}
-              {match.status === 'SCHEDULED' && (isOMC || isScorer) && (
-                <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl">
-                  <p className="text-amber-400 font-black text-sm mb-1">⏳ Match Day</p>
-                  <p className="text-xs text-neutral-400 mb-3">
-                    Both sides must tap <strong className="text-white">Start Match</strong> to go live.
-                    {match.matchStartedByA && !match.matchStartedByB && <span className="text-[#00ff41]"> Your team is ready!</span>}
-                    {!match.matchStartedByA && match.matchStartedByB && <span className="text-[#00ff41]"> Opponent is ready!</span>}
-                    {isScorer && !isOMC && <span className="text-fuchsia-400"> You are the assigned scorer.</span>}
-                  </p>
-                  <button
-                    onClick={() => doAction('start_match')}
-                    disabled={saving || (isTeamA ? match.matchStartedByA : match.matchStartedByB)}
-                    className="w-full py-3.5 rounded-2xl bg-[#00ff41] text-black font-black text-sm uppercase tracking-wider disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-                  >
-                    {saving ? <Loader2 size={16} className="animate-spin" /> : (isTeamA ? match.matchStartedByA : match.matchStartedByB) ? '✓ Ready — waiting for opponent' : '🚀 Start Match'}
-                  </button>
-                </div>
-              )}
-
-              {/* ── Already LIVE ── */}
-              {(match.status === 'LIVE' || match.status === 'SCORE_ENTRY') && (() => {
-                const sport = match.teamA?.sportType ?? '';
-                const isCricket = ['CRICKET_7', 'CRICKET_FULL'].includes(sport);
-                const liveRoute = isCricket
-                  ? `/${locale}/matches/${matchId}/cricket`
-                  : `/${locale}/matches/${matchId}/live`;
-                return (
-                  <button
-                    onClick={() => router.push(liveRoute)}
-                    className="w-full py-4 rounded-2xl bg-red-500 text-white font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(239,68,68,0.3)] animate-pulse"
-                  >
-                    {isCricket ? '🏏 Enter Live Scoring' : '🔴 Enter Live Scoring'}
-                  </button>
-                );
-              })()}
-
-              {/* ── Completed ── */}
-              {match.status === 'COMPLETED' && (
+          {isTeamA && isOMC && !match.venueType ? (
+            <div className="mt-6">
+              <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-1">Both rosters locked!</p>
+              <p className="text-sm font-bold text-white mb-5">How will you book the turf?</p>
+              <div className="flex flex-col gap-4">
+                {/* BMT card */}
                 <button
-                  onClick={() => router.push(`/${locale}/matches/${matchId}/stats`)}
-                  className="w-full py-4 rounded-2xl bg-fuchsia-600 text-white font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2"
+                  onClick={async () => {
+                    setSaving(true); setMsg('');
+                    const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'set_venue_type', venueType:'BMT'}) });
+                    const d = await r.json();
+                    if (r.ok) { setVenueTypeLocal('BMT'); setCurrentStep(3); }
+                    else setMsg('❌ ' + d.error);
+                    setSaving(false);
+                  }}
+                  disabled={saving}
+                  className="relative w-full p-5 rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-900/40 to-green-900/20 text-left hover:border-emerald-400/50 hover:from-emerald-900/60 transition-all active:scale-[0.98] disabled:opacity-50"
                 >
-                  📊 Enter Player Stats
+                  <span className="absolute top-3 right-3 text-[8px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">FREE · RECOMMENDED</span>
+                  <div className="text-3xl mb-2">🏟️</div>
+                  <p className="text-base font-black text-white">Book Turf via BMT</p>
+                  <p className="text-xs text-neutral-400 mt-1">Search our platform's verified turfs. Opponent accepts your slot pick. Fully managed.</p>
+                  {saving && <Loader2 size={14} className="absolute bottom-3 right-3 animate-spin text-emerald-400" />}
                 </button>
-              )}
+                {/* Open WBT card */}
+                <button
+                  onClick={async () => {
+                    setSaving(true); setMsg('');
+                    const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'set_venue_type', venueType:'OPEN_WBT'}) });
+                    const d = await r.json();
+                    if (r.ok) { setVenueTypeLocal('OPEN_WBT'); setCurrentStep(3); }
+                    else setMsg('❌ ' + d.error);
+                    setSaving(false);
+                  }}
+                  disabled={saving}
+                  className="relative w-full p-5 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-900/40 to-orange-900/20 text-left hover:border-amber-400/50 transition-all active:scale-[0.98] disabled:opacity-50"
+                >
+                  <span className="absolute top-3 right-3 text-[8px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">PAID</span>
+                  <div className="text-3xl mb-2">📋</div>
+                  <p className="text-base font-black text-white">We'll Book Ourselves</p>
+                  <p className="text-xs text-neutral-400 mt-1">Use an external turf. Match fee of ৳{wbtFee} applies (৳{wbtFee/2} each). Manage your own booking.</p>
+                  {saving && <Loader2 size={14} className="absolute bottom-3 right-3 animate-spin text-amber-400" />}
+                </button>
+              </div>
+            </div>
+          ) : isTeamA && match.venueType ? (
+            <div className="mt-8 text-center">
+              <div className="text-4xl mb-3">{match.venueType === 'BMT' ? '🏟️' : '📋'}</div>
+              <p className="font-black text-white">{match.venueType === 'BMT' ? 'Book Turf via BMT' : 'Open WBT'} selected</p>
+              <p className="text-xs text-neutral-500 mt-1">Advancing to booking step…</p>
+              <button onClick={() => setCurrentStep(3)} className="mt-4 px-5 py-2 bg-fuchsia-600 text-white font-black rounded-xl text-sm">Continue →</button>
             </div>
           ) : (
-            <>
-              {iChallenger && !hasSuggestions && isOMC && (() => {
-                // Group turfs by city
-                const citiesMap: Record<string, typeof filteredTurfs> = {};
-                filteredTurfs.forEach(t => {
-                  const c = t.city || 'Other';
-                  if (!citiesMap[c]) citiesMap[c] = [];
-                  citiesMap[c].push(t);
-                });
-                const cities = Object.keys(citiesMap).sort();
-
-                return (
-                  <div className="mt-3">
-                    {/* Date picker */}
-                    <div className="mb-4">
-                      <p className="text-[10px] font-black uppercase tracking-wider text-neutral-500 mb-2">Match Date</p>
-                      <input type="date" value={venueDate} min={new Date().toISOString().split('T')[0]}
-                        onChange={e => setVenueDate(e.target.value)}
-                        className="w-full bg-neutral-900 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-fuchsia-500/50" />
-                    </div>
-
-                    {/* Suggestions basket */}
-                    {suggestions.length > 0 && (
-                      <div className="mb-4 p-3 bg-fuchsia-500/5 border border-fuchsia-500/15 rounded-2xl">
-                        <p className="text-[10px] font-black uppercase tracking-wider text-fuchsia-400 mb-2">
-                          Your Picks {suggestions.length}/3
-                        </p>
-                        <div className="flex flex-col gap-1.5">
-                          {suggestions.map((s, i) => (
-                            <div key={s.slotId} className="flex items-center gap-2 px-2 py-1.5 bg-fuchsia-500/10 border border-fuchsia-500/20 rounded-xl">
-                              <span className="text-[10px] font-black text-fuchsia-500 w-4 shrink-0">#{i + 1}</span>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-bold text-[11px] truncate">{s.turfName}</p>
-                                <p className="text-[9px] text-neutral-400">🕒 {s.slotLabel} · ৳{s.price / 2} each</p>
-                              </div>
-                              <button onClick={() => removeSuggestion(s.slotId)} className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/10 text-neutral-500 hover:text-white transition-colors shrink-0">
-                                <X size={11} />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* City-grouped carousel rows */}
-                    {venuesLoading ? (
-                      <div className="py-10 flex justify-center"><Loader2 size={24} className="animate-spin text-fuchsia-500" /></div>
-                    ) : filteredTurfs.length === 0 ? (
-                      <div className="py-10 text-center text-neutral-500">
-                        <MapPin size={28} className="mx-auto mb-2 opacity-20" />
-                        <p className="text-sm">No venues available for this date</p>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-5">
-                        {cities.map(city => (
-                          <div key={city}>
-                            {/* City header */}
-                            <div className="flex items-center gap-2 mb-2.5">
-                              <MapPin size={11} className="text-fuchsia-400 shrink-0" />
-                              <p className="text-[11px] font-black uppercase tracking-widest text-fuchsia-400">{city}</p>
-                              <div className="flex-1 h-px bg-fuchsia-500/10" />
-                              <span className="text-[9px] text-neutral-600 font-bold">{citiesMap[city].length} turf{citiesMap[city].length !== 1 ? 's' : ''}</span>
-                            </div>
-
-                            {/* Horizontal carousel */}
-                            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide" style={{ scrollSnapType: 'x mandatory' }}>
-                              {citiesMap[city].map(turf => {
-                                const isSelected = expandedTurf === turf.id;
-                                const coverImg = turf.imageUrls?.[0] || null;
-                                const hasSuggestionFromTurf = suggestions.some(s => s.turfId === turf.id);
-                                return (
-                                  <button
-                                    key={turf.id}
-                                    onClick={() => setExpandedTurf(isSelected ? null : turf.id)}
-                                    style={{ scrollSnapAlign: 'start', minWidth: '130px', maxWidth: '130px' }}
-                                    className={`relative flex-shrink-0 rounded-2xl overflow-hidden border transition-all ${ 
-                                      isSelected
-                                        ? 'border-fuchsia-500/60 ring-2 ring-fuchsia-500/30'
-                                        : hasSuggestionFromTurf
-                                        ? 'border-[#00ff41]/40 ring-1 ring-[#00ff41]/20'
-                                        : 'border-white/8 hover:border-white/20'
-                                    }`}>
-                                    {/* Turf image / gradient */}
-                                    <div className="w-full h-[78px] relative overflow-hidden">
-                                      {coverImg ? (
-                                        <img src={coverImg} className="w-full h-full object-cover" alt={turf.name} />
-                                      ) : (
-                                        <div className="w-full h-full flex items-center justify-center bg-neutral-900">
-                                           <span className="text-4xl font-black text-white/10">{turf.name[0]}</span>
-                                         </div>
-                                      )}
-                                      {/* Slot count badge */}
-                                      <div className="absolute top-1.5 right-1.5 px-1.5 py-0.5 bg-black/60 backdrop-blur rounded-lg">
-                                        <span className="text-[9px] font-black text-[#00ff41]">{turf.totalSlots}✓</span>
-                                      </div>
-                                      {/* Selected overlay */}
-                                      {isSelected && (
-                                        <div className="absolute inset-0 bg-fuchsia-500/20 flex items-center justify-center">
-                                          <div className="w-6 h-6 rounded-full bg-fuchsia-500 flex items-center justify-center">
-                                            <CheckCircle size={14} className="text-white" />
-                                          </div>
-                                        </div>
-                                      )}
-                                      {/* Green check if has suggestion */}
-                                      {!isSelected && hasSuggestionFromTurf && (
-                                        <div className="absolute bottom-1 right-1">
-                                          <CheckCircle size={14} className="text-[#00ff41] drop-shadow" />
-                                        </div>
-                                      )}
-                                    </div>
-                                    {/* Card info */}
-                                    <div className="px-2 py-1.5 bg-neutral-950 text-left">
-                                      <p className="text-[11px] font-black text-white leading-tight line-clamp-1">{turf.name}</p>
-                                      <p className="text-[9px] text-neutral-500 mt-0.5">{turf.area || city}</p>
-                                    </div>
-                                  </button>
-                                );
-                              })}
-                            </div>
-
-                            {/* Slot picker — appears below the row for the selected turf in this city */}
-                            {expandedTurf && citiesMap[city].some(t => t.id === expandedTurf) && (() => {
-                              const turf = citiesMap[city].find(t => t.id === expandedTurf)!;
-                              return (
-                                <div className="mt-3 p-3 bg-neutral-900 border border-white/8 rounded-2xl">
-                                  <div className="flex items-center justify-between mb-3">
-                                    <div>
-                                      <p className="font-black text-sm">{turf.name}</p>
-                                      <p className="text-[10px] text-neutral-500 mt-0.5">{[turf.area, turf.city].filter(Boolean).join(' · ')}</p>
-                                    </div>
-                                    <button onClick={() => setExpandedTurf(null)} className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center">
-                                      <X size={13} />
-                                    </button>
-                                  </div>
-
-                                  {turf.availableSlots.length === 0 ? (
-                                    <p className="text-xs text-neutral-500 italic text-center py-4">No available slots for {venueDate || 'this date'}</p>
-                                  ) : (
-                                    <>
-                                      <p className="text-[9px] text-neutral-500 font-bold mb-2">Tap a slot to select, then add it to your picks</p>
-                                      <div className="grid grid-cols-2 gap-2">
-                                        {turf.availableSlots.map((slot: any) => {
-                                          const alreadyPicked  = suggestions.some(s => s.slotId === slot.id);
-                                          const isHighlighted  = pendingSlot?.slotId === slot.id;
-                                          const isFull         = suggestions.length >= 3;
-                                          return (
-                                            <button key={slot.id}
-                                              disabled={alreadyPicked || (!isHighlighted && isFull)}
-                                              onClick={() => {
-                                                if (alreadyPicked) return;
-                                                setPendingSlot(isHighlighted ? null : { slotId: slot.id, startTime: slot.startTime, endTime: slot.endTime, price: slot.price });
-                                              }}
-                                              className={`flex flex-col items-center px-2 py-2.5 rounded-xl border text-center transition-all ${
-                                                alreadyPicked
-                                                  ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41] cursor-default'
-                                                  : isHighlighted
-                                                  ? 'bg-fuchsia-600 border-fuchsia-400 text-white ring-2 ring-fuchsia-400/40'
-                                                  : isFull
-                                                  ? 'bg-neutral-800 border-white/5 text-neutral-600 cursor-not-allowed'
-                                                  : 'bg-neutral-800 border-white/10 hover:border-fuchsia-500/40 hover:bg-fuchsia-500/5 text-white'
-                                              }`}>
-                                              <span className="text-[10px] font-black">{slot.startTime}</span>
-                                              <span className="text-[9px] opacity-70">–{slot.endTime}</span>
-                                              <span className={`text-[9px] font-bold mt-0.5 ${
-                                                alreadyPicked ? 'text-[#00ff41]' : isHighlighted ? 'text-white/80' : 'text-[#00ff41]'
-                                              }`}>
-                                                {alreadyPicked ? '✓ Added' : `৳${slot.price}`}
-                                              </span>
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-
-                                      {/* Sticky Add button — only shows when a slot is highlighted */}
-                                      {pendingSlot && !suggestions.some(s => s.slotId === pendingSlot.slotId) && (
-                                        <button
-                                          onClick={() => {
-                                            addSuggestion(turf.id, turf.name, pendingSlot.slotId, pendingSlot.startTime, pendingSlot.endTime, pendingSlot.price);
-                                            setPendingSlot(null);
-                                          }}
-                                          className="w-full mt-3 py-2.5 bg-[#00ff41] hover:bg-[#00dd38] text-black font-black text-xs rounded-xl flex items-center justify-center gap-2 transition-all">
-                                          <CheckCircle size={14} /> Add Suggestion — {pendingSlot.startTime}–{pendingSlot.endTime}
-                                        </button>
-                                      )}
-                                    </>
-                                  )}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Send suggestions CTA */}
-                    <button
-                      onClick={() => doAction('suggest_venue', { suggestions: suggestions.map(s => ({ turfId: s.turfId, slotId: s.slotId, date: s.date, priority: s.priority })) })}
-                      disabled={saving || suggestions.length === 0}
-                      className={`w-full mt-5 py-3 text-black font-black uppercase rounded-2xl flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-all ${
-                        suggestions.length === 3 ? 'bg-[#00ff41] hover:bg-[#00dd38]' : 'bg-fuchsia-600 hover:bg-fuchsia-500 text-white'
-                      }`}>
-                      {saving ? <Loader2 size={16} className="animate-spin" /> : <><MapPin size={16} /> Send {suggestions.length}/3 Suggestions</>}
-                    </button>
-                  </div>
-                );
-              })()}
-
-              {/* Challenger already suggested */}
-              {iChallenger && hasSuggestions && !hasSelection && (
-                <div className="mt-6 text-center text-neutral-400">
-                  <Clock size={36} className="mx-auto mb-3 opacity-30" />
-                  <p className="font-bold text-sm">Suggestions sent!</p>
-                  <p className="text-xs mt-1">Waiting for {opponent.name} to pick a slot…</p>
-                  <div className="mt-4 flex flex-col gap-2">
-                    {match.venueSuggestions.map((s: any, i: number) => (
-                      <div key={s.id} className="p-3 bg-neutral-900 border border-white/10 rounded-xl text-left">
-                        <p className="text-xs font-bold">{i + 1}. {s.turf?.name || 'Turf'}</p>
-                        <p className="text-[10px] text-neutral-500">🕒 {s.slot?.startTime}–{s.slot?.endTime} · 📅 {s.date}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+            <div className="mt-12 text-center text-neutral-500">
+              <Clock size={36} className="mx-auto mb-3 opacity-20" />
+              {match.venueType ? (
+                <>
+                  <p className="font-bold text-sm">{isTeamA ? match.teamA?.name : match.teamB?.name} chose {match.venueType === 'BMT' ? '🏟️ BMT Booking' : '📋 Open WBT'}</p>
+                  <p className="text-xs mt-1">Advancing to booking step…</p>
+                  <button onClick={() => setCurrentStep(3)} className="mt-4 px-5 py-2 bg-fuchsia-600 text-white font-black rounded-xl text-sm">Go to Booking →</button>
+                </>
+              ) : (
+                <>
+                  <p className="font-bold text-sm">Waiting for {match.teamA?.name}</p>
+                  <p className="text-xs mt-1">to choose how to book the turf…</p>
+                </>
               )}
-
-              {/* Challenged: pick from 3 suggestions */}
-              {!iChallenger && hasSuggestions && !hasSelection && (
-                <div className="mt-3">
-                  <p className="text-xs font-black text-white mb-3">Pick one venue for the match:</p>
-                  {match.venueSuggestions.map((s: any) => (
-                    <div key={s.id} onClick={() => setSelectedSuggestionId(s.id)}
-                      className={`mb-3 p-4 rounded-2xl border cursor-pointer transition-all ${selectedSuggestionId === s.id ? 'bg-[#00ff41]/10 border-[#00ff41]/30' : 'bg-neutral-900 border-white/10 hover:border-white/20'}`}>
-                      <p className="font-black text-sm">{s.turf?.name || 'Turf'}</p>
-                      <p className="text-xs text-neutral-400 mt-0.5">🕒 {s.slot?.startTime}–{s.slot?.endTime} · 📅 {s.date}</p>
-                      <p className="text-xs font-bold text-fuchsia-400 mt-1">৳{((s.slot?.price || 0) / 2).toFixed(0)} each (50/50 split = ৳{s.slot?.price || 0} total)</p>
-                    </div>
-                  ))}
-                  {isOMC && selectedSuggestionId && (
-                    <button onClick={() => doAction('select_venue', { suggestionId: selectedSuggestionId })}
-                      disabled={saving}
-                      className="w-full py-3 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-black uppercase rounded-2xl flex items-center justify-center gap-2 disabled:opacity-50 transition-all">
-                      {saving ? <Loader2 size={16} className="animate-spin" /> : 'Confirm This Venue'}
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Non-OMC: waiting */}
-              {!isOMC && !hasSuggestions && (
-                <div className="mt-8 text-center text-neutral-500">
-                  <Clock size={36} className="mx-auto mb-3 opacity-20" />
-                  <p className="text-sm">Waiting for team captain to manage venue…</p>
-                </div>
-              )}
-
-              {/* Non-challenger waiting for suggestions */}
-              {!iChallenger && !hasSuggestions && (
-                <div className="mt-8 text-center text-neutral-500">
-                  <Clock size={36} className="mx-auto mb-3 opacity-20" />
-                  <p className="font-bold text-sm">Waiting for {opponent.name}</p>
-                  <p className="text-xs mt-1">to suggest 3 venue options…</p>
-                </div>
-              )}
-
-              {/* Challenger confirms booking */}
-              {iChallenger && hasSelection && !venueConfirmed && (
-                <div className="mt-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl">
-                  <p className="font-black text-amber-400 mb-1">Opponent selected a venue!</p>
-                  <p className="text-xs text-white/70 mb-3">📅 {match.matchDate}</p>
-                  {(!match.rosterLockedA || !match.rosterLockedB) ? (
-                    <div className="flex items-center gap-2 text-amber-400 text-xs font-bold">
-                      <AlertCircle size={13} /> Both teams must lock rosters before booking
-                    </div>
-                  ) : isOMC && (
-                    <button onClick={() => doAction('book_venue')} disabled={saving}
-                      className="w-full py-3 bg-[#00ff41] hover:bg-[#00dd38] text-black font-black uppercase rounded-2xl flex items-center justify-center gap-2 disabled:opacity-50 transition-all">
-                      {saving ? <Loader2 size={16} className="animate-spin" /> : <><MapPin size={16} /> Confirm & Book (50/50 Split)</>}
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Challenged waiting for challenger to confirm */}
-              {!iChallenger && hasSelection && !venueConfirmed && (
-                <div className="mt-8 text-center text-neutral-500">
-                  <Clock size={36} className="mx-auto mb-3 opacity-20" />
-                  <p className="font-bold text-sm">Waiting for {opponent.name}</p>
-                  <p className="text-xs mt-1">to confirm and book the venue…</p>
-                </div>
-              )}
-
-            </>
+            </div>
           )}
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          TAB 3: CHAT
-      ═══════════════════════════════════════════════════════════════════════ */}
-      {activeTab === 'chat' && (
-        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-          {/* Scrollable messages */}
-          <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
-            {chatMessages.length === 0 && (
-              <p className="text-center text-neutral-500 text-xs italic py-10">No messages yet. OMC-only channel.</p>
-            )}
-            {chatMessages.map((m: any) => {
-              const isMe = m.teamId === myTeamId;
-              const senderTeam  = isMe ? myTeam : opponent;
-              const memberEntry = senderTeam?.members?.find((mem: any) => mem.playerId === m.player?.id);
-              const senderRole  = memberEntry?.role || (senderTeam?.ownerId === m.player?.id ? 'owner' : '');
-              const roleLabel   = senderRole === 'owner' ? 'Owner' : senderRole === 'manager' ? 'Manager' : senderRole === 'captain' ? 'Captain' : 'OMC';
-              return (
-                <div key={m.id} className={`flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
-                  <div className={`flex items-center gap-1.5 px-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                    <span className="text-[9px] text-neutral-500 font-bold">{m.player?.fullName}</span>
-                    <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full ${
-                      isMe
-                        ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30'
-                        : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                    }`}>{roleLabel}</span>
-                    <span className={`text-[8px] font-bold ${isMe ? 'text-fuchsia-600/70' : 'text-amber-700/70'}`}>{isMe ? myTeam.name : opponent.name}</span>
-                  </div>
-                  <div className={`px-3 py-2.5 rounded-2xl max-w-[78%] text-sm font-medium ${
-                    isMe
-                      ? 'bg-fuchsia-600 text-white rounded-tr-sm'
-                      : 'bg-neutral-800 border border-white/10 text-white rounded-tl-sm'
-                  }`}>
-                    {m.message}
-                  </div>
-                  <span className="text-[9px] text-neutral-600 px-1">{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                </div>
-              );
-            })}
-            <div ref={chatBottomRef} />
-          </div>
+      {/* ── STEP 3a: BMT BOOKING ── */}
+      {currentStep === 3 && (venueTypeLocal ?? match.venueType) === 'BMT' && (() => {
+        const vt = venueTypeLocal ?? match.venueType;
+        const slotPending = match.selectedSlotId && !match.venueBookedAt;
+        const isChallengerView = isTeamA;
 
-          {/* Fixed-bottom input bar */}
-          <div className="shrink-0 border-t border-white/5 bg-neutral-950">
-            {isOMC && !boardLocked ? (
-              <div className="flex gap-2 px-4 py-3">
+        // ── Challenged team view: Accept/Decline pending slot
+        if (!isChallengerView && slotPending && isOMC) {
+          const slot = pendingBmtSlot ?? { turfName: match.wbtTurfName ?? '—', startTime: match.wbtFrom ?? '—', endTime: match.wbtTo ?? '—', price: 0, date: match.matchDate ?? '—', slotId: match.selectedSlotId! };
+          return (
+            <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-20">
+              <div className="mt-4 p-5 rounded-2xl border border-amber-500/30 bg-amber-900/10">
+                <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-2">Challenger Picked a Slot!</p>
+                <p className="font-black text-white text-sm">{slot.turfName}</p>
+                <p className="text-xs text-neutral-400 mt-0.5">🕒 {slot.startTime}–{slot.endTime} · 📅 {slot.date}</p>
+                {slot.price > 0 && <p className="text-xs font-bold text-fuchsia-400 mt-1">৳{(slot.price/2).toFixed(0)} each (50/50)</p>}
+                <div className="flex gap-3 mt-4">
+                  <button
+                    onClick={async () => {
+                      setSaving(true); setMsg('');
+                      const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'bmt_slot_respond', accept: false }) });
+                      const d = await r.json();
+                      if (!r.ok) setMsg('❌ ' + d.error);
+                      else { setMsg('Slot declined — challenger will pick another'); loadMatch(); }
+                      setSaving(false);
+                    }}
+                    disabled={saving}
+                    className="flex-1 py-3 rounded-2xl border border-red-500/40 text-red-400 font-black text-sm hover:bg-red-500/10 transition-all disabled:opacity-50"
+                  >
+                    ✕ Decline
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setSaving(true); setMsg('');
+                      const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'bmt_slot_respond', accept: true }) });
+                      const d = await r.json();
+                      if (r.ok) { setMsg('✅ Booked! ' + d.bookingCode); setCurrentStep(4); loadMatch(); }
+                      else setMsg('❌ ' + d.error);
+                      setSaving(false);
+                    }}
+                    disabled={saving}
+                    className="flex-1 py-3 rounded-2xl bg-[#00ff41] text-black font-black text-sm hover:bg-[#00dd38] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {saving ? <Loader2 size={14} className="animate-spin" /> : '✓ Accept & Book'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        // ── Challenged waiting for challenger to pick
+        if (!isChallengerView && !slotPending) {
+          return (
+            <div className="flex-1 min-h-0 flex items-center justify-center">
+              <div className="text-center text-neutral-500">
+                <Clock size={36} className="mx-auto mb-3 opacity-20" />
+                <p className="font-bold text-sm">Waiting for {match.teamA?.name}</p>
+                <p className="text-xs mt-1">to pick a turf slot…</p>
+              </div>
+            </div>
+          );
+        }
+
+        // ── Challenger: slot already sent — waiting for response
+        if (isChallengerView && slotPending) {
+          return (
+            <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-20">
+              <div className="mt-4 p-4 bg-[#00ff41]/5 border border-[#00ff41]/20 rounded-2xl">
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#00ff41] mb-1">Slot Sent!</p>
+                <p className="font-black text-sm text-white">{match.wbtTurfName ?? '—'}</p>
+                <p className="text-xs text-neutral-400 mt-0.5">📅 {match.matchDate} · 🕒 {pendingBmtSlot?.startTime ?? '—'}–{pendingBmtSlot?.endTime ?? '—'}</p>
+                <p className="text-xs text-neutral-500 mt-3 flex items-center gap-1.5"><Clock size={10} className="animate-spin" /> Waiting for {match.teamB?.name} to accept…</p>
+                <button onClick={() => { setSaving(true); fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'book_bmt_slot', slotId: match.selectedSlotId, date: match.matchDate, _cancel: true }) }).finally(() => { setSaving(false); loadMatch(); }); setMsg(''); }} className="mt-3 text-xs text-neutral-600 hover:text-red-400 transition-colors">Cancel &amp; Pick Again</button>
+              </div>
+            </div>
+          );
+        }
+
+        // ── Challenger: pick a turf + slot (main UI)
+        return (
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-20">
+            <div className="mt-3 mb-3 flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
+                <input value={venueSearch} onChange={e => { setVenueSearch(e.target.value); }}
+                  placeholder="Search turfs…"
+                  className="w-full bg-neutral-900 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white outline-none focus:border-fuchsia-500/50 placeholder:text-neutral-600" />
+              </div>
+              <input type="date" value={venueDate} onChange={e => { setVenueDate(e.target.value); loadVenues(matchData?.match.teamA.sportType ?? ''); }}
+                className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-fuchsia-500/50 shrink-0 w-36" />
+            </div>
+
+            {venuesLoading ? (
+              <div className="flex justify-center py-16"><Loader2 size={24} className="animate-spin text-fuchsia-500" /></div>
+            ) : turfs.filter((t:any) => !venueSearch || t.name.toLowerCase().includes(venueSearch.toLowerCase())).length === 0 ? (
+              <div className="py-16 text-center text-neutral-500">
+                <MapPin size={32} className="mx-auto mb-3 opacity-20" />
+                <p className="font-bold text-sm">No turfs available</p>
+                <p className="text-xs mt-1">Try a different date</p>
+              </div>
+            ) : (
+              turfs.filter((t:any) => !venueSearch || t.name.toLowerCase().includes(venueSearch.toLowerCase())).map((turf: any) => (
+                <div key={turf.id} className="mb-3 rounded-2xl border border-white/10 bg-neutral-900 overflow-hidden">
+                  <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5">
+                    <Building2 size={14} className="text-neutral-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-sm truncate">{turf.name}</p>
+                      <p className="text-[10px] text-neutral-500">{turf.area || turf.city || ''}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 p-2">
+                    {(turf.slots || []).map((slot: any) => {
+                      const isPicked = match.selectedSlotId === slot.id;
+                      const isFull = slot.status === 'booked';
+                      return (
+                        <button key={slot.id} disabled={isFull || saving}
+                          onClick={async () => {
+                            if (isFull) return;
+                            setSaving(true); setMsg('');
+                            const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'book_bmt_slot', slotId: slot.id, date: venueDate }) });
+                            const d = await r.json();
+                            if (r.ok) { setPendingBmtSlot({ slotId: slot.id, date: venueDate, turfName: turf.name, startTime: slot.startTime, endTime: slot.endTime, price: slot.price }); setMsg('✅ Slot sent to opponent!'); loadMatch(); }
+                            else setMsg('❌ ' + d.error);
+                            setSaving(false);
+                          }}
+                          className={`flex flex-col items-center py-2.5 rounded-xl border text-center transition-all ${isPicked ? 'bg-[#00ff41]/15 border-[#00ff41]/40 text-[#00ff41]' : isFull ? 'bg-neutral-800 border-white/5 text-neutral-600 cursor-not-allowed' : 'bg-neutral-800 border-white/10 text-white hover:border-fuchsia-500/40'}`}
+                        >
+                          <span className="text-[10px] font-black">{slot.startTime}</span>
+                          <span className="text-[8px] opacity-70">–{slot.endTime}</span>
+                          <span className="text-[9px] font-bold mt-0.5 text-[#00ff41]">{isFull ? 'Full' : `৳${slot.price/2}`}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ── STEP 3b: OPEN WBT BOOKING ── */}
+      {currentStep === 3 && (venueTypeLocal ?? match.venueType) === 'OPEN_WBT' && (() => {
+        const myPaid = isTeamA ? match.wbtPaymentA : match.wbtPaymentB;
+        const oppPaid = isTeamA ? match.wbtPaymentB : match.wbtPaymentA;
+        const perTeam = wbtFee / 2 - (match.wbtCouponDiscount ?? 0);
+        const turfSelected = !!match.wbtTurfId;
+
+        return (
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-20">
+            {/* ── Section 1: Turf selection (challenger only) ── */}
+            {isTeamA && isOMC && !turfSelected && (
+              <div className="mt-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-3">Select Your External Turf</p>
+                <div className="relative mb-3">
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
+                  <input value={wbtTurfSearch} onChange={e => setWbtTurfSearch(e.target.value)}
+                    placeholder="Search WBT turfs…"
+                    className="w-full bg-neutral-900 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white outline-none focus:border-fuchsia-500/50 placeholder:text-neutral-600" />
+                </div>
+                <div className="flex flex-col gap-2 mb-4">
+                  {wbtTurfs.filter((t:any) => !wbtTurfSearch || t.name.toLowerCase().includes(wbtTurfSearch.toLowerCase())).map((t:any) => (
+                    <button key={t.id} onClick={() => setSelectedWbtTurf(t)}
+                      className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${selectedWbtTurf?.id === t.id ? 'bg-amber-500/15 border-amber-500/40' : 'bg-neutral-900 border-white/10 hover:border-white/20'}`}>
+                      <Globe size={14} className="text-amber-400 shrink-0" />
+                      <div>
+                        <p className="font-black text-sm">{t.name}</p>
+                        <p className="text-[10px] text-neutral-500">{t.division?.name} · {t.city?.name}</p>
+                      </div>
+                      {selectedWbtTurf?.id === t.id && <CheckCircle size={14} className="text-amber-400 ml-auto shrink-0" />}
+                    </button>
+                  ))}
+                  {wbtTurfs.length === 0 && <p className="text-xs text-neutral-500 py-4 text-center">No WBT turfs registered. Ask admin to add some.</p>}
+                </div>
+                {selectedWbtTurf && (
+                  <div className="flex flex-col gap-3 p-4 bg-neutral-900 border border-white/10 rounded-2xl mb-3">
+                    <p className="text-xs font-black text-amber-400">Set Match Details</p>
+                    <input type="date" value={wbtMatchDate} onChange={e => setWbtMatchDate(e.target.value)}
+                      className="bg-neutral-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-amber-500/50" />
+                    <div className="flex gap-2">
+                      <input type="time" value={wbtFrom} onChange={e => setWbtFrom(e.target.value)}
+                        className="flex-1 bg-neutral-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-amber-500/50" />
+                      <span className="flex items-center text-neutral-500 text-sm">to</span>
+                      <input type="time" value={wbtTo} onChange={e => setWbtTo(e.target.value)}
+                        className="flex-1 bg-neutral-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-amber-500/50" />
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!wbtFrom || !wbtTo || !wbtMatchDate) { setMsg('❌ Fill in all date/time fields'); return; }
+                        setSaving(true); setMsg('');
+                        const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'select_wbt_turf', wbtTurfId: selectedWbtTurf.id, wbtFrom, wbtTo, matchDate: wbtMatchDate }) });
+                        const d = await r.json();
+                        if (r.ok) { setMsg('✅ Turf selected!'); loadMatch(); }
+                        else setMsg('❌ ' + d.error);
+                        setSaving(false);
+                      }}
+                      disabled={saving}
+                      className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-sm rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                    >
+                      {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                      Confirm Turf &amp; Time
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Section 2: Turf confirmed — show details + payment ── */}
+            {turfSelected && (
+              <div className="mt-3 flex flex-col gap-3">
+                {/* Turf info card */}
+                <div className="p-4 bg-amber-900/10 border border-amber-500/20 rounded-2xl">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-1">External Turf Selected</p>
+                  <p className="font-black text-white">{match.wbtTurfName}</p>
+                  <p className="text-xs text-neutral-400 mt-0.5">📅 {match.matchDate} · 🕒 {match.wbtFrom}–{match.wbtTo}</p>
+                </div>
+
+                {/* Payment status cards */}
+                <div className="grid grid-cols-2 gap-2">
+                  {[{ name: match.teamA?.name, paid: match.wbtPaymentA }, { name: match.teamB?.name, paid: match.wbtPaymentB }].map((t, i) => (
+                    <div key={i} className={`p-3 rounded-xl border text-center ${t.paid ? 'bg-[#00ff41]/10 border-[#00ff41]/30' : 'bg-neutral-900 border-white/10'}`}>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-neutral-500 mb-0.5">{t.name}</p>
+                      {t.paid
+                        ? <p className="text-[#00ff41] font-black text-xs flex items-center justify-center gap-1"><CheckCircle size={11} /> Paid</p>
+                        : <p className="text-neutral-500 text-xs font-bold">৳{perTeam.toFixed(0)} pending</p>
+                      }
+                    </div>
+                  ))}
+                </div>
+
+                {/* Coupon (only if not yet paid) */}
+                {!myPaid && isOMC && (
+                  <div className="flex gap-2">
+                    <input value={couponCode} onChange={e => setCouponCode(e.target.value.toUpperCase())}
+                      placeholder="Coupon code (optional)"
+                      className="flex-1 bg-neutral-900 border border-white/10 rounded-xl px-3 py-2.5 text-sm font-mono text-white outline-none focus:border-amber-500/50 placeholder:text-neutral-600" />
+                    <button
+                      onClick={async () => {
+                        if (!couponCode) return;
+                        setSaving(true); setMsg('');
+                        const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'apply_wbt_coupon', couponCode }) });
+                        const d = await r.json();
+                        if (r.ok) { setCouponDiscount(d.discount); setMsg(`✅ Coupon applied — ৳${d.discount} off each team`); loadMatch(); }
+                        else setMsg('❌ ' + d.error);
+                        setSaving(false);
+                      }}
+                      disabled={saving || !couponCode}
+                      className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs rounded-xl disabled:opacity-50 transition-all"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                )}
+                {match.wbtCouponCode && (
+                  <p className="text-xs font-bold text-amber-400 flex items-center gap-1.5"><CheckCircle size={11} /> Coupon <span className="font-mono">{match.wbtCouponCode}</span> — ৳{(match.wbtCouponDiscount??0).toFixed(0)} off each team</p>
+                )}
+
+                {/* Fee summary */}
+                <div className="p-3 bg-neutral-900 border border-white/10 rounded-xl text-xs">
+                  <div className="flex justify-between mb-1"><span className="text-neutral-500">Match Fee</span><span className="font-bold">৳{wbtFee}</span></div>
+                  {(match.wbtCouponDiscount ?? 0) > 0 && <div className="flex justify-between mb-1 text-amber-400"><span>Coupon discount (each)</span><span>-৳{(match.wbtCouponDiscount??0).toFixed(0)}</span></div>}
+                  <div className="flex justify-between font-black text-white border-t border-white/10 pt-1 mt-1"><span>Your share</span><span>৳{Math.max(0, perTeam).toFixed(0)}</span></div>
+                </div>
+
+                {/* Pay button */}
+                {isOMC && !myPaid && (
+                  <button
+                    onClick={async () => {
+                      setSaving(true); setMsg('');
+                      const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'pay_wbt' }) });
+                      const d = await r.json();
+                      if (r.ok) {
+                        setMsg(d.bothPaid ? '✅ Both paid! Booking confirmed.' : '✅ Payment sent — waiting for opponent');
+                        if (d.bothPaid) setCurrentStep(4);
+                        loadMatch();
+                      } else setMsg('❌ ' + d.error);
+                      setSaving(false);
+                    }}
+                    disabled={saving}
+                    className="w-full py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-black font-black text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 active:scale-[0.98]"
+                  >
+                    {saving ? <Loader2 size={16} className="animate-spin" /> : `Pay ৳${Math.max(0, perTeam).toFixed(0)} from Wallet`}
+                  </button>
+                )}
+                {myPaid && !oppPaid && (
+                  <div className="p-4 bg-[#00ff41]/5 border border-[#00ff41]/20 rounded-2xl text-center">
+                    <p className="text-[#00ff41] font-black text-sm mb-1">✅ You've paid!</p>
+                    <p className="text-xs text-neutral-400 flex items-center justify-center gap-1.5"><Clock size={10} className="animate-spin" /> Waiting for {isTeamA ? match.teamB?.name : match.teamA?.name} to pay…</p>
+                  </div>
+                )}
+                {!isOMC && !myPaid && (
+                  <p className="text-xs text-neutral-500 text-center py-2">Only OMC can make payment</p>
+                )}
+              </div>
+            )}
+
+            {/* ── Not challenger waiting ── */}
+            {!isTeamA && !turfSelected && (
+              <div className="flex-1 flex items-center justify-center mt-16 text-center text-neutral-500">
+                <div>
+                  <Clock size={36} className="mx-auto mb-3 opacity-20" />
+                  <p className="font-bold text-sm">Waiting for {match.teamA?.name}</p>
+                  <p className="text-xs mt-1">to select the external turf &amp; time…</p>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ── STEP 4: BOOKING COMPLETE ── */}
+      {currentStep === 4 && (
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-24">
+          <div className="mt-4 flex flex-col gap-3">
+
+            {/* Confirmed banner */}
+            <div className="p-4 bg-[#00ff41]/5 border border-[#00ff41]/20 rounded-2xl">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle size={16} className="text-[#00ff41]" />
+                <p className="text-[#00ff41] font-black text-sm">
+                  {match.venueType === 'OPEN_WBT' ? 'Open WBT Booking' : 'BMT Venue'} Confirmed!
+                </p>
+              </div>
+              {match.matchDate && <p className="text-xs text-neutral-400">📅 {match.matchDate}</p>}
+              {match.venueType === 'OPEN_WBT' && match.wbtTurfName && (
+                <p className="text-xs text-neutral-400">📍 {match.wbtTurfName} · {match.wbtFrom}–{match.wbtTo}</p>
+              )}
+              {match.bookingCode && (
+                <div className="mt-3 py-3 px-4 bg-neutral-950 border border-white/10 rounded-xl">
+                  <p className="text-[9px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Booking Code</p>
+                  <p className="text-3xl font-black tracking-[0.4em] text-white">{match.bookingCode}</p>
+                  <p className="text-[9px] text-neutral-600 mt-1">Show this to the turf manager on match day</p>
+                </div>
+              )}
+            </div>
+
+            {/* Match summary chips */}
+            <div className="flex gap-2 flex-wrap">
+              <span className="px-3 py-1.5 rounded-full bg-neutral-900 border border-white/10 text-[10px] font-black text-neutral-400">
+                {match.teamA?.sportType?.replace(/_/g,' ')}
+              </span>
+              <span className="px-3 py-1.5 rounded-full bg-neutral-900 border border-white/10 text-[10px] font-black text-neutral-400">
+                {match.venueType === 'OPEN_WBT' ? '📋 Open WBT' : '🏟️ BMT Managed'}
+              </span>
+              {match.formationA && (
+                <span className="px-3 py-1.5 rounded-full bg-fuchsia-500/10 border border-fuchsia-500/20 text-[10px] font-black text-fuchsia-400">
+                  {isTeamA ? match.formationA : match.formationB}
+                </span>
+              )}
+            </div>
+
+            {/* SCHEDULED — Start Match flow */}
+            {match.status === 'SCHEDULED' && (isOMC || isScorer) && (
+              <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl">
+                <p className="text-amber-400 font-black text-sm mb-1">⏳ Match Day</p>
+                <p className="text-xs text-neutral-400 mb-3">
+                  Both captains must tap <strong className="text-white">Start Match</strong> to go live.
+                </p>
+
+                {/* Readiness indicator */}
+                <div className="flex gap-2 mb-3">
+                  {[{name: match.teamA?.name, ready: match.matchStartedByA},{name: match.teamB?.name, ready: match.matchStartedByB}].map((t,i) => (
+                    <div key={i} className={`flex-1 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-black ${
+                      t.ready ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]' : 'bg-neutral-900 border-white/10 text-neutral-500'
+                    }`}>
+                      {t.ready ? <CheckCircle size={11} /> : <Clock size={11} />}
+                      <span className="truncate">{t.name}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => doAction('start_match')}
+                  disabled={saving || (isTeamA ? match.matchStartedByA : match.matchStartedByB)}
+                  className="w-full py-3.5 rounded-2xl bg-[#00ff41] text-black font-black text-sm uppercase tracking-wider disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                >
+                  {saving
+                    ? <Loader2 size={16} className="animate-spin" />
+                    : (isTeamA ? match.matchStartedByA : match.matchStartedByB)
+                    ? '✓ Ready — waiting for opponent'
+                    : '🚀 Start Match'}
+                </button>
+              </div>
+            )}
+
+            {/* Assign scorer button (SCHEDULED, OMC only, scorer not yet assigned) */}
+            {match.status === 'SCHEDULED' && isOMC && !match.scorers?.some((s:any) => s.teamId === myTeamId) && (
+              <button onClick={() => setScorerPanelOpen(true)}
+                className="w-full py-3 rounded-2xl border border-fuchsia-500/30 bg-fuchsia-500/5 text-fuchsia-400 font-black text-sm flex items-center justify-center gap-2 hover:bg-fuchsia-500/10 transition-all">
+                <Swords size={14} /> Assign Live Scorer
+              </button>
+            )}
+
+            {/* LIVE / SCORE_ENTRY — Enter live scoring */}
+            {(match.status === 'LIVE' || match.status === 'SCORE_ENTRY') && (() => {
+              const sport = match.teamA?.sportType ?? '';
+              const isCricketSport = ['CRICKET_7','CRICKET_FULL'].includes(sport);
+              return (
+                <button onClick={() => router.push(`/${locale}/matches/${matchId}/${isCricketSport ? 'cricket' : 'live'}`)}
+                  className="w-full py-4 rounded-2xl bg-red-500 text-white font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_24px_rgba(239,68,68,0.4)] animate-pulse">
+                  {isCricketSport ? '🏏' : '🔴'} Enter Live Scoring
+                </button>
+              );
+            })()}
+
+            {/* Non-OMC / non-scorer info */}
+            {!isOMC && !isScorer && match.status === 'SCHEDULED' && (
+              <div className="p-4 bg-neutral-900 border border-white/10 rounded-2xl text-center">
+                <Clock size={20} className="mx-auto mb-2 text-neutral-500" />
+                <p className="text-xs text-neutral-500">Waiting for match day.</p>
+                <p className="text-[10px] text-neutral-600 mt-0.5">Only OMC/Scorer can start the match.</p>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
+
+
+      {/* ── FLOATING CHAT BUBBLE ── */}
+      <button
+        onClick={() => {
+          setChatOpen(true);
+          setChatUnread(0);
+          if (!chatMessages.length) loadChat();
+          setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 150);
+        }}
+        className="fixed bottom-20 right-4 z-[100] w-12 h-12 rounded-full bg-fuchsia-600 hover:bg-fuchsia-500 flex items-center justify-center shadow-lg shadow-fuchsia-500/30 transition-all active:scale-95"
+      >
+        <MessageCircle size={20} className="text-white" />
+        {chatUnread > 0 && (
+          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center animate-bounce">
+            {chatUnread > 9 ? '9+' : chatUnread}
+          </span>
+        )}
+      </button>
+
+      {/* Chat Overlay */}
+      {chatOpen && (
+        <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-sm flex flex-col justify-end" onClick={e => e.target === e.currentTarget && setChatOpen(false)}>
+          <div className="bg-[#0d0d0d] border-t border-white/10 rounded-t-3xl flex flex-col" style={{maxHeight:'70vh'}}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 shrink-0">
+              <div className="flex items-center gap-2">
+                <Wifi size={13} className="text-[#00ff41]" />
+                <span className="text-sm font-black">Match Chat</span>
+                <span className="text-[9px] text-neutral-500">OMC only</span>
+              </div>
+              <button onClick={() => setChatOpen(false)} className="w-7 h-7 rounded-full bg-white/5 flex items-center justify-center text-neutral-400"><X size={13} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3 min-h-0">
+              {chatMessages.length === 0 && <p className="text-center text-neutral-500 text-xs italic py-8">No messages yet.</p>}
+              {chatMessages.map((m: any) => {
+                const isMe = m.teamId === myTeamId;
+                const senderTeam = isMe ? myTeam : opponent;
+                const memberEntry = senderTeam?.members?.find((mem: any) => mem.playerId === m.player?.id);
+                const senderRole = memberEntry?.role || (senderTeam?.ownerId === m.player?.id ? 'owner' : '');
+                const roleLabel = senderRole === 'owner' ? 'Owner' : senderRole === 'manager' ? 'Manager' : senderRole === 'captain' ? 'Captain' : 'OMC';
+                return (
+                  <div key={m.id} className={`flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
+                    <div className={`flex items-center gap-1.5 px-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                      <span className="text-[9px] text-neutral-500 font-bold">{m.player?.fullName}</span>
+                      <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full ${ isMe ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30' }`}>{roleLabel}</span>
+                    </div>
+                    <div className={`px-3 py-2 rounded-2xl max-w-[78%] text-sm ${ isMe ? 'bg-fuchsia-600 text-white rounded-tr-sm' : 'bg-neutral-800 border border-white/10 text-white rounded-tl-sm' }`}>{m.message}</div>
+                    <span className="text-[9px] text-neutral-600 px-1">{new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>
+                  </div>
+                );
+              })}
+              <div ref={chatBottomRef} />
+            </div>
+            {isOMC ? (
+              <div className="flex gap-2 px-4 py-3 border-t border-white/5 shrink-0">
                 <input value={chatMsg} onChange={e => setChatMsg(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && sendChat()}
                   placeholder="Message opponent OMC…"
                   className="flex-1 bg-neutral-900 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-neutral-600 outline-none focus:border-fuchsia-500/50" />
                 <button onClick={sendChat} disabled={chatSending || !chatMsg.trim()}
-                  className="w-10 h-10 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 flex items-center justify-center disabled:opacity-50 transition-all shrink-0">
+                  className="w-10 h-10 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 flex items-center justify-center disabled:opacity-50">
                   {chatSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                 </button>
               </div>
-            ) : isOMC && boardLocked ? (
-              <div className="px-4 py-3 text-center text-[10px] text-amber-500 font-bold flex items-center justify-center gap-1.5">
-                <Lock size={12} /> Venue confirmed — chat is closed.
-              </div>
             ) : (
-              <div className="px-4 py-3 text-center text-[10px] text-neutral-500 font-bold">
-                Only OMC (Owner / Manager / Captain) can chat
-              </div>
+              <div className="px-4 py-3 text-center text-[10px] text-neutral-500 font-bold border-t border-white/5">Only OMC can chat</div>
             )}
           </div>
         </div>

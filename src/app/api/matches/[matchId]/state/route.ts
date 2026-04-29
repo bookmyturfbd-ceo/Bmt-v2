@@ -83,5 +83,11 @@ export async function GET(
     myTeamId: ctx.myTeamId, isTeamA: ctx.isA, isOMC: ctx.isOMC,
     currentPlayerId: playerId,
     isScorer,
+    // Score After Match fields
+    scoringMode: match?.scoringMode ?? 'LIVE',
+    scoreModeRequestedBy: match?.scoreModeRequestedBy ?? null,
+    scoreModeAgreed: match?.scoreModeAgreed ?? false,
+    scoreSubmittedByA: match?.scoreSubmittedByA ?? false,
+    scoreSubmittedByB: match?.scoreSubmittedByB ?? false,
   });
 }

@@ -60,6 +60,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       include: { player: { select: { id: true, fullName: true, avatarUrl: true } } }
     });
 
+    // Broadcast via Supabase Realtime so opponent sees instantly
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabaseRealtime');
+      const sb = getSupabaseClient();
+      const ch = sb.channel(`interact:${matchId}`);
+      ch.subscribe(async (status: string) => {
+        if (status === 'SUBSCRIBED') {
+          await ch.send({ type: 'broadcast', event: 'chat_message', payload: { message: msg } });
+          setTimeout(() => sb.removeChannel(ch), 200);
+        }
+      });
+    } catch { /* non-fatal */ }
+
     return NextResponse.json({ ok: true, message: msg });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

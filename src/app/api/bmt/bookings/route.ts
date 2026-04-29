@@ -5,7 +5,12 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const playerId = searchParams.get('playerId');
 
-  const where = playerId ? { playerId } : {};
+  const where = playerId ? {
+    OR: [
+      { playerId },
+      { splits: { some: { playerId } } }
+    ]
+  } : {};
 
   const bookings = await prisma.booking.findMany({
     where,
@@ -14,7 +19,8 @@ export async function GET(req: NextRequest) {
       player: true,
       slot: {
         include: { ground: true }
-      }
+      },
+      splits: true
     }
   });
   return NextResponse.json(bookings);

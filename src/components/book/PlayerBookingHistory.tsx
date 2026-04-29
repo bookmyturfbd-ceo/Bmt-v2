@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 import { getCookie } from '@/lib/cookies';
 import { Calendar, Search } from 'lucide-react';
 
-interface Booking { id: string; slotId: string; date: string; price?: number; playerName?: string; playerId?: string; createdAt?: string; source?: string; }
+interface BookingSplit { id: string; playerId: string; amount: number; }
+interface Booking { id: string; slotId: string; date: string; price?: number; playerName?: string; playerId?: string; createdAt?: string; source?: string; groupBookingCode?: string; splits?: BookingSplit[]; }
 interface Slot    { id: string; turfId: string; startTime: string; endTime: string; price: number; }
 interface Turf    { id: string; name: string; }
 
@@ -95,21 +96,34 @@ export default function PlayerBookingHistory() {
                 const slot = slots.find(s => s.id === b.slotId);
                 const turf = slot ? turfs.find(t => t.id === slot.turfId) : null;
                 const code = matchCode(b.id);
-                const price = b.price ?? slot?.price ?? 0;
+                
+                const pid = getCookie('bmt_player_id');
+                const isGroupSplit = b.splits && b.splits.length > 0;
+                const mySplit = b.splits?.find(s => s.playerId === pid);
+                
+                // If the player was part of the split, show their split amount. Otherwise show the total price.
+                const price = mySplit ? mySplit.amount : (b.price ?? slot?.price ?? 0);
                 
                 return (
                   <div key={b.id}
                        className="px-5 py-4 flex items-start justify-between gap-3 hover:bg-white/[0.02] transition-colors animate-in fade-in slide-in-from-bottom-2 duration-300"
                        style={{ animationDelay: `${i * 50}ms` }}>
                     <div className="min-w-0">
-                      <p className="text-sm font-black truncate text-white/90">{turf?.name || 'Turf'}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-black truncate text-white/90">{turf?.name || 'Turf'}</p>
+                        {isGroupSplit && (
+                          <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                            Split Payment
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[11px] text-[var(--muted)] mt-0.5">{b.date} • {slot?.startTime}–{slot?.endTime}</p>
                     </div>
                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                       <span className="text-sm font-black text-accent">৳{price.toLocaleString()}</span>
                       <div className="flex gap-0.5">
-                        {code.split('').map((c, i) => (
-                          <span key={i} className="w-4 h-4 rounded text-[8px] font-black flex items-center justify-center" style={{ background: 'rgba(168,85,247,0.15)', color: '#d8b4fe' }}>{c}</span>
+                        {code.split('').map((c, idx) => (
+                          <span key={idx} className="w-4 h-4 rounded text-[8px] font-black flex items-center justify-center" style={{ background: 'rgba(168,85,247,0.15)', color: '#d8b4fe' }}>{c}</span>
                         ))}
                       </div>
                     </div>

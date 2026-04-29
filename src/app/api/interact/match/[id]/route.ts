@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { broadcastMatchEvent } from '@/lib/supabaseRealtime';
 
 function getPlayerId(req: NextRequest) {
   return req.cookies.get('bmt_player_id')?.value ?? null;
@@ -105,6 +106,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
 
     if (!match) return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+    console.log(`[Interaction PATCH] Action: ${action} | Match: ${matchId} | Player: ${playerId}`);
 
     const isTeamA = match.teamA.ownerId === playerId || match.teamA.members.some(m => m.playerId === playerId);
     const isTeamB = match.teamB.ownerId === playerId || match.teamB.members.some(m => m.playerId === playerId);
@@ -244,9 +246,164 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ ok: true, match: updated });
     }
 
+    // ── set_venue_type ────────────────────────────────────────────────────────
+    if (action === 'set_venue_type') {
+      if (!isOMC || !isTeamA) return NextResponse.json({ error: 'Only challenger OMC can set venue type' }, { status: 403 });
+      if (!match.rosterLockedA || !match.rosterLockedB) return NextResponse.json({ error: 'Both rosters must be locked first' }, { status: 400 });
+      const { venueType } = body;
+      if (!['BMT', 'OPEN_WBT'].includes(venueType)) return NextResponse.json({ error: 'Invalid venue type' }, { status: 400 });
+      await prisma.match.update({ where: { id: matchId }, data: { venueType } });
+      await broadcastMatchEvent(matchId, 'venue_type_set', { venueType });
+      return NextResponse.json({ ok: true });
+    }
+
+    // ── book_bmt_slot ─────────────────────────────────────────────────────────
+    // Challenger picks a slot and sends it to opponent for accept/decline
+    if (action === 'book_bmt_slot') {
+      if (!isOMC || !isTeamA) return NextResponse.json({ error: 'Only challenger OMC can select slot' }, { status: 403 });
+      const { slotId, date } = body;
+      const slot = await prisma.slot.findUnique({ where: { id: slotId }, include: { ground: { include: { turf: true } } } });
+      if (!slot) return NextResponse.json({ error: 'Slot not found' }, { status: 404 });
+      // Check availability
+      const existing = await prisma.booking.findFirst({ where: { slotId, date, status: { not: 'cancelled' } } });
+      if (existing) return NextResponse.json({ error: 'Slot already booked for this date' }, { status: 409 });
+      await prisma.match.update({ where: { id: matchId }, data: { selectedSlotId: slotId, matchDate: date } });
+      await broadcastMatchEvent(matchId, 'bmt_slot_selected', {
+        slotId, date,
+        turfName: slot.ground.turf.name,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        price: slot.price,
+        halfCost: slot.price / 2,
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    // ── bmt_slot_respond ──────────────────────────────────────────────────────
+    // Challenged accepts or declines the slot
+    if (action === 'bmt_slot_respond') {
+      if (!isOMC || !isTeamB) return NextResponse.json({ error: 'Only challenged OMC can respond' }, { status: 403 });
+      const { accept } = body;
+      if (!accept) {
+        // Decline — clear selected slot so challenger can pick another
+        await prisma.match.update({ where: { id: matchId }, data: { selectedSlotId: null, matchDate: null } });
+        await broadcastMatchEvent(matchId, 'bmt_slot_response', { accepted: false });
+        return NextResponse.json({ ok: true, message: 'Slot declined' });
+      }
+      // Accept — run the full booking logic
+      if (!match.selectedSlotId || !match.matchDate) return NextResponse.json({ error: 'No slot pending' }, { status: 400 });
+      if (!match.rosterLockedA || !match.rosterLockedB) return NextResponse.json({ error: 'Both rosters must be locked' }, { status: 400 });
+
+      const slot = await prisma.slot.findUnique({
+        where: { id: match.selectedSlotId },
+        include: { ground: { include: { turf: { select: { id: true, name: true, revenueModelType: true, revenueModelValue: true } } } } }
+      });
+      if (!slot) return NextResponse.json({ error: 'Slot not found' }, { status: 404 });
+
+      const halfCost = slot.price / 2;
+      const ownerA = await prisma.player.findUnique({ where: { id: match.teamA.ownerId } });
+      const ownerB = await prisma.player.findUnique({ where: { id: match.teamB.ownerId } });
+      const shortfalls: string[] = [];
+      if ((ownerA?.walletBalance ?? 0) < halfCost) shortfalls.push(`${match.teamA.name} owner short ৳${(halfCost - (ownerA?.walletBalance ?? 0)).toFixed(0)}`);
+      if ((ownerB?.walletBalance ?? 0) < halfCost) shortfalls.push(`${match.teamB.name} owner short ৳${(halfCost - (ownerB?.walletBalance ?? 0)).toFixed(0)}`);
+      if (shortfalls.length) return NextResponse.json({ error: `Insufficient balance: ${shortfalls.join('; ')}` }, { status: 400 });
+
+      const code = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const turf = slot.ground.turf;
+      const pct = turf.revenueModelType === 'percentage' && turf.revenueModelValue ? turf.revenueModelValue / 100 : 0;
+      const bmtCut = Math.round(halfCost * pct);
+      const ownerShare = halfCost - bmtCut;
+      const notes = `Challenge Market — ${match.teamA.name} vs ${match.teamB.name}`;
+
+      await prisma.$transaction([
+        prisma.booking.create({ data: { playerId: match.teamA.ownerId, slotId: match.selectedSlotId!, turfId: turf.id, date: match.matchDate!, price: halfCost, ownerShare, bmtCut, status: 'confirmed', selectedSport: match.teamA.sportType, bookingCode: code, source: 'challenge_market', notes } }),
+        prisma.booking.create({ data: { playerId: match.teamB.ownerId, slotId: match.selectedSlotId!, turfId: turf.id, date: match.matchDate!, price: halfCost, ownerShare, bmtCut, status: 'confirmed', selectedSport: match.teamB.sportType, bookingCode: code, source: 'challenge_market', notes } }),
+        prisma.player.update({ where: { id: match.teamA.ownerId }, data: { walletBalance: { decrement: halfCost } } }),
+        prisma.player.update({ where: { id: match.teamB.ownerId }, data: { walletBalance: { decrement: halfCost } } }),
+        prisma.owner.updateMany({ where: { turfs: { some: { id: turf.id } } }, data: { walletBalance: { increment: ownerShare * 2 } } }),
+        prisma.match.update({ where: { id: matchId }, data: { status: 'SCHEDULED', venueBookedAt: new Date(), bookingCode: code } }),
+      ]);
+
+      await broadcastMatchEvent(matchId, 'bmt_slot_response', { accepted: true, bookingCode: code });
+      return NextResponse.json({ ok: true, bookingCode: code });
+    }
+
+    // ── select_wbt_turf ───────────────────────────────────────────────────────
+    if (action === 'select_wbt_turf') {
+      if (!isOMC || !isTeamA) return NextResponse.json({ error: 'Only challenger OMC can select WBT turf' }, { status: 403 });
+      const { wbtTurfId, wbtFrom, wbtTo, matchDate } = body;
+      if (!wbtTurfId || !wbtFrom || !wbtTo || !matchDate) return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+      const turf = await prisma.wbtTurf.findUnique({ where: { id: wbtTurfId }, include: { division: true, city: true } });
+      if (!turf) return NextResponse.json({ error: 'WBT Turf not found' }, { status: 404 });
+      await prisma.match.update({ where: { id: matchId }, data: { wbtTurfId, wbtTurfName: turf.name, wbtFrom, wbtTo, matchDate } });
+      await broadcastMatchEvent(matchId, 'wbt_turf_selected', { wbtTurfId, turfName: turf.name, wbtFrom, wbtTo, matchDate, city: turf.city.name });
+      return NextResponse.json({ ok: true });
+    }
+
+    // ── apply_wbt_coupon ──────────────────────────────────────────────────────
+    if (action === 'apply_wbt_coupon') {
+      if (!isOMC) return NextResponse.json({ error: 'Only OMC can apply coupon' }, { status: 403 });
+      const { couponCode } = body;
+      const coupon = await prisma.wbtCoupon.findUnique({ where: { code: couponCode?.toUpperCase() } });
+      if (!coupon || !coupon.active) return NextResponse.json({ error: 'Invalid or inactive coupon' }, { status: 400 });
+      if (coupon.expiresAt && new Date() > coupon.expiresAt) return NextResponse.json({ error: 'Coupon expired' }, { status: 400 });
+      if (coupon.maxUses > 0 && coupon.usedCount >= coupon.maxUses) return NextResponse.json({ error: 'Coupon max uses reached' }, { status: 400 });
+
+      // Get match fee
+      const feeSetting = await prisma.platformSetting.findUnique({ where: { key: 'wbt_match_fee_taka' } });
+      const fee = feeSetting ? parseFloat(feeSetting.value) : 500;
+      const discount = coupon.discountType === 'percentage'
+        ? Math.round((fee / 2) * coupon.discountValue / 100) // per team
+        : Math.min(coupon.discountValue / 2, fee / 2);        // split flat discount
+
+      await prisma.match.update({ where: { id: matchId }, data: { wbtCouponCode: coupon.code, wbtCouponDiscount: discount } });
+      await broadcastMatchEvent(matchId, 'wbt_coupon_applied', { couponCode: coupon.code, discountPerTeam: discount });
+      return NextResponse.json({ ok: true, discount });
+    }
+
+    // ── pay_wbt ───────────────────────────────────────────────────────────────
+    if (action === 'pay_wbt') {
+      if (!isOMC) return NextResponse.json({ error: 'Only OMC can confirm payment' }, { status: 403 });
+      const feeSetting = await prisma.platformSetting.findUnique({ where: { key: 'wbt_match_fee_taka' } });
+      const fee = feeSetting ? parseFloat(feeSetting.value) : 500;
+
+      // Re-fetch fresh match for coupon discount
+      const freshMatch = await prisma.match.findUnique({ where: { id: matchId } });
+      if (!freshMatch) return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+      const perTeam = (fee / 2) - (freshMatch.wbtCouponDiscount ?? 0);
+      if (perTeam < 0) return NextResponse.json({ error: 'Invalid fee calculation' }, { status: 400 });
+
+      const ownerId = isTeamA ? match.teamA.ownerId : match.teamB.ownerId;
+      const owner = await prisma.player.findUnique({ where: { id: ownerId } });
+      if ((owner?.walletBalance ?? 0) < perTeam) return NextResponse.json({ error: `Insufficient wallet balance. Need ৳${perTeam.toFixed(0)}` }, { status: 400 });
+
+      const updateFlag = isTeamA ? { wbtPaymentA: true } : { wbtPaymentB: true };
+      await prisma.$transaction([
+        prisma.player.update({ where: { id: ownerId }, data: { walletBalance: { decrement: perTeam } } }),
+        prisma.match.update({ where: { id: matchId }, data: updateFlag }),
+      ]);
+
+      // Check if both paid
+      const updatedMatch = await prisma.match.findUnique({ where: { id: matchId } });
+      if (updatedMatch?.wbtPaymentA && updatedMatch?.wbtPaymentB) {
+        const code = Math.random().toString(36).substring(2, 6).toUpperCase();
+        // Increment coupon usage if applied
+        if (freshMatch.wbtCouponCode) {
+          await prisma.wbtCoupon.update({ where: { code: freshMatch.wbtCouponCode }, data: { usedCount: { increment: 1 } } });
+        }
+        await prisma.match.update({ where: { id: matchId }, data: { status: 'SCHEDULED', venueBookedAt: new Date(), bookingCode: code } });
+        await broadcastMatchEvent(matchId, 'wbt_booking_complete', { bookingCode: code });
+        return NextResponse.json({ ok: true, bookingCode: code, bothPaid: true });
+      }
+
+      await broadcastMatchEvent(matchId, 'wbt_payment_update', { teamA: updatedMatch?.wbtPaymentA, teamB: updatedMatch?.wbtPaymentB });
+      return NextResponse.json({ ok: true, bothPaid: false });
+    }
+
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (e: any) {
     console.error('[match PATCH]', e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
+

@@ -36,8 +36,19 @@ export default function ShopFrontPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center pt-20">
-        <Loader2 size={32} className="animate-spin text-accent" />
+      <div className="min-h-[60vh] flex flex-col items-center justify-center">
+        <div className="relative">
+          <img 
+            src="/bmt-spinner.png" 
+            alt="Loading..." 
+            className="h-20 w-20 object-contain drop-shadow-[0_0_15px_rgba(0,255,65,0.4)]" 
+            style={{ 
+              animation: 'spin 0.8s linear infinite',
+              transformOrigin: 'center center'
+            }}
+          />
+          <div className="absolute inset-0 bg-accent/20 blur-[20px] rounded-full scale-110 animate-pulse" />
+        </div>
       </div>
     );
   }

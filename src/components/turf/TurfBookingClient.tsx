@@ -5,10 +5,11 @@ import BookingReceipt from './BookingReceipt';
 import { getCookie } from '@/lib/cookies';
 import {
   LogIn, Zap, Loader2, X, Wallet, Tag, ChevronRight,
-  Building2, Clock, Calendar, MapPin, CheckCircle2, AlertTriangle
+  Building2, Clock, Calendar, MapPin, CheckCircle2, AlertTriangle, Users, BadgeDollarSign
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from '@/i18n/routing';
+import { getSupabaseClient } from '@/lib/supabaseRealtime';
 
 interface Slot {
   id: string; turfId: string; groundId: string; days: string[]; sports: string[];
@@ -23,12 +24,14 @@ interface Props {
   area?: string; cityName?: string;
   slots: Slot[]; bookings: Booking[];
   grounds: Ground[]; sports: string[];
+  groupId?: string; // set when booking via Play With Friends group flow
 }
 
 // ── Confirm Booking Bottom Sheet ────────────────────────────────────────────
 function ConfirmSheet({
   slot, date, turfName, area, cityName, ground, sport,
   slotDiscountedPrice, slotDiscountReason,
+  groupId,
   onClose, onBooked,
 }: {
   slot: Slot; date: string; turfName: string;
@@ -36,6 +39,7 @@ function ConfirmSheet({
   ground?: Ground; sport: string;
   slotDiscountedPrice?: number;
   slotDiscountReason?: string;
+  groupId?: string;
   onClose: () => void;
   onBooked: (receipt: any) => void;
 }) {
@@ -46,14 +50,14 @@ function ConfirmSheet({
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [booking, setBooking]     = useState(false);
 
+  // ── Group mode state ────────────────────────────────────────────────────────
+  const [groupMembers, setGroupMembers] = useState<any[]>([]);
+  const [groupError, setGroupError]     = useState<string | null>(null);
+  const [groupCulprits, setGroupCulprits] = useState<any[]>([]);
+  const [groupLoading, setGroupLoading] = useState(!!groupId);
+
   const availableSports = slot.sports?.length > 0 ? slot.sports : [sport];
   const [selectedSport, setSelectedSport] = useState(availableSports.length === 1 ? availableSports[0] : '');
-
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, []);
 
   const playerId   = getCookie('bmt_player_id');
   const playerName = getCookie('bmt_name') || 'Player';
@@ -66,14 +70,36 @@ function ConfirmSheet({
   const remaining  = (walletBalance ?? 0) - finalPrice;
   const hasEnough  = (walletBalance ?? 0) >= finalPrice;
 
+  // ── Load wallet balance (solo mode only) ───────────────────────────────────
   useEffect(() => {
-    if (playerId) {
+    if (playerId && !groupId) {
       fetch(`/api/bmt/players/${playerId}`)
         .then(r => r.json())
         .then(d => setWalletBalance(d?.walletBalance ?? 0))
         .catch(() => setWalletBalance(0));
     }
-  }, [playerId]);
+  }, [playerId, groupId]);
+
+  // ── Load group members + validate splits (group mode) ─────────────────────
+  useEffect(() => {
+    if (!groupId) return;
+    setGroupLoading(true);
+    fetch(`/api/play/groups/${groupId}`)
+      .then(r => r.json())
+      .then(d => {
+        const members = d.group?.members ?? [];
+        setGroupMembers(members);
+        // Validate allocation
+        const totalAllocated = members.reduce((s: number, m: any) => s + (m.splitAmount || 0), 0);
+        if (totalAllocated < slot.price) {
+          setGroupError(`Allocated ৳${totalAllocated} is ৳${slot.price - totalAllocated} short of the ৳${slot.price} slot price. Update allocations in My Group.`);
+        } else {
+          setGroupError(null);
+        }
+      })
+      .catch(() => setGroupError('Could not load group data.'))
+      .finally(() => setGroupLoading(false));
+  }, [groupId, slot.price]);
 
   const applyCoupon = () => {
     setCouponError('');
@@ -90,6 +116,57 @@ function ConfirmSheet({
   };
 
   const handleBook = async () => {
+    if (groupId) {
+      // ── Group split booking ──────────────────────────────────────────────
+      if (groupError) return;
+      setBooking(true);
+      try {
+        const res = await fetch(`/api/play/groups/${groupId}/book`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slotId: slot.id, turfId: slot.turfId, date, selectedSport }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          if (data.error === 'insufficient_allocation') {
+            setGroupError(data.message);
+          } else if (data.error === 'insufficient_balance') {
+            setGroupCulprits(data.culprits ?? []);
+            setGroupError(data.message);
+          } else {
+            setGroupError(data.details || data.message || data.error || 'Booking failed.');
+          }
+          return;
+        }
+        // Broadcast to group channel so all members get redirected
+        const supabase = getSupabaseClient();
+        const ch = supabase.channel(`play-group:${groupId}`);
+        ch.subscribe(async (status: string) => {
+          if (status === 'SUBSCRIBED') {
+            await ch.send({
+              type: 'broadcast',
+              event: 'group_booked',
+              payload: { groupBookingCode: data.groupBookingCode, bookingId: data.booking?.id },
+            });
+            setTimeout(() => supabase.removeChannel(ch), 500);
+          }
+        });
+        onBooked({
+          id: data.booking?.id,
+          turfName, groundName: ground?.name || '',
+          date, startTime: slot.startTime, endTime: slot.endTime,
+          price: slot.price, originalPrice: slot.price,
+          playerName, sport: selectedSport, area, cityName,
+          groupBookingCode: data.groupBookingCode,
+          isGroupBooking: true,
+        });
+      } finally {
+        setBooking(false);
+      }
+      return;
+    }
+
+    // ── Solo booking (original flow) ─────────────────────────────────────────
     if (!hasEnough) return;
     setBooking(true);
     try {
@@ -208,62 +285,153 @@ function ConfirmSheet({
             </div>
           )}
 
-          {/* Coupon */}
-          <div className="flex flex-col gap-2">
-            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Coupon Code</p>
-            {couponApplied ? (
-              <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-accent/30 bg-accent/5">
-                <CheckCircle2 size={14} className="text-accent" />
-                <p className="text-sm font-black text-accent flex-1">{coupon.toUpperCase()} applied! −৳{couponDiscount.toLocaleString()}</p>
-                <button onClick={() => { setCouponDiscount(0); setCouponApplied(false); setCoupon(''); }} className="text-[var(--muted)] hover:text-white">
-                  <X size={13} />
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Tag size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
-                  <input value={coupon} onChange={e => setCoupon(e.target.value.toUpperCase())}
-                    onKeyDown={e => e.key === 'Enter' && applyCoupon()}
-                    placeholder="Enter coupon…"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm font-bold outline-none focus:border-accent/50 placeholder:text-neutral-600 uppercase tracking-wider" />
+          {/* ── COUPON (solo only) */}
+          {!groupId && (
+            <div className="flex flex-col gap-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Coupon Code</p>
+              {couponApplied ? (
+                <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-accent/30 bg-accent/5">
+                  <CheckCircle2 size={14} className="text-accent" />
+                  <p className="text-sm font-black text-accent flex-1">{coupon.toUpperCase()} applied! −৳{couponDiscount.toLocaleString()}</p>
+                  <button onClick={() => { setCouponDiscount(0); setCouponApplied(false); setCoupon(''); }} className="text-[var(--muted)] hover:text-white">
+                    <X size={13} />
+                  </button>
                 </div>
-                <button onClick={applyCoupon} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-black hover:bg-white/10 transition-colors">Apply</button>
-              </div>
-            )}
-            {couponError && <p className="text-[10px] font-bold text-red-400 flex items-center gap-1"><AlertTriangle size={10} /> {couponError}</p>}
-          </div>
-
-          {/* Wallet — always used, show balance + remaining */}
-          <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl border ${
-            !hasEnough ? 'border-red-500/30 bg-red-500/5' : 'border-accent/30 bg-accent/5'
-          }`}>
-            <Wallet size={16} className={!hasEnough ? 'text-red-400' : 'text-accent'} />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-black">Wallet Balance</p>
-              <p className={`text-[10px] font-bold ${!hasEnough ? 'text-red-400' : 'text-[var(--muted)]'}`}>
-                {walletBalance === null ? 'Loading…' : `৳${(walletBalance).toLocaleString()} available`}
-              </p>
-            </div>
-            {walletBalance !== null && (
-              <div className="text-right shrink-0">
-                <p className="text-[9px] text-[var(--muted)] font-bold uppercase tracking-wide">After booking</p>
-                <p className={`text-sm font-black ${remaining < 0 ? 'text-red-400' : 'text-accent'}`}>
-                  ৳{Math.max(0, remaining).toLocaleString()}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Low balance warning */}
-          {!hasEnough && walletBalance !== null && (
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-red-500/30 bg-red-500/5">
-              <AlertTriangle size={14} className="text-red-400 shrink-0" />
-              <p className="text-xs font-bold text-red-400">Insufficient wallet balance. Please recharge your wallet first.</p>
+              ) : (
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Tag size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+                    <input value={coupon} onChange={e => setCoupon(e.target.value.toUpperCase())}
+                      onKeyDown={e => e.key === 'Enter' && applyCoupon()}
+                      placeholder="Enter coupon…"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm font-bold outline-none focus:border-accent/50 placeholder:text-neutral-600 uppercase tracking-wider" />
+                  </div>
+                  <button onClick={applyCoupon} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-black hover:bg-white/10 transition-colors">Apply</button>
+                </div>
+              )}
+              {couponError && <p className="text-[10px] font-bold text-red-400 flex items-center gap-1"><AlertTriangle size={10} /> {couponError}</p>}
             </div>
           )}
 
-          {/* Price breakdown */}
+          {/* ── GROUP SPLIT PANEL ── */}
+          {groupId && (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <Users size={13} className="text-cyan-400" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-cyan-400">Group Split Breakdown</p>
+              </div>
+
+              {groupLoading ? (
+                <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-cyan-400" /></div>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {groupMembers.map((m: any) => {
+                    const hasInsufficient = m.splitAmount > 0 && groupCulprits.some((c: any) => c.playerId === m.player?.id);
+                    return (
+                      <div key={m.id} className={`flex items-center gap-3 px-3 py-2 rounded-xl border ${
+                        hasInsufficient ? 'border-red-500/30 bg-red-500/5' : 'border-white/5 bg-white/[0.02]'
+                      }`}>
+                        <div className="w-7 h-7 rounded-full bg-neutral-800 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center text-[9px] font-black text-neutral-400">
+                          {m.player?.avatarUrl
+                            ? <img src={m.player.avatarUrl} className="w-full h-full object-cover" alt="" />
+                            : (m.player?.fullName?.[0] ?? '?')}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-black truncate">{m.player?.fullName ?? 'Member'}</p>
+                          {hasInsufficient && (
+                            <p className="text-[9px] text-red-400 font-bold">Insufficient wallet</p>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className={`text-sm font-black ${m.splitAmount === 0 ? 'text-neutral-600' : hasInsufficient ? 'text-red-400' : 'text-cyan-400'}`}>
+                            ৳{(m.splitAmount || 0).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Allocation vs slot price summary */}
+                  {(() => {
+                    const totalAllocated = groupMembers.reduce((s: number, m: any) => s + (m.splitAmount || 0), 0);
+                    const isAllocationExact = totalAllocated === slot.price;
+                    return (
+                      <>
+                        <div className={`flex items-center justify-between px-3 py-2 rounded-xl border mt-1 ${
+                          isAllocationExact ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/5'
+                        }`}>
+                          <span className="text-[10px] font-black text-neutral-400">Total allocated</span>
+                          <span className={`text-sm font-black ${isAllocationExact ? 'text-emerald-400' : 'text-red-400'}`}>
+                            ৳{totalAllocated.toLocaleString()} / ৳{slot.price.toLocaleString()}
+                          </span>
+                        </div>
+                        {!isAllocationExact && (
+                          <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl border border-red-500/30 bg-red-500/5 mt-1">
+                            <AlertTriangle size={13} className="text-red-400 shrink-0 mt-0.5" />
+                            <p className="text-xs font-bold text-red-400">
+                              Your split payment (৳{totalAllocated.toLocaleString()}) does not match the slot price (৳{slot.price.toLocaleString()}).
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* Error messages */}
+              {groupError && (
+                <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl border border-red-500/30 bg-red-500/5">
+                  <AlertTriangle size={13} className="text-red-400 shrink-0 mt-0.5" />
+                  <p className="text-xs font-bold text-red-400">{groupError}</p>
+                </div>
+              )}
+              {groupCulprits.length > 0 && (
+                <div className="flex flex-col gap-1 px-3 py-2.5 rounded-xl border border-orange-500/30 bg-orange-500/5">
+                  <p className="text-[10px] font-black text-orange-400 flex items-center gap-1"><AlertTriangle size={11} /> Low wallet balance:</p>
+                  {groupCulprits.map((c: any) => (
+                    <p key={c.playerId} className="text-[10px] text-orange-300 font-bold pl-4">
+                      {c.name} needs ৳{c.shortfall.toLocaleString()} more
+                    </p>
+                  ))}
+                  <p className="text-[10px] text-neutral-500 font-bold pl-4 mt-0.5">Ask them to top up their wallet, then try again.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── SOLO WALLET ── */}
+          {!groupId && (
+            <>
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl border ${
+                !hasEnough ? 'border-red-500/30 bg-red-500/5' : 'border-accent/30 bg-accent/5'
+              }`}>
+                <Wallet size={16} className={!hasEnough ? 'text-red-400' : 'text-accent'} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-black">Wallet Balance</p>
+                  <p className={`text-[10px] font-bold ${!hasEnough ? 'text-red-400' : 'text-[var(--muted)]'}`}>
+                    {walletBalance === null ? 'Loading…' : `৳${(walletBalance).toLocaleString()} available`}
+                  </p>
+                </div>
+                {walletBalance !== null && (
+                  <div className="text-right shrink-0">
+                    <p className="text-[9px] text-[var(--muted)] font-bold uppercase tracking-wide">After booking</p>
+                    <p className={`text-sm font-black ${remaining < 0 ? 'text-red-400' : 'text-accent'}`}>
+                      ৳{Math.max(0, remaining).toLocaleString()}
+                    </p>
+                  </div>
+                )}
+              </div>
+              {!hasEnough && walletBalance !== null && (
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-red-500/30 bg-red-500/5">
+                  <AlertTriangle size={14} className="text-red-400 shrink-0" />
+                  <p className="text-xs font-bold text-red-400">Insufficient wallet balance. Please recharge your wallet first.</p>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── PRICE BREAKDOWN ── */}
           <div className="flex flex-col gap-2 px-4 py-3 rounded-2xl bg-white/[0.03] border border-white/5">
             <div className="flex items-center justify-between text-sm">
               <span className="text-[var(--muted)] font-semibold">Slot Price</span>
@@ -282,7 +450,7 @@ function ConfirmSheet({
                 <span className="font-black" style={{ color: '#00ff41' }}>−৳{slotSaving.toLocaleString()}</span>
               </div>
             )}
-            {couponDiscount > 0 && (
+            {!groupId && couponDiscount > 0 && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-accent/80 font-semibold">Coupon Discount</span>
                 <span className="font-black text-accent">−৳{couponDiscount.toLocaleString()}</span>
@@ -293,17 +461,35 @@ function ConfirmSheet({
               <span className="font-black text-sm">Total</span>
               <div className="text-right">
                 {slotSaving > 0 && <p className="text-[10px] text-neutral-500 line-through font-medium">৳{slot.price.toLocaleString()}</p>}
-                <span className="text-xl font-black text-accent">৳{finalPrice.toLocaleString()}</span>
+                <span className="text-xl font-black text-accent">৳{groupId ? slot.price.toLocaleString() : finalPrice.toLocaleString()}</span>
               </div>
             </div>
           </div>
 
-          {/* Book button — disabled if insufficient balance or missing sport */}
-          <button onClick={handleBook} disabled={booking || !hasEnough || walletBalance === null || !selectedSport}
-            className="w-full py-4 rounded-2xl bg-accent text-black font-black text-sm flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 shadow-[0_4px_20px_rgba(0,255,65,0.25)]">
-            {booking ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} fill="currentColor" />}
-            {booking ? 'Booking…' : (!selectedSport ? 'Select a Game Format' : (!hasEnough ? 'Insufficient Balance' : `Book for ৳${finalPrice.toLocaleString()}`))}
-          </button>
+          {/* ── BOOK BUTTON ── */}
+          {groupId ? (
+            <button
+              onClick={handleBook}
+              disabled={
+                booking || 
+                !!groupError || 
+                groupLoading || 
+                !selectedSport || 
+                groupMembers.reduce((s: number, m: any) => s + (m.splitAmount || 0), 0) !== slot.price
+              }
+              className="w-full py-4 rounded-2xl bg-cyan-500 text-black font-black text-sm flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 shadow-[0_4px_20px_rgba(0,210,255,0.25)]">
+              {booking ? <Loader2 size={16} className="animate-spin" /> : <Users size={16} />}
+              {booking ? 'Booking…' : (!selectedSport ? 'Select a Game Format' : 'Confirm Group Booking')}
+            </button>
+          ) : (
+            <button
+              onClick={handleBook}
+              disabled={booking || !hasEnough || walletBalance === null || !selectedSport}
+              className="w-full py-4 rounded-2xl bg-accent text-black font-black text-sm flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 shadow-[0_4px_20px_rgba(0,255,65,0.25)]">
+              {booking ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} fill="currentColor" />}
+              {booking ? 'Booking…' : (!selectedSport ? 'Select a Game Format' : (!hasEnough ? 'Insufficient Balance' : `Book for ৳${finalPrice.toLocaleString()}`))}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -311,7 +497,7 @@ function ConfirmSheet({
 }
 
 // ── Main Booking Client ────────────────────────────────────────────────────────
-export default function TurfBookingClient({ turfId, turfName, area, cityName, slots, bookings, grounds, sports }: Props) {
+export default function TurfBookingClient({ turfId, turfName, area, cityName, slots, bookings, grounds, sports, groupId }: Props) {
   const isAuthed = useAuth();
   const router   = useRouter();
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
@@ -417,6 +603,7 @@ export default function TurfBookingClient({ turfId, turfName, area, cityName, sl
           ground={ground} sport={sport}
           slotDiscountedPrice={slotDiscountedPrice}
           slotDiscountReason={slotDiscountReason}
+          groupId={groupId}
           onClose={() => setShowConfirm(false)}
           onBooked={handleBooked}
         />

@@ -33,6 +33,13 @@ export async function GET(_req: NextRequest, { params }: { params: Params }) {
       matchStats: {
         include: { team: true },
       },
+      badges: true,
+      battingPerformances: {
+        select: { runs: true, ballsFaced: true, fours: true, sixes: true, notOut: true }
+      },
+      bowlingPerformances: {
+        select: { legalBalls: true, runs: true, wickets: true, wides: true, noBalls: true }
+      },
     },
   });
 

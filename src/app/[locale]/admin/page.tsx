@@ -9,11 +9,13 @@ import PayoutsLedgerPanel from '@/components/admin/PayoutsLedgerPanel';
 import WalletRechargePanel from '@/components/admin/WalletRechargePanel';
 import PlayersPanel from '@/components/admin/PlayersPanel';
 import FrontendPanel from '@/components/admin/FrontendPanel';
+import SponsorsPanel from '@/components/admin/SponsorsPanel';
 import CompetitiveTeamsPanel from '@/components/admin/CompetitiveTeamsPanel';
 import ChallengeMarketPanel from '@/components/admin/ChallengeMarketPanel';
 import ShopPanel from '@/components/admin/ShopPanel';
 import ShopOrdersPanel from '@/components/admin/ShopOrdersPanel';
 import ShopIncomePanel from '@/components/admin/ShopIncomePanel';
+import OpenWbtPanel from '@/components/admin/OpenWbtPanel';
 
 const PAGE_TITLES: Record<AdminPage, string> = {
   overview:         'Dashboard Overview',
@@ -26,6 +28,7 @@ const PAGE_TITLES: Record<AdminPage, string> = {
   frontend:         'Frontend',
   competitiveTeams: 'Competitive Teams',
   challengeMarket:  'Challenge Market',
+  openWbt:          'Open WBT',
   shop:             'Shop Front',
   shopOrders:       'Shop Orders',
   shopIncome:       'Shop Income',
@@ -33,6 +36,7 @@ const PAGE_TITLES: Record<AdminPage, string> = {
 
 export default function AdminPage() {
   const [activePage, setActivePage] = useState<AdminPage>('overview');
+  const [frontendTab, setFrontendTab] = useState<'carousel' | 'sponsors'>('carousel');
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -99,12 +103,20 @@ export default function AdminPage() {
           )}
 
           {activePage === 'frontend' && (
-            <section>
-              <div className="mb-5 md:mb-7">
-                <h2 className="text-lg md:text-2xl font-black">Frontend Carousel</h2>
-                <p className="text-sm md:text-base text-[var(--muted)] mt-0.5 md:mt-1">Manage the home page hero banner — upload slides, set CTAs, control auto-slide speed.</p>
+            <section className="flex flex-col h-full">
+              <div className="mb-5 md:mb-7 flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                  <h2 className="text-lg md:text-2xl font-black">Frontend Customization</h2>
+                  <p className="text-sm md:text-base text-[var(--muted)] mt-0.5 md:mt-1">Manage the home page hero banner and sponsor logos.</p>
+                </div>
+                <div className="flex bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl p-1 shrink-0">
+                  <button onClick={() => setFrontendTab('carousel')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${frontendTab === 'carousel' ? 'bg-accent text-black shadow-md' : 'text-[var(--muted)] hover:text-white'}`}>Hero Carousel</button>
+                  <button onClick={() => setFrontendTab('sponsors')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${frontendTab === 'sponsors' ? 'bg-accent text-black shadow-md' : 'text-[var(--muted)] hover:text-white'}`}>Sponsors</button>
+                </div>
               </div>
-              <FrontendPanel />
+              <div className="flex-1">
+                {frontendTab === 'carousel' ? <FrontendPanel /> : <SponsorsPanel />}
+              </div>
             </section>
           )}
 
@@ -121,6 +133,12 @@ export default function AdminPage() {
           {activePage === 'challengeMarket' && (
             <section className="h-full">
               <ChallengeMarketPanel />
+            </section>
+          )}
+
+          {activePage === 'openWbt' && (
+            <section>
+              <OpenWbtPanel />
             </section>
           )}
 

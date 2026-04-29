@@ -2,10 +2,17 @@ import HomeHeader from '@/components/home/HomeHeader';
 import HeroBanner from '@/components/home/HeroBanner';
 import SearchBar from '@/components/home/SearchBar';
 import SportsTurfSection from '@/components/home/SportsTurfSection';
+import SponsorsBar from '@/components/home/SponsorsBar';
 import prisma from '@/lib/prisma';
+import { cookies } from 'next/headers';
 
 export default async function RootPage() {
-  const [sports, turfs, bannerData] = await Promise.all([
+  const cookieStore = await cookies();
+  const authCookie = cookieStore.get('bmt_auth');
+  const roleCookie = cookieStore.get('bmt_role');
+  const initialAuth = !!authCookie && (!roleCookie || roleCookie.value === 'player');
+
+  const [sports, turfs, bannerData, sponsorData] = await Promise.all([
     prisma.sport.findMany(),
     prisma.turf.findMany({
       where: { status: 'published' },
@@ -18,9 +25,14 @@ export default async function RootPage() {
       prisma.bannerSlide.findMany({ where: { active: true }, orderBy: { order: 'asc' } }),
       prisma.carouselSettings.findUnique({ where: { id: 'singleton' } }),
     ]),
+    Promise.all([
+      prisma.sponsor.findMany({ where: { active: true }, orderBy: { order: 'asc' } }),
+      prisma.sponsorSettings.findUnique({ where: { id: 'singleton' } }),
+    ]),
   ]);
 
   const [bannerSlides, carouselSettings] = bannerData;
+  const [sponsors, sponsorSettings] = sponsorData;
 
   // Build sportIds for each turf:
   // 1st priority: TurfSport join table (set by admin during approval)
@@ -53,12 +65,16 @@ export default async function RootPage() {
   });
 
   return (
-    <div className="flex flex-col min-h-screen bg-background pb-20 pt-2 selection:bg-accent/30 selection:text-accent">
+    <div className="flex flex-col min-h-screen bg-background pb-20 pt-0 selection:bg-accent/30 selection:text-accent">
       <div className="w-full max-w-md mx-auto relative flex flex-col gap-2">
-        <HomeHeader />
+        <HomeHeader initialAuth={initialAuth} />
         <HeroBanner
           slides={bannerSlides}
           settings={carouselSettings ?? { autoSlide: true, intervalMs: 3500 }}
+        />
+        <SponsorsBar 
+          sponsors={sponsors} 
+          settings={sponsorSettings ?? { autoSlide: true, intervalMs: 3500 }} 
         />
         <SearchBar turfs={turfsWithSportIds as any} sports={sports} />
         <SportsTurfSection initialSports={sports} initialTurfs={turfsWithSportIds as any} />

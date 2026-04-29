@@ -40,7 +40,20 @@ export async function POST(
     const updated = await prisma.match.update({ where: { id: matchId }, data: updateData });
 
     if (updated.matchEndedByA && updated.matchEndedByB) {
-      // Auto-confirm all remaining PENDING events
+      if (match.scoringMode === 'SCORE_AFTER') {
+        // ── SCORE_AFTER: skip event computation; open score submission panel ──
+        // Log FULL_TIME marker (minute irrelevant, use 0)
+        await prisma.matchEvent.create({
+          data: { matchId, type: 'FULL_TIME', teamId: match.teamA_Id, minute: 0, status: 'CONFIRMED' }
+        });
+        await prisma.match.update({
+          where: { id: matchId },
+          data: { status: 'SCORE_ENTRY' },
+        });
+        return NextResponse.json({ ok: true, fullTimeConfirmed: true, scoreAfterMode: true, scoreA: 0, scoreB: 0 });
+      }
+
+      // ── LIVE: auto-confirm pending events, compute score from event log ──
       await prisma.matchEvent.updateMany({
         where: { matchId, status: 'PENDING' },
         data: { status: 'CONFIRMED', resolvedAt: new Date(), resolution: 'auto_fulltime' }
