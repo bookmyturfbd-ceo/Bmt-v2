@@ -19,6 +19,7 @@ export interface MatchResultPayload {
   mmrDelta      : number;          // signed: +40, -40, +80
   currentMmr    : number;          // MMR *after* the change applied
   matchId       : string;
+  onDismissPath?: string;          // custom redirect path on dismiss
 }
 
 // ─── Context type ──────────────────────────────────────────────────────────────

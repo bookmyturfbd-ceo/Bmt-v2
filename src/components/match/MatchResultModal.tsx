@@ -35,8 +35,9 @@ export default function MatchResultModal() {
   const locale = params?.locale as string || 'en';
 
   const handleDismiss = () => {
+    const nextPath = result?.onDismissPath || `/${locale}/arena?tab=history`;
     clearResult();
-    router.push(`/${locale}/arena?tab=history`);
+    router.push(nextPath);
   };
 
   // Animation phases: 'hidden' | 'stamp' | 'stats' | 'mmr' | 'visible'

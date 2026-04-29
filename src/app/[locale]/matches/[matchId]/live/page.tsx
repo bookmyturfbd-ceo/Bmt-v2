@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { subscribeToMatchChannel, broadcastMatchEvent } from '@/lib/supabaseRealtime';
 import PostMatchStatsModal from '@/components/matches/PostMatchStatsModal';
+import { useMatchResult } from '@/context/MatchResultContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type MatchEvent = {
@@ -286,6 +287,7 @@ export default function LiveScoringPage() {
   const router  = useRouter();
   const matchId = params.matchId as string;
   const locale  = (params.locale as string) || 'en';
+  const { showMatchResult } = useMatchResult();
 
   const [state, setState]       = useState<any>(null);
   const [loading, setLoading]   = useState(true);
@@ -636,113 +638,40 @@ export default function LiveScoringPage() {
     } else setMsg('❌ ' + d.error);
   };
 
-  // ── Result overlay ────────────────────────────────────────────────────────
-  if (matchResult) {
-    const { scoreA, scoreB, winnerId, mmrChangeA, mmrChangeB } = matchResult;
-    const myMmrChange = isTeamA ? mmrChangeA : mmrChangeB;
-    const myScore     = isTeamA ? scoreA : scoreB;
-    const oppScore    = isTeamA ? scoreB : scoreA;
-    const iWon  = winnerId === myTeamId;
-    const isDraw = winnerId === null;
+  // ── Trigger global rank modal when match result lands ──────────────────────────
+  useEffect(() => {
+    if (!matchResult || !state) return;
+    const { match: m, myTeamId: tid, isTeamA: amA } = state;
+    if (!m || !tid) return;
 
-    const outcomeLabel = isDraw ? 'Draw' : iWon ? 'Victory!' : 'Defeat';
-    const outcomeColor = isDraw ? '#94a3b8' : iWon ? '#00ff41' : '#ef4444';
-    const outcomeBg    = isDraw ? 'from-neutral-900 to-[#08090f]'
-                       : iWon  ? 'from-[#00ff41]/10 to-[#08090f]'
-                       :         'from-red-900/20 to-[#08090f]';
+    const mmrDelta  = amA ? matchResult.mmrChangeA : matchResult.mmrChangeB;
+    const sportType = m.teamA?.sportType ?? 'FUTSAL_5';
+    const myTeam    = amA ? m.teamA : m.teamB;
+    const oppTeam   = amA ? m.teamB : m.teamA;
+    const currentMmr = myTeam?.footballMmr ?? myTeam?.teamMmr ?? 1000;
 
-    // SCORE_AFTER: show stats modal before navigating away
-    if (showStatsModal && isOMC) {
-      return (
-        <PostMatchStatsModal
-          matchId={matchId}
-          myTeam={myTeam}
-          agreedScore={isTeamA ? scoreA : scoreB}
-          onDone={() => { setShowStatsModal(false); router.push(`/${locale}/interact`); }}
-        />
-      );
-    }
+    const outcome: 'win' | 'loss' | 'draw' =
+      matchResult.winnerId === null ? 'draw' :
+      matchResult.winnerId === tid ? 'win' : 'loss';
 
-    return (
-      <div className={`fixed inset-0 z-[200] bg-gradient-to-b ${outcomeBg} flex flex-col items-center justify-center px-6 text-white`}
-        style={{ animation: 'fadeInResult 0.6s ease-out' }}>
-        <style>{`
-          @keyframes fadeInResult { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
-          @keyframes mmrPop { 0%{transform:scale(0.5);opacity:0;} 60%{transform:scale(1.15);} 100%{transform:scale(1);opacity:1;} }
-        `}</style>
+    const onDismissPath = (scoringMode === 'SCORE_AFTER' && isOMC) 
+        ? `/${locale}/matches/${matchId}/stats` 
+        : `/${locale}/arena?tab=history`;
 
-        {/* Trophy / skull */}
-        <div className="text-7xl mb-4" style={{ animation: 'mmrPop 0.5s 0.3s both' }}>
-          {isDraw ? '🤝' : iWon ? '🏆' : '💀'}
-        </div>
-
-        {/* Outcome */}
-        <p className="text-5xl font-black mb-1" style={{ color: outcomeColor }}>
-          {outcomeLabel}
-        </p>
-
-        {/* Score */}
-        <div className="flex items-center gap-4 my-6">
-          <div className="flex flex-col items-center gap-1">
-            <div className="w-12 h-12 rounded-xl bg-neutral-800 border border-white/10 overflow-hidden flex items-center justify-center">
-              {(isTeamA ? match.teamA : match.teamB).logoUrl
-                ? <img src={(isTeamA ? match.teamA : match.teamB).logoUrl!} className="w-full h-full object-cover" alt="" />
-                : <Shield size={18} className="text-neutral-500" />}
-            </div>
-            <p className="text-[10px] font-black text-neutral-400 max-w-[70px] text-center truncate">{myTeam.name}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-6xl font-black tabular-nums" style={{ color: outcomeColor }}>{myScore}</span>
-            <span className="text-3xl font-black text-neutral-600">:</span>
-            <span className="text-6xl font-black tabular-nums text-neutral-400">{oppScore}</span>
-          </div>
-          <div className="flex flex-col items-center gap-1">
-            <div className="w-12 h-12 rounded-xl bg-neutral-800 border border-white/10 overflow-hidden flex items-center justify-center">
-              {opponentTeam.logoUrl
-                ? <img src={opponentTeam.logoUrl!} className="w-full h-full object-cover" alt="" />
-                : <Shield size={18} className="text-neutral-500" />}
-            </div>
-            <p className="text-[10px] font-black text-neutral-400 max-w-[70px] text-center truncate">{opponentTeam.name}</p>
-          </div>
-        </div>
-
-        {/* MMR badge */}
-        <div
-          className={`flex flex-col items-center gap-1 px-8 py-4 rounded-3xl border mb-6 ${
-            myMmrChange > 0 ? 'bg-[#00ff41]/10 border-[#00ff41]/30'
-            : myMmrChange < 0 ? 'bg-red-500/10 border-red-500/30'
-            : 'bg-neutral-800 border-white/10'
-          }`}
-          style={{ animation: 'mmrPop 0.6s 0.5s both' }}
-        >
-          <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Your Rank Points</p>
-          <p className={`text-4xl font-black ${
-            myMmrChange > 0 ? 'text-[#00ff41]' : myMmrChange < 0 ? 'text-red-400' : 'text-neutral-400'
-          }`}>
-            {myMmrChange > 0 ? `+${myMmrChange}` : myMmrChange === 0 ? '±0' : `${myMmrChange}`}
-          </p>
-          <p className="text-[10px] text-neutral-600">MMR</p>
-        </div>
-
-        {/* Score After: assign player stats before leaving */}
-        {scoringMode === 'SCORE_AFTER' && isOMC ? (
-          <button
-            onClick={() => setShowStatsModal(true)}
-            className="w-full max-w-xs py-4 rounded-2xl bg-[#00ff41] text-black font-black text-sm uppercase tracking-wider active:scale-95 transition-all mb-3"
-          >
-            🏅 Assign Player Stats →
-          </button>
-        ) : null}
-
-        <button
-          onClick={() => router.push(`/${locale}/interact`)}
-          className="w-full max-w-xs py-4 rounded-2xl bg-white/10 border border-white/20 text-white font-black text-sm uppercase tracking-wider active:scale-95 transition-all"
-        >
-          {scoringMode === 'SCORE_AFTER' && isOMC ? 'Skip & Back to Arena' : 'Back to Arena →'}
-        </button>
-      </div>
-    );
-  }
+    showMatchResult({
+      outcome,
+      sportType,
+      victoryString : matchResult.victoryString ?? (outcome === 'draw' ? 'Match Tied — MMR Split Equally' : ''),
+      myTeamName    : myTeam?.name ?? '',
+      oppTeamName   : oppTeam?.name ?? '',
+      myScore       : amA ? matchResult.scoreA : matchResult.scoreB,
+      oppScore      : amA ? matchResult.scoreB : matchResult.scoreA,
+      mmrDelta,
+      currentMmr,
+      matchId       : m.id,
+      onDismissPath,
+    });
+  }, [matchResult, state, showMatchResult, scoringMode, isOMC, locale, matchId]);
 
   return (
     <div className="min-h-[100dvh] bg-[#08090f] text-white flex flex-col" style={{ position: 'fixed', inset: 0, zIndex: 100, overflow: 'hidden' }}>
