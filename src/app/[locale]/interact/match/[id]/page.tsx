@@ -420,6 +420,7 @@ export default function InteractionBoardPage() {
 
       {/* ── STEP 1: ROSTER ── */}
       {currentStep === 1 && (
+        <>
         <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-20">
 
           {/* ── ROSTER SIDE TABS ── */}
@@ -752,6 +753,7 @@ export default function InteractionBoardPage() {
 
         {/* Spacer so CTA doesn't overlap content when not shown */}
         {!(amLocked && opponentLocked && !venueConfirmed && isOMC) && <div className="shrink-0 h-4" />}
+        </>
       )}
 
       {/* ── STEP 2: VENUE TYPE SELECTION ── */}
