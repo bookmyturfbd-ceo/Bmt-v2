@@ -101,9 +101,8 @@ export default function InteractionBoardPage() {
         setCurrentStep(s => s < 3 ? 3 : s); setVenueTypeLocal('BMT');
       } else if (d.match?.venueType === 'OPEN_WBT') {
         setCurrentStep(s => s < 3 ? 3 : s); setVenueTypeLocal('OPEN_WBT');
-      } else if (d.match?.rosterLockedA && d.match?.rosterLockedB) {
-        setCurrentStep(s => s < 2 ? 2 : s);
       }
+      // NOTE: both rosters locked no longer auto-advances — user taps Continue on step 1
     }
     if (!loading) return;
     setLoading(false);
@@ -734,11 +733,34 @@ export default function InteractionBoardPage() {
           )}
 
         </div>
+
+        {/* ── Both rosters locked → Continue CTA (only when venue not yet confirmed) ── */}
+        {amLocked && opponentLocked && !venueConfirmed && isOMC && (
+          <div className="shrink-0 px-4 pt-2 pb-3 border-t border-white/5 bg-[#0a0a0a]">
+            <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-[#00ff41]/5 border border-[#00ff41]/20 rounded-xl">
+              <CheckCircle size={13} className="text-[#00ff41] shrink-0" />
+              <p className="text-[11px] font-black text-[#00ff41]">Both rosters locked! Review above, then continue.</p>
+            </div>
+            <button
+              onClick={() => setCurrentStep(2)}
+              className="w-full py-3.5 rounded-2xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+            >
+              Continue to Booking →
+            </button>
+          </div>
+        )}
+
+        {/* Spacer so CTA doesn't overlap content when not shown */}
+        {!(amLocked && opponentLocked && !venueConfirmed && isOMC) && <div className="shrink-0 h-4" />}
       )}
 
       {/* ── STEP 2: VENUE TYPE SELECTION ── */}
       {currentStep === 2 && (
         <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-20">
+          {/* Back to roster review */}
+          <button onClick={() => setCurrentStep(1)} className="flex items-center gap-1.5 mt-3 mb-1 text-[10px] font-black text-neutral-500 hover:text-white transition-colors">
+            <ChevronLeft size={13} /> View Rosters
+          </button>
 
           {/* Team A (challenger) — proposes venue type, not yet set */}
           {isTeamA && isOMC && !match.venueType && (
@@ -1017,7 +1039,7 @@ export default function InteractionBoardPage() {
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-1 p-2">
-                    {(turf.slots || []).map((slot: any) => {
+                    {(turf.availableSlots || []).map((slot: any) => {
                       const isPicked = match.selectedSlotId === slot.id;
                       const isFull = slot.status === 'booked';
                       return (
