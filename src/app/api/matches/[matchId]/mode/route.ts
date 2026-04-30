@@ -55,15 +55,27 @@ export async function POST(
     return NextResponse.json({ error: 'Cannot change mode after match is completed' }, { status: 409 });
   }
 
-  const updated = await prisma.match.update({
-    where: { id: matchId },
-    data: {
-      scoringMode: mode,
-      scoreModeRequestedBy: ctx.myTeamId,
-      scoreModeAgreed: false,
-      proposedSingleScorerId: mode === 'LIVE_SINGLE' ? singleScorerId : null,
-    },
-  });
+  // If mode is already agreed, don't allow re-proposal
+  if (ctx.match.scoreModeAgreed) {
+    return NextResponse.json({ ok: true, scoringMode: ctx.match.scoringMode, alreadyAgreed: true });
+  }
+
+  // Idempotent: if same team re-proposes same mode, just re-broadcast without erroring
+  const alreadyProposed =
+    ctx.match.scoreModeRequestedBy === ctx.myTeamId &&
+    ctx.match.scoringMode === mode;
+
+  if (!alreadyProposed) {
+    await prisma.match.update({
+      where: { id: matchId },
+      data: {
+        scoringMode: mode,
+        scoreModeRequestedBy: ctx.myTeamId,
+        scoreModeAgreed: false,
+        proposedSingleScorerId: mode === 'LIVE_SINGLE' ? singleScorerId : null,
+      },
+    });
+  }
 
   await broadcastMatchEvent(matchId, 'SCORE_MODE_REQUEST', {
     mode,
@@ -71,7 +83,7 @@ export async function POST(
     singleScorerId: mode === 'LIVE_SINGLE' ? singleScorerId : undefined,
   });
 
-  return NextResponse.json({ ok: true, scoringMode: updated.scoringMode });
+  return NextResponse.json({ ok: true, scoringMode: mode });
 }
 
 // PATCH /api/matches/[matchId]/mode
@@ -91,8 +103,15 @@ export async function PATCH(
 
   // Must be the OTHER team accepting (not the proposer)
   const { match } = ctx;
+
+  // If already agreed, nothing to do — return success silently
+  if (match.scoreModeAgreed) {
+    return NextResponse.json({ ok: true, agreed: true, mode: match.scoringMode, alreadyAgreed: true });
+  }
+
   if (match.scoreModeRequestedBy === ctx.myTeamId) {
-    return NextResponse.json({ error: 'You proposed this mode — wait for opponent' }, { status: 409 });
+    // The proposer clicked accept on their own request — gracefully ignore
+    return NextResponse.json({ error: 'You proposed this mode — wait for the opponent to accept.' }, { status: 409 });
   }
   if (!match.scoreModeRequestedBy) {
     return NextResponse.json({ error: 'No pending mode request' }, { status: 400 });

@@ -439,9 +439,14 @@ export default function LiveScoringPage() {
     setOpponentSubmitted(
       d.isTeamA ? (d.scoreSubmittedByB ?? false) : (d.scoreSubmittedByA ?? false)
     );
-    // If there is a pending mode request from the OTHER team, surface the notification
+    // Surface accept/reject ONLY to the opponent (not the proposer)
     if (d.scoreModeRequestedBy && d.scoreModeRequestedBy !== d.myTeamId && !d.scoreModeAgreed) {
       setScoreModeRequest({ mode: d.scoringMode, fromTeamId: d.scoreModeRequestedBy, singleScorerId: d.match?.proposedSingleScorerId });
+      setShowModeGate(false); // opponent sees accept/reject, not the gate
+    } else if (d.scoreModeRequestedBy && d.scoreModeRequestedBy === d.myTeamId && !d.scoreModeAgreed) {
+      // Proposer: clear any stale request notification, keep gate hidden
+      setScoreModeRequest(null);
+      setShowModeGate(false);
     }
     setLoading(false);
 
@@ -463,10 +468,9 @@ export default function LiveScoringPage() {
         return Math.max(0, elapsed);
       });
       setTimerRunning(true);
-      // Show mode gate if SCORE_AFTER not yet agreed
-      if ((d.scoringMode === 'SCORE_AFTER' || !d.scoreModeAgreed) && d.isOMC) {
-        // Only show gate if mode hasn't been agreed yet and match just started
-        if (!d.scoreModeAgreed && !d.scoreModeRequestedBy) setShowModeGate(true);
+      // Show mode gate only if: OMC, no mode agreed, and no pending proposal from anyone
+      if (d.isOMC && !d.scoreModeAgreed && !d.scoreModeRequestedBy) {
+        setShowModeGate(true);
       }
     }
     if (d.match?.status === 'SCORE_ENTRY') {
@@ -698,10 +702,13 @@ export default function LiveScoringPage() {
     if (r.ok) {
       setScoringMode(mode);
       setShowModeGate(false);
-      setMsg(mode === 'SCORE_AFTER' ? '📋 Score After Match proposed — waiting for opponent.' : '⚡ Live Scoring proposed — waiting for opponent.');
+      // Optimistically reflect that WE are the proposer — shows the waiting banner
+      setState((prev: any) => prev ? { ...prev, scoreModeRequestedBy: prev.myTeamId } : prev);
     } else {
       const d = await r.json();
-      setMsg('❌ ' + d.error);
+      // If already agreed (another edge case), silently refresh
+      if (r.status === 200) { loadState(); }
+      else setMsg('❌ ' + d.error);
     }
     setModeGateLoading(false);
   };
@@ -1157,8 +1164,23 @@ export default function LiveScoringPage() {
         </div>
       )}
 
+      {/* ── Proposer "waiting" banner (shown after proposing, instead of mode gate) ── */}
+      {!showModeGate && !scoreModeAgreed && state?.scoreModeRequestedBy && state.scoreModeRequestedBy === state?.myTeamId && match.status === 'LIVE' && isOMC && (
+        <div className="fixed bottom-28 left-4 right-4 z-[200] pointer-events-none">
+          <div className="w-full bg-[#111318]/95 border border-[#00ff41]/20 rounded-2xl px-5 py-4 flex items-center gap-3 backdrop-blur-md shadow-2xl">
+            <div className="w-8 h-8 rounded-full bg-[#00ff41]/10 border border-[#00ff41]/30 flex items-center justify-center shrink-0">
+              <span className="text-lg animate-pulse">⏳</span>
+            </div>
+            <div>
+              <p className="text-xs font-black text-[#00ff41]">Proposal Sent</p>
+              <p className="text-[10px] text-neutral-400">Waiting for opponent to accept scoring mode...</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Mode Request Notification (opponent receives proposal) ── */}
-      {scoreModeRequest && !showModeGate && isOMC && (
+      {scoreModeRequest && !showModeGate && isOMC && scoreModeRequest.fromTeamId !== state?.myTeamId && (
         <div className="fixed inset-0 z-[350] bg-black/85 backdrop-blur-md flex items-end justify-center p-4">
           <div className="w-full max-w-sm bg-[#111318] border border-[#1e2028] rounded-3xl p-6 mb-4"
             style={{ animation: 'slideUpSheet 0.25s cubic-bezier(0.34,1.56,0.64,1) forwards' }}>
