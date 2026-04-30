@@ -159,12 +159,12 @@ export default function InteractionBoardPage() {
           setPendingBmtSlot(payload.payload); setCurrentStep(3);
         });
         ch.on('broadcast', { event: 'bmt_slot_response' }, (payload: any) => {
-          if (payload.payload?.accepted) { setCurrentStep(4); loadMatch(); }
+          if (payload.payload?.accepted) { setCurrentStep(4); loadMatch(); router.push(`/${locale}/interact`); }
           else { setPendingBmtSlot(null); setMsg('❌ Opponent declined — pick another slot'); }
         });
         ch.on('broadcast', { event: 'wbt_turf_selected' }, () => { loadMatch(); });
         ch.on('broadcast', { event: 'wbt_payment_update' }, () => { loadMatch(); });
-        ch.on('broadcast', { event: 'wbt_booking_complete' }, () => { setCurrentStep(4); loadMatch(); });
+        ch.on('broadcast', { event: 'wbt_booking_complete' }, () => { setCurrentStep(4); loadMatch(); router.push(`/${locale}/interact`); });
         ch.subscribe();
         realtimeRef.current = ch;
       } catch {}
@@ -941,7 +941,7 @@ export default function InteractionBoardPage() {
                       setSaving(true); setMsg('');
                       const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'bmt_slot_respond', accept: true }) });
                       const d = await r.json();
-                      if (r.ok) { setMsg('✅ Booked! ' + d.bookingCode); setCurrentStep(4); loadMatch(); }
+                      if (r.ok) { setMsg('✅ Booked! ' + d.bookingCode); setCurrentStep(4); loadMatch(); router.push(`/${locale}/interact`); }
                       else setMsg('❌ ' + d.error);
                       setSaving(false);
                     }}
@@ -1179,7 +1179,7 @@ export default function InteractionBoardPage() {
                       const d = await r.json();
                       if (r.ok) {
                         setMsg(d.bothPaid ? '✅ Both paid! Booking confirmed.' : '✅ Payment sent — waiting for opponent');
-                        if (d.bothPaid) setCurrentStep(4);
+                        if (d.bothPaid) { setCurrentStep(4); router.push(`/${locale}/interact`); }
                         loadMatch();
                       } else setMsg('❌ ' + d.error);
                       setSaving(false);
@@ -1257,68 +1257,16 @@ export default function InteractionBoardPage() {
               )}
             </div>
 
-            {/* SCHEDULED — Start Match flow */}
-            {match.status === 'SCHEDULED' && (isOMC || isScorer) && (
-              <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl">
-                <p className="text-amber-400 font-black text-sm mb-1">⏳ Match Day</p>
-                <p className="text-xs text-neutral-400 mb-3">
-                  Both captains must tap <strong className="text-white">Start Match</strong> to go live.
-                </p>
-
-                {/* Readiness indicator */}
-                <div className="flex gap-2 mb-3">
-                  {[{name: match.teamA?.name, ready: match.matchStartedByA},{name: match.teamB?.name, ready: match.matchStartedByB}].map((t,i) => (
-                    <div key={i} className={`flex-1 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-black ${
-                      t.ready ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]' : 'bg-neutral-900 border-white/10 text-neutral-500'
-                    }`}>
-                      {t.ready ? <CheckCircle size={11} /> : <Clock size={11} />}
-                      <span className="truncate">{t.name}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <button
-                  onClick={() => doAction('start_match')}
-                  disabled={saving || (isTeamA ? match.matchStartedByA : match.matchStartedByB)}
-                  className="w-full py-3.5 rounded-2xl bg-[#00ff41] text-black font-black text-sm uppercase tracking-wider disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-                >
-                  {saving
-                    ? <Loader2 size={16} className="animate-spin" />
-                    : (isTeamA ? match.matchStartedByA : match.matchStartedByB)
-                    ? '✓ Ready — waiting for opponent'
-                    : '🚀 Start Match'}
-                </button>
-              </div>
-            )}
-
-            {/* Assign scorer button (SCHEDULED, OMC only, scorer not yet assigned) */}
-            {match.status === 'SCHEDULED' && isOMC && !match.scorers?.some((s:any) => s.teamId === myTeamId) && (
-              <button onClick={() => setScorerPanelOpen(true)}
-                className="w-full py-3 rounded-2xl border border-fuchsia-500/30 bg-fuchsia-500/5 text-fuchsia-400 font-black text-sm flex items-center justify-center gap-2 hover:bg-fuchsia-500/10 transition-all">
-                <Swords size={14} /> Assign Live Scorer
+            {/* Locked Board State */}
+            <div className="p-5 bg-neutral-900 border border-white/10 rounded-2xl text-center mt-4">
+              <Lock size={24} className="mx-auto mb-3 text-[#00ff41]" />
+              <p className="text-[#00ff41] font-black text-base mb-1">Interaction Board Locked</p>
+              <p className="text-sm text-neutral-400 mb-5">Booking is complete. You can still chat here, but match actions are moved to the Active tab.</p>
+              <button onClick={() => router.push(`/${locale}/interact`)} 
+                className="w-full py-3.5 bg-white/10 hover:bg-white/20 text-white font-black text-sm rounded-xl transition-all flex items-center justify-center gap-2">
+                <ChevronLeft size={16} /> Go to Active Tab
               </button>
-            )}
-
-            {/* LIVE / SCORE_ENTRY — Enter live scoring */}
-            {(match.status === 'LIVE' || match.status === 'SCORE_ENTRY') && (() => {
-              const sport = match.teamA?.sportType ?? '';
-              const isCricketSport = ['CRICKET_7','CRICKET_FULL'].includes(sport);
-              return (
-                <button onClick={() => router.push(`/${locale}/matches/${matchId}/${isCricketSport ? 'cricket' : 'live'}`)}
-                  className="w-full py-4 rounded-2xl bg-red-500 text-white font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_24px_rgba(239,68,68,0.4)] animate-pulse">
-                  {isCricketSport ? '🏏' : '🔴'} Enter Live Scoring
-                </button>
-              );
-            })()}
-
-            {/* Non-OMC / non-scorer info */}
-            {!isOMC && !isScorer && match.status === 'SCHEDULED' && (
-              <div className="p-4 bg-neutral-900 border border-white/10 rounded-2xl text-center">
-                <Clock size={20} className="mx-auto mb-2 text-neutral-500" />
-                <p className="text-xs text-neutral-500">Waiting for match day.</p>
-                <p className="text-[10px] text-neutral-600 mt-0.5">Only OMC/Scorer can start the match.</p>
-              </div>
-            )}
+            </div>
 
           </div>
         </div>

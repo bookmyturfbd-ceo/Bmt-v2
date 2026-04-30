@@ -553,6 +553,41 @@ export default function LiveScoringPage() {
   const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
   const currentMinute = Math.floor(timerSecs / 60);
 
+  // ── Trigger global rank modal when match result lands ──────────────────────────
+  useEffect(() => {
+    if (!matchResult || !state) return;
+    const { match: m, myTeamId: tid, isTeamA: amA, isOMC: isOMCState } = state;
+    if (!m || !tid) return;
+
+    const mmrDelta  = amA ? matchResult.mmrChangeA : matchResult.mmrChangeB;
+    const sportType = m.teamA?.sportType ?? 'FUTSAL_5';
+    const myTeam    = amA ? m.teamA : m.teamB;
+    const oppTeam   = amA ? m.teamB : m.teamA;
+    const currentMmr = myTeam?.footballMmr ?? myTeam?.teamMmr ?? 1000;
+
+    const outcome: 'win' | 'loss' | 'draw' =
+      matchResult.winnerId === null ? 'draw' :
+      matchResult.winnerId === tid ? 'win' : 'loss';
+
+    const onDismissPath = (scoringMode === 'SCORE_AFTER' && isOMCState) 
+        ? `/${locale}/matches/${matchId}/stats` 
+        : `/${locale}/arena?tab=history`;
+
+    showMatchResult({
+      outcome,
+      sportType,
+      victoryString : matchResult.victoryString ?? (outcome === 'draw' ? 'Match Tied — MMR Split Equally' : ''),
+      myTeamName    : myTeam?.name ?? '',
+      oppTeamName   : oppTeam?.name ?? '',
+      myScore       : amA ? matchResult.scoreA : matchResult.scoreB,
+      oppScore      : amA ? matchResult.scoreB : matchResult.scoreA,
+      mmrDelta,
+      currentMmr,
+      matchId       : m.id,
+      onDismissPath,
+    });
+  }, [matchResult, state, showMatchResult, scoringMode, locale, matchId]);
+
   if (loading) return (
     <div className="min-h-[100dvh] bg-[#08090f] flex items-center justify-center">
       <Loader2 size={36} className="animate-spin text-[#00ff41]" />
@@ -729,41 +764,6 @@ export default function LiveScoringPage() {
       }
     } else setMsg('❌ ' + d.error);
   };
-
-  // ── Trigger global rank modal when match result lands ──────────────────────────
-  useEffect(() => {
-    if (!matchResult || !state) return;
-    const { match: m, myTeamId: tid, isTeamA: amA } = state;
-    if (!m || !tid) return;
-
-    const mmrDelta  = amA ? matchResult.mmrChangeA : matchResult.mmrChangeB;
-    const sportType = m.teamA?.sportType ?? 'FUTSAL_5';
-    const myTeam    = amA ? m.teamA : m.teamB;
-    const oppTeam   = amA ? m.teamB : m.teamA;
-    const currentMmr = myTeam?.footballMmr ?? myTeam?.teamMmr ?? 1000;
-
-    const outcome: 'win' | 'loss' | 'draw' =
-      matchResult.winnerId === null ? 'draw' :
-      matchResult.winnerId === tid ? 'win' : 'loss';
-
-    const onDismissPath = (scoringMode === 'SCORE_AFTER' && isOMC) 
-        ? `/${locale}/matches/${matchId}/stats` 
-        : `/${locale}/arena?tab=history`;
-
-    showMatchResult({
-      outcome,
-      sportType,
-      victoryString : matchResult.victoryString ?? (outcome === 'draw' ? 'Match Tied — MMR Split Equally' : ''),
-      myTeamName    : myTeam?.name ?? '',
-      oppTeamName   : oppTeam?.name ?? '',
-      myScore       : amA ? matchResult.scoreA : matchResult.scoreB,
-      oppScore      : amA ? matchResult.scoreB : matchResult.scoreA,
-      mmrDelta,
-      currentMmr,
-      matchId       : m.id,
-      onDismissPath,
-    });
-  }, [matchResult, state, showMatchResult, scoringMode, isOMC, locale, matchId]);
 
   return (
     <div className="min-h-[100dvh] bg-[#08090f] text-white flex flex-col" style={{ position: 'fixed', inset: 0, zIndex: 100, overflow: 'hidden' }}>

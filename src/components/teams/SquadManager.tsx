@@ -88,7 +88,8 @@ function StatDonut({ w, l, d, size = 64 }: { w: number, l: number, d: number, si
 }
 
 // ── Player Card ────────────────────────────────────────────────────────────
-function PlayerCard({ m, isOMC, isPitch, onClick }: { m: any; isOMC: boolean; isPitch: boolean; onClick: () => void }) {
+function PlayerCard({ m, isOMC, isPitch, onClick, isCricket }: { m: any; isOMC: boolean; isPitch: boolean; onClick: () => void; isCricket: boolean }) {
+  const pMmr = isCricket ? (m.player.cricketMmr ?? 1000) : (m.player.footballMmr ?? m.player.mmr ?? 1000);
   return (
     <div
       className="relative flex items-center gap-3 px-3 py-2.5 rounded-xl border border-white/5 bg-neutral-800/50 hover:bg-neutral-800 transition-all cursor-pointer group"
@@ -118,8 +119,8 @@ function PlayerCard({ m, isOMC, isPitch, onClick }: { m: any; isOMC: boolean; is
             : <span className="text-[9px] text-white/30 italic">No position</span>}
         </div>
         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-          <span className="text-[10px] font-black bg-neutral-800 px-2 py-0.5 rounded-md border border-white/10 text-white/70">{m.player.mmr ?? 1000} <span className="text-[#00ff41]">MMR</span></span>
-          <RankBadge mmr={m.player.mmr ?? 1000} inline={true} />
+          <span className="text-[10px] font-black bg-neutral-800 px-2 py-0.5 rounded-md border border-white/10 text-white/70">{pMmr} <span className="text-[#00ff41]">MMR</span></span>
+          <RankBadge mmr={pMmr} inline={true} />
         </div>
       </div>
 
@@ -456,7 +457,7 @@ export default function SquadManager({ team, setTeam, myRole }: SquadManagerProp
           {mainRoster.length === 0 ? (
             <p className="text-xs text-center text-white/30 py-4 italic">No starters assigned — tap + on the pitch</p>
           ) : mainRoster.map((m: any) => (
-            <PlayerCard key={m.id} m={m} isOMC={isOMC} isPitch={true} onClick={() => isOMC && setPlayerModal(m)} />
+            <PlayerCard key={m.id} m={m} isOMC={isOMC} isPitch={true} onClick={() => isOMC && setPlayerModal(m)} isCricket={isCricket} />
           ))}
         </div>
       </div>
@@ -471,7 +472,7 @@ export default function SquadManager({ team, setTeam, myRole }: SquadManagerProp
           {subsRoster.length === 0 ? (
             <p className="text-xs text-center text-white/30 py-4 italic">All players are in the starting lineup</p>
           ) : subsRoster.map((m: any) => (
-            <PlayerCard key={m.id} m={m} isOMC={isOMC} isPitch={false} onClick={() => isOMC && setPlayerModal(m)} />
+            <PlayerCard key={m.id} m={m} isOMC={isOMC} isPitch={false} onClick={() => isOMC && setPlayerModal(m)} isCricket={isCricket} />
           ))}
         </div>
       </div>
@@ -620,7 +621,10 @@ export default function SquadManager({ team, setTeam, myRole }: SquadManagerProp
                   <RoleBadge role={playerModal.role} />
                   <p className="font-black text-sm truncate">{playerModal.player.fullName}</p>
                 </div>
-                <p className="text-[9px] text-[var(--muted)] mt-0.5">MMR {playerModal.player.mmr ?? 1000} · <RankBadge mmr={playerModal.player.mmr ?? 1000} inline={true} /></p>
+                {(() => {
+                  const pmMmr = isCricket ? (playerModal.player.cricketMmr ?? 1000) : (playerModal.player.footballMmr ?? playerModal.player.mmr ?? 1000);
+                  return <p className="text-[9px] text-[var(--muted)] mt-0.5">MMR {pmMmr} · <RankBadge mmr={pmMmr} inline={true} /></p>;
+                })()}
               </div>
               <button onClick={() => setPlayerModal(null)} className="p-1.5 rounded-xl hover:bg-white/10 shrink-0"><X size={16} /></button>
             </div>
@@ -739,7 +743,7 @@ export default function SquadManager({ team, setTeam, myRole }: SquadManagerProp
                         <p className="text-sm font-bold truncate">{player.fullName}</p>
                         <p className="text-[10px] text-[var(--muted)] truncate">{player.email}</p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[9px] font-black text-accent">MMR {player.mmr}</span>
+                          <span className="text-[9px] font-black text-accent">MMR {isCricket ? (player.cricketMmr ?? 1000) : (player.footballMmr ?? player.mmr ?? 1000)}</span>
                           <span className="text-[9px] text-[var(--muted)]">LVL {player.level}</span>
                         </div>
                       </div>

@@ -224,6 +224,11 @@ export default function ProfilePage() {
   const sportsFilter = Object.keys(statsBySport);
   if (!activeSport && sportsFilter.length > 0) setActiveSport(sportsFilter[0]);
 
+  const displaySport = activeSport || (sportsFilter.length > 0 ? sportsFilter[0] : 'FUTSAL_5');
+  const isCricketDisplay = displaySport.includes('CRICKET');
+  const displayMmr = isCricketDisplay ? cricketMmr : footballMmr;
+  const displayMatchCount = isCricketDisplay ? ckMatchCount : fbMatchCount;
+
   const saveName = async () => {
     if (!editName.trim()) return;
     setSavingName(true);
@@ -322,12 +327,11 @@ export default function ProfilePage() {
           </div>
           
           {/* Bento Grid layout */}
-          <div className="grid grid-cols-2 gap-3 mt-1">
-            <BentoRank mmr={footballMmr} sport="Football" provCount={fbMatchCount} />
-            <BentoRank mmr={cricketMmr} sport="Cricket" provCount={ckMatchCount} />
+          <div className="grid grid-cols-1 gap-3 mt-1">
+            <BentoRank mmr={displayMmr} sport={isCricketDisplay ? 'Cricket' : 'Football'} provCount={displayMatchCount} />
             
             {cmTeams.length > 0 && (
-              <div className="col-span-2 bg-white/[0.02] border border-white/5 rounded-2xl p-3 flex flex-col gap-2 relative overflow-hidden group">
+              <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-3 flex flex-col gap-2 relative overflow-hidden group">
                 <div className="absolute inset-0 bg-gradient-to-r from-fuchsia-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                 <p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)] px-1 mb-1">Challenge Market Teams</p>
                 <div className="flex flex-col gap-1.5">
