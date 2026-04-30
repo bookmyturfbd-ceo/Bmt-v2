@@ -937,14 +937,21 @@ export default function InteractionBoardPage() {
 
         // ── Challenged team view: Accept/Decline pending slot
         if (!isChallengerView && slotPending && isOMC) {
-          const slot = pendingBmtSlot ?? { turfName: match.wbtTurfName ?? '—', startTime: match.wbtFrom ?? '—', endTime: match.wbtTo ?? '—', price: 0, date: match.matchDate ?? '—', slotId: match.selectedSlotId! };
+          const slotInfo = match.selectedSlotInfo;
           return (
             <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-20">
               <div className="mt-4 p-5 rounded-2xl border border-amber-500/30 bg-amber-900/10">
-                <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-2">Challenger Picked a Slot!</p>
-                <p className="font-black text-white text-sm">{slot.turfName}</p>
-                <p className="text-xs text-neutral-400 mt-0.5">🕒 {slot.startTime}–{slot.endTime} · 📅 {slot.date}</p>
-                {slot.price > 0 && <p className="text-xs font-bold text-fuchsia-400 mt-1">৳{(slot.price/2).toFixed(0)} each (50/50)</p>}
+                <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-3">Challenger Picked a Slot!</p>
+                {slotInfo ? (
+                  <>
+                    <p className="font-black text-white text-base">{slotInfo.turfName}</p>
+                    <p className="text-sm text-neutral-300 mt-1">🕒 {slotInfo.startTime}–{slotInfo.endTime}</p>
+                    <p className="text-xs text-neutral-500 mt-0.5">📅 {match.matchDate}</p>
+                    <p className="text-xs font-bold text-fuchsia-400 mt-2">৳{Math.round(slotInfo.price / 2)} each (50/50 split)</p>
+                  </>
+                ) : (
+                  <p className="text-neutral-500 text-sm">Loading slot details…</p>
+                )}
                 <div className="flex gap-3 mt-4">
                   <button
                     onClick={async () => {
@@ -995,14 +1002,23 @@ export default function InteractionBoardPage() {
 
         // ── Challenger: slot already sent — waiting for response
         if (isChallengerView && slotPending) {
+          const slotInfo = match.selectedSlotInfo;
           return (
             <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-20">
-              <div className="mt-4 p-4 bg-[#00ff41]/5 border border-[#00ff41]/20 rounded-2xl">
-                <p className="text-[10px] font-black uppercase tracking-widest text-[#00ff41] mb-1">Slot Sent!</p>
-                <p className="font-black text-sm text-white">{match.wbtTurfName ?? '—'}</p>
-                <p className="text-xs text-neutral-400 mt-0.5">📅 {match.matchDate} · 🕒 {pendingBmtSlot?.startTime ?? '—'}–{pendingBmtSlot?.endTime ?? '—'}</p>
-                <p className="text-xs text-neutral-500 mt-3 flex items-center gap-1.5"><Clock size={10} className="animate-spin" /> Waiting for {match.teamB?.name} to accept…</p>
-                <button onClick={() => { setSaving(true); fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'book_bmt_slot', slotId: match.selectedSlotId, date: match.matchDate, _cancel: true }) }).finally(() => { setSaving(false); loadMatch(); }); setMsg(''); }} className="mt-3 text-xs text-neutral-600 hover:text-red-400 transition-colors">Cancel &amp; Pick Again</button>
+              <div className="mt-4 p-5 bg-[#00ff41]/5 border border-[#00ff41]/20 rounded-2xl">
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#00ff41] mb-2">Slot Sent ✓</p>
+                {slotInfo ? (
+                  <>
+                    <p className="font-black text-white text-base">{slotInfo.turfName}</p>
+                    <p className="text-sm text-neutral-300 mt-1">🕒 {slotInfo.startTime}–{slotInfo.endTime}</p>
+                    <p className="text-xs text-neutral-500 mt-0.5">📅 {match.matchDate}</p>
+                    <p className="text-xs font-bold text-fuchsia-400 mt-2">৳{Math.round(slotInfo.price / 2)} each (50/50 split)</p>
+                  </>
+                ) : (
+                  <p className="text-neutral-500 text-sm">Loading slot details…</p>
+                )}
+                <p className="text-xs text-neutral-500 mt-4 flex items-center gap-1.5"><Clock size={10} className="animate-spin" /> Waiting for {match.teamB?.name} to accept…</p>
+                <button onClick={() => { setSaving(true); fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'clear_bmt_slot' }) }).finally(() => { setSaving(false); loadMatch(); }); setMsg(''); }} className="mt-3 text-xs text-neutral-600 hover:text-red-400 transition-colors">Cancel &amp; Pick Again</button>
               </div>
             </div>
           );

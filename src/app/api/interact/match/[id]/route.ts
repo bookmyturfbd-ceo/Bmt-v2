@@ -75,8 +75,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // A scorer who is not a team member can still view if assigned
     const canView = isTeamA || isTeamB || isScorer;
 
+    // Enrich selected BMT slot with turf + time info (so both sides see it on reload)
+    let selectedSlotInfo: { turfName: string; startTime: string; endTime: string; price: number } | null = null;
+    if (match.selectedSlotId) {
+      const slot = await prisma.slot.findUnique({
+        where: { id: match.selectedSlotId },
+        include: { ground: { include: { turf: { select: { name: true } } } } },
+      });
+      if (slot) {
+        selectedSlotInfo = {
+          turfName:  slot.ground.turf.name,
+          startTime: slot.startTime,
+          endTime:   slot.endTime,
+          price:     slot.price,
+        };
+      }
+    }
+
     return NextResponse.json({
-      match: { ...match, venueSuggestions: enrichedSuggestions, rosterPicks: enrichedPicks },
+      match: { ...match, venueSuggestions: enrichedSuggestions, rosterPicks: enrichedPicks, selectedSlotInfo },
       myTeamId,
       isTeamA,
       isOMC,
@@ -304,6 +321,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         price: slot.price,
         halfCost: slot.price / 2,
       });
+      return NextResponse.json({ ok: true });
+    }
+
+    // ── clear_bmt_slot ────────────────────────────────────────────────────────
+    // Challenger cancels their pending slot pick so they can choose again
+    if (action === 'clear_bmt_slot') {
+      if (!isOMC || !isTeamA) return NextResponse.json({ error: 'Only challenger OMC can clear slot' }, { status: 403 });
+      await prisma.match.update({ where: { id: matchId }, data: { selectedSlotId: null, matchDate: null } });
+      await broadcastMatchEvent(matchId, 'bmt_slot_cleared', {});
       return NextResponse.json({ ok: true });
     }
 
