@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   Loader2, ChevronLeft, Target, CreditCard, ArrowLeftRight,
   CheckCircle, Clock, Flag, X, Shield,
-  Zap,
+  Zap, Search
 } from 'lucide-react';
 import { subscribeToMatchChannel, broadcastMatchEvent } from '@/lib/supabaseRealtime';
 import PostMatchStatsModal from '@/components/matches/PostMatchStatsModal';
@@ -40,8 +40,8 @@ const EVENT_META: Record<string, { icon: string; label: string; color: string }>
 // ─── Event Bottom Sheet ──────────────────────────────────────────────────────
 type SheetType = 'GOAL' | 'OWN_GOAL' | 'PENALTY' | 'CARD' | 'SUB' | null;
 
-function EventSheet({ type, myTeam, opponentTeam, matchId, currentMinute, rosterPicks, onClose, onSubmit }: {
-  type: SheetType; myTeam: Team; opponentTeam: Team;
+function EventSheet({ type, myTeam, opponentTeam, isSingleScorer, matchId, currentMinute, rosterPicks, onClose, onSubmit }: {
+  type: SheetType; myTeam: Team; opponentTeam: Team; isSingleScorer: boolean;
   matchId: string; currentMinute: number;
   rosterPicks: RosterPick[];
   onClose: () => void; onSubmit: (event: MatchEvent) => void;
@@ -57,13 +57,17 @@ function EventSheet({ type, myTeam, opponentTeam, matchId, currentMinute, roster
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
 
+  const [selectedTeamId, setSelectedTeamId] = useState<string>(myTeam.id);
+
+  const activeTeam = isSingleScorer ? (selectedTeamId === myTeam.id ? myTeam : opponentTeam) : myTeam;
+
   // Split roster into starters and subs based on interaction board picks
-  const myPicks = rosterPicks.filter(p => p.teamId === myTeam.id);
+  const myPicks = rosterPicks.filter(p => p.teamId === activeTeam.id);
   const starterIds = new Set(myPicks.filter(p => p.isStarter).map(p => p.memberId));
   const subIds     = new Set(myPicks.filter(p => !p.isStarter).map(p => p.memberId));
-  const myStarters = myTeam.members.filter(m => starterIds.has(m.id));
-  const mySubs     = myTeam.members.filter(m => subIds.has(m.id));
-  const myMembers  = myTeam.members; // all members for goal/card/penalty
+  const myStarters = activeTeam.members.filter(m => starterIds.has(m.id));
+  const mySubs     = activeTeam.members.filter(m => subIds.has(m.id));
+  const myMembers  = activeTeam.members; // all members for goal/card/penalty
 
   const submit = async () => {
     setLoading(true); setErr('');
@@ -71,7 +75,7 @@ function EventSheet({ type, myTeam, opponentTeam, matchId, currentMinute, roster
     if (type === 'PENALTY') eventType = penaltyScored ? 'PENALTY_SCORED' : 'PENALTY_MISSED';
     if (type === 'CARD') eventType = cardType === 'RED' ? 'RED_CARD' : 'YELLOW_CARD';
 
-    const body: any = { type: eventType, minute };
+    const body: any = { type: eventType, minute, teamId: activeTeam.id };
     if (type === 'GOAL' || type === 'PENALTY') body.scorerPlayerId = scorerId;
     if (type === 'GOAL') body.assistPlayerId = assistId;
     if (type === 'CARD') body.scorerPlayerId = scorerId;
@@ -173,14 +177,24 @@ function EventSheet({ type, myTeam, opponentTeam, matchId, currentMinute, roster
         style={{ animation: 'slideUpSheet 0.25s cubic-bezier(0.34,1.56,0.64,1) forwards' }}>
         <style>{`@keyframes slideUpSheet { from { transform: translateY(100%); } to { transform: translateY(0); } }`}</style>
 
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#1e2028] shrink-0">
-          <div>
-            {totalSteps > 1 && <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Step {step + 1} of {totalSteps}</p>}
-            <h2 className="text-xl font-black text-white">{title}</h2>
+        <div className="flex flex-col px-5 pt-5 pb-4 border-b border-[#1e2028] shrink-0 gap-4">
+          <div className="flex items-center justify-between">
+            <div>
+              {totalSteps > 1 && <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Step {step + 1} of {totalSteps}</p>}
+              <h2 className="text-xl font-black text-white">{title}</h2>
+            </div>
+            <button onClick={onClose} className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center">
+              <X size={16} className="text-neutral-400" />
+            </button>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center">
-            <X size={16} className="text-neutral-400" />
-          </button>
+          {isSingleScorer && (
+            <div className="flex bg-[#000] p-1 rounded-2xl w-full">
+              <button onClick={() => { setSelectedTeamId(myTeam.id); setScorerId(null); setAssistId(null); setPlayerOffId(null); setPlayerOnId2(null); }}
+                className={`flex-1 py-2.5 text-xs font-black rounded-xl transition-all truncate px-2 ${selectedTeamId === myTeam.id ? 'bg-[#00ff41] text-black' : 'text-neutral-500 hover:text-white'}`}>{myTeam.name}</button>
+              <button onClick={() => { setSelectedTeamId(opponentTeam.id); setScorerId(null); setAssistId(null); setPlayerOffId(null); setPlayerOnId2(null); }}
+                className={`flex-1 py-2.5 text-xs font-black rounded-xl transition-all truncate px-2 ${selectedTeamId === opponentTeam.id ? 'bg-[#ef4444] text-white' : 'text-neutral-500 hover:text-white'}`}>{opponentTeam.name}</button>
+            </div>
+          )}
         </div>
 
         {/*
@@ -281,6 +295,79 @@ function EventSheet({ type, myTeam, opponentTeam, matchId, currentMinute, roster
   );
 }
 
+// ─── Single Scorer Search Modal ──────────────────────────────────────────────
+function ScorerSearchModal({ myTeam, opponentTeam, onClose, onSelect }: {
+  myTeam: Team; opponentTeam: Team; onClose: () => void; onSelect: (playerId: string) => void;
+}) {
+  const [tab, setTab] = useState<'myTeam'|'opponent'|'search'>('myTeam');
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<Player[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    if (tab !== 'search' || query.length < 3) { setResults([]); return; }
+    const delay = setTimeout(async () => {
+      setSearching(true);
+      const r = await fetch(`/api/players/search?q=${encodeURIComponent(query)}`);
+      const d = await r.json();
+      setResults(d.players || []);
+      setSearching(false);
+    }, 400);
+    return () => clearTimeout(delay);
+  }, [tab, query]);
+
+  const renderPlayer = (p: Player) => (
+    <button key={p.id} onClick={() => onSelect(p.id)}
+      className="w-full flex items-center gap-3 p-3 rounded-2xl bg-[#111318] border border-white/5 active:scale-[0.98] transition-all text-left mb-2">
+      <div className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center overflow-hidden shrink-0">
+        {p.avatarUrl ? <img src={p.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-neutral-500 font-bold">{p.fullName.charAt(0)}</span>}
+      </div>
+      <div className="flex-1">
+        <p className="font-black text-white text-sm">{p.fullName}</p>
+        <p className="text-xs text-neutral-500">{p.mmr} MMR</p>
+      </div>
+      <ChevronLeft size={16} className="text-neutral-500 rotate-180" />
+    </button>
+  );
+
+  return (
+    <div className="fixed inset-0 z-[400] bg-[#08090f]/98 backdrop-blur-md flex flex-col pt-12 pb-6 px-4">
+      <div className="flex items-center gap-4 mb-6 relative">
+        <button onClick={onClose} className="w-10 h-10 rounded-full bg-neutral-800/50 flex items-center justify-center text-white active:scale-95"><ChevronLeft size={20} /></button>
+        <h2 className="text-xl font-black text-white flex-1 text-center pr-10">Select Scorer</h2>
+      </div>
+      <div className="flex bg-[#111318] p-1 rounded-2xl mb-6 shrink-0">
+        <button onClick={() => setTab('myTeam')} className={`flex-1 py-2 text-xs font-black rounded-xl transition-all ${tab === 'myTeam' ? 'bg-[#22c55e] text-black' : 'text-neutral-400'}`}>My Team</button>
+        <button onClick={() => setTab('opponent')} className={`flex-1 py-2 text-xs font-black rounded-xl transition-all ${tab === 'opponent' ? 'bg-[#ef4444] text-white' : 'text-neutral-400'}`}>Opponent</button>
+        <button onClick={() => setTab('search')} className={`flex-1 py-2 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1 ${tab === 'search' ? 'bg-neutral-700 text-white' : 'text-neutral-400'}`}><Search size={12}/> Global</button>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {tab === 'myTeam' && (
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-3 ml-1">{myTeam.name}</p>
+            {myTeam.members.map(m => renderPlayer(m.player))}
+          </div>
+        )}
+        {tab === 'opponent' && (
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-3 ml-1">{opponentTeam.name}</p>
+            {opponentTeam.members.map(m => renderPlayer(m.player))}
+          </div>
+        )}
+        {tab === 'search' && (
+          <div className="flex flex-col gap-4">
+            <input type="text" placeholder="Search name, phone, email..." value={query} onChange={e => setQuery(e.target.value)}
+              className="w-full bg-[#111318] border border-white/10 rounded-2xl p-4 text-white placeholder-neutral-500 font-bold focus:outline-none focus:border-white/30" />
+            {searching && <p className="text-xs text-neutral-500 text-center">Searching...</p>}
+            {!searching && query.length >= 3 && results.length === 0 && <p className="text-xs text-neutral-500 text-center">No players found.</p>}
+            {!searching && results.map(p => renderPlayer(p))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Live Scoring Page ───────────────────────────────────────────────────
 export default function LiveScoringPage() {
   const params  = useParams();
@@ -313,12 +400,13 @@ export default function LiveScoringPage() {
     scoreA: number; scoreB: number;
     winnerId: string | null;
     mmrChangeA: number; mmrChangeB: number;
+    victoryString?: string;
   } | null>(null);
 
   // ── Score After Match state ────────────────────────────────────────────────
-  const [scoringMode, setScoringMode]             = useState<'LIVE' | 'SCORE_AFTER'>('LIVE');
+  const [scoringMode, setScoringMode]             = useState<'LIVE' | 'LIVE_SINGLE' | 'SCORE_AFTER'>('LIVE');
   const [scoreModeAgreed, setScoreModeAgreed]     = useState(false);
-  const [scoreModeRequest, setScoreModeRequest]   = useState<{ mode: string; fromTeamId: string } | null>(null);
+  const [scoreModeRequest, setScoreModeRequest]   = useState<{ mode: string; fromTeamId: string; singleScorerId?: string } | null>(null);
   const [showModeGate, setShowModeGate]           = useState(false);
   const [modeGateLoading, setModeGateLoading]     = useState(false);
   // Score entry panel
@@ -330,6 +418,10 @@ export default function LiveScoringPage() {
   const [scoreSubmitting, setScoreSubmitting]     = useState(false);
   // Post-match stats modal (Score After only)
   const [showStatsModal, setShowStatsModal]       = useState(false);
+
+  // Single Scorer Mode State
+  const [liveScoringSubMenu, setLiveScoringSubMenu] = useState(false);
+  const [showScorerSearch, setShowScorerSearch]     = useState(false);
 
   const loadState = useCallback(async () => {
     const r = await fetch(`/api/matches/${matchId}/state`);
@@ -349,7 +441,7 @@ export default function LiveScoringPage() {
     );
     // If there is a pending mode request from the OTHER team, surface the notification
     if (d.scoreModeRequestedBy && d.scoreModeRequestedBy !== d.myTeamId && !d.scoreModeAgreed) {
-      setScoreModeRequest({ mode: d.scoringMode, fromTeamId: d.scoreModeRequestedBy });
+      setScoreModeRequest({ mode: d.scoringMode, fromTeamId: d.scoreModeRequestedBy, singleScorerId: d.match?.proposedSingleScorerId });
     }
     setLoading(false);
 
@@ -414,7 +506,7 @@ export default function LiveScoringPage() {
       if (event === 'SCORE_MODE_REQUEST') {
         // Show accept/reject modal only to the opponent
         if (data.fromTeamId !== stateRef.current?.myTeamId) {
-          setScoreModeRequest({ mode: data.mode, fromTeamId: data.fromTeamId });
+          setScoreModeRequest({ mode: data.mode, fromTeamId: data.fromTeamId, singleScorerId: data.singleScorerId });
         }
       }
       if (event === 'SCORE_MODE_AGREED') {
@@ -467,7 +559,7 @@ export default function LiveScoringPage() {
     </div>
   );
 
-  const { match, myTeamId, isTeamA, isOMC, isScorer } = state;
+  const { match, myTeamId, isTeamA, isOMC, isScorer, isSingleScorer } = state;
   const myTeam       = isTeamA ? match.teamA : match.teamB;
   const opponentTeam = isTeamA ? match.teamB : match.teamA;
 
@@ -562,11 +654,11 @@ export default function LiveScoringPage() {
     loadState();
   };
 
-  const handleProposeMode = async (mode: 'LIVE' | 'SCORE_AFTER') => {
+  const handleProposeMode = async (mode: 'LIVE' | 'LIVE_SINGLE' | 'SCORE_AFTER', singleScorerId?: string) => {
     setModeGateLoading(true);
     const r = await fetch(`/api/matches/${matchId}/mode`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode }),
+      body: JSON.stringify({ mode, singleScorerId }),
     });
     if (r.ok) {
       setScoringMode(mode);
@@ -977,6 +1069,7 @@ export default function LiveScoringPage() {
           type={sheetType}
           myTeam={myTeam}
           opponentTeam={opponentTeam}
+          isSingleScorer={isSingleScorer}
           matchId={matchId}
           currentMinute={currentMinute}
           rosterPicks={match.rosterPicks || []}
@@ -998,27 +1091,67 @@ export default function LiveScoringPage() {
         </div>
       )}
 
+      {/* ── Single Scorer Search Modal ── */}
+      {showScorerSearch && isOMC && match.status === 'LIVE' && (
+        <ScorerSearchModal
+          myTeam={myTeam}
+          opponentTeam={opponentTeam}
+          onClose={() => { setShowScorerSearch(false); setShowModeGate(true); }}
+          onSelect={(playerId) => {
+            setShowScorerSearch(false);
+            handleProposeMode('LIVE_SINGLE', playerId);
+          }}
+        />
+      )}
+
       {/* ── Mode Selection Gate (OMC picks mode before first action) ── */}
       {showModeGate && isOMC && match.status === 'LIVE' && (
         <div className="fixed inset-0 z-[350] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center px-6">
           <div className="w-full max-w-sm" style={{ animation: 'fadeInResult 0.3s ease-out' }}>
-            <div className="text-center mb-8">
-              <div className="text-5xl mb-3">⚙️</div>
-              <h2 className="text-2xl font-black text-white mb-1">Choose Scoring Mode</h2>
-              <p className="text-sm text-neutral-500">This must be agreed by both teams. Choose one to propose it.</p>
-            </div>
-            <div className="flex flex-col gap-3">
-              <button onClick={() => handleProposeMode('LIVE')} disabled={modeGateLoading}
-                className="w-full p-5 rounded-2xl bg-[#00ff41]/10 border border-[#00ff41]/30 text-left active:scale-[0.98] transition-all disabled:opacity-50">
-                <p className="text-[#00ff41] font-black text-base mb-1">⚡ Live Scoring</p>
-                <p className="text-neutral-400 text-xs">Log goals, cards and subs in real-time as they happen.</p>
-              </button>
-              <button onClick={() => handleProposeMode('SCORE_AFTER')} disabled={modeGateLoading}
-                className="w-full p-5 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-left active:scale-[0.98] transition-all disabled:opacity-50">
-                <p className="text-blue-400 font-black text-base mb-1">📋 Score After Match</p>
-                <p className="text-neutral-400 text-xs">Both captains submit the final score and player stats after the match ends.</p>
-              </button>
-            </div>
+            {!liveScoringSubMenu ? (
+              <>
+                <div className="text-center mb-8">
+                  <div className="text-5xl mb-3">⚙️</div>
+                  <h2 className="text-2xl font-black text-white mb-1">Choose Scoring Mode</h2>
+                  <p className="text-sm text-neutral-500">This must be agreed by both teams. Choose one to propose it.</p>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <button onClick={() => setLiveScoringSubMenu(true)} disabled={modeGateLoading}
+                    className="w-full p-5 rounded-2xl bg-[#00ff41]/10 border border-[#00ff41]/30 text-left active:scale-[0.98] transition-all disabled:opacity-50">
+                    <p className="text-[#00ff41] font-black text-base mb-1">⚡ Live Scoring</p>
+                    <p className="text-neutral-400 text-xs">Log goals, cards and subs in real-time as they happen.</p>
+                  </button>
+                  <button onClick={() => handleProposeMode('SCORE_AFTER')} disabled={modeGateLoading}
+                    className="w-full p-5 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-left active:scale-[0.98] transition-all disabled:opacity-50">
+                    <p className="text-blue-400 font-black text-base mb-1">📋 Score After Match</p>
+                    <p className="text-neutral-400 text-xs">Both captains submit the final score and player stats after the match ends.</p>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-center mb-8 relative">
+                  <button onClick={() => setLiveScoringSubMenu(false)} className="absolute left-0 top-1 text-neutral-400 hover:text-white">
+                    <ChevronLeft size={24} />
+                  </button>
+                  <div className="text-5xl mb-3">⚡</div>
+                  <h2 className="text-2xl font-black text-white mb-1">Live Scoring Method</h2>
+                  <p className="text-sm text-neutral-500">How would you like to log events?</p>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <button onClick={() => handleProposeMode('LIVE')} disabled={modeGateLoading}
+                    className="w-full p-5 rounded-2xl bg-neutral-800/80 border border-white/10 text-left active:scale-[0.98] transition-all disabled:opacity-50">
+                    <p className="text-white font-black text-base mb-1">Individual Scoring</p>
+                    <p className="text-neutral-400 text-xs">Both teams individually score for themselves on their own phones.</p>
+                  </button>
+                  <button onClick={() => { setShowModeGate(false); setShowScorerSearch(true); }} disabled={modeGateLoading}
+                    className="w-full p-5 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-left active:scale-[0.98] transition-all disabled:opacity-50">
+                    <p className="text-purple-400 font-black text-base mb-1">Single Scorer</p>
+                    <p className="text-neutral-400 text-xs">Invite one person from either team (or search) to officially score for BOTH teams.</p>
+                  </button>
+                </div>
+              </>
+            )}
             {modeGateLoading && <p className="text-center text-neutral-500 text-xs mt-4">Sending proposal...</p>}
           </div>
         </div>
@@ -1030,12 +1163,18 @@ export default function LiveScoringPage() {
           <div className="w-full max-w-sm bg-[#111318] border border-[#1e2028] rounded-3xl p-6 mb-4"
             style={{ animation: 'slideUpSheet 0.25s cubic-bezier(0.34,1.56,0.64,1) forwards' }}>
             <div className="text-center mb-5">
-              <div className="text-4xl mb-3">{scoreModeRequest.mode === 'SCORE_AFTER' ? '📋' : '⚡'}</div>
+              <div className="text-4xl mb-3">
+                {scoreModeRequest.mode === 'SCORE_AFTER' ? '📋' : scoreModeRequest.mode === 'LIVE_SINGLE' ? '👤' : '⚡'}
+              </div>
               <h3 className="text-xl font-black text-white mb-1">Mode Proposed</h3>
               <p className="text-sm text-neutral-400">
-                Opponent wants to use <strong className="text-white">
-                  {scoreModeRequest.mode === 'SCORE_AFTER' ? 'Score After Match' : 'Live Scoring'}
-                </strong>
+                {scoreModeRequest.mode === 'LIVE_SINGLE' ? (
+                  <>Opponent wants to invite a <strong className="text-white">Single Scorer</strong> to score for both teams.</>
+                ) : (
+                  <>Opponent wants to use <strong className="text-white">
+                    {scoreModeRequest.mode === 'SCORE_AFTER' ? 'Score After Match' : 'Live Scoring'}
+                  </strong></>
+                )}
               </p>
             </div>
             <div className="flex gap-3">

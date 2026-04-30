@@ -16,12 +16,16 @@ async function resolveMatch(matchId: string, playerId: string) {
   if (!match) return null;
   const isA = match.teamA.ownerId === playerId || match.teamA.members.some(m => m.playerId === playerId);
   const isB = match.teamB.ownerId === playerId || match.teamB.members.some(m => m.playerId === playerId);
-  if (!isA && !isB) return null;
-  const myTeam = isA ? match.teamA : match.teamB;
+
+  const isAssignedScorer = await prisma.matchScorer.findFirst({ where: { matchId, playerId } });
+
+  if (!isA && !isB && !isAssignedScorer) return null;
+
+  const myTeam = isA ? match.teamA : isB ? match.teamB : match.teamA; // Default to teamA if only scorer
   const myRole = myTeam.members.find(m => m.playerId === playerId)?.role
     ?? (myTeam.ownerId === playerId ? 'owner' : 'member');
-  const isOMC = ['owner', 'manager', 'captain'].includes(myRole);
-  return { match, isA, isB, isOMC, myTeamId: isA ? match.teamA_Id : match.teamB_Id };
+  const isOMC = (isA || isB) ? ['owner', 'manager', 'captain'].includes(myRole) : false;
+  return { match, isA, isB, isOMC, myTeamId: isA ? match.teamA_Id : isB ? match.teamB_Id : match.teamA_Id };
 }
 
 // GET /api/matches/[matchId]/state — full match state for reconnect
@@ -75,14 +79,15 @@ export async function GET(
 
   // Is this player the assigned scorer for their team?
   const myScorer = scorers.find(s => s.teamId === ctx.myTeamId);
-  const isScorer = myScorer?.playerId === playerId && match?.status === 'LIVE';
+  const isScorer = (myScorer?.playerId === playerId || scorers.some(s => s.playerId === playerId)) && match?.status === 'LIVE';
+  const isSingleScorer = match?.scoringMode === 'LIVE_SINGLE' && scorers.filter(s => s.playerId === playerId).length === 2;
 
   return NextResponse.json({
     match, scorers, events, signOffs, halfTime,
     scoreA, scoreB,
     myTeamId: ctx.myTeamId, isTeamA: ctx.isA, isOMC: ctx.isOMC,
     currentPlayerId: playerId,
-    isScorer,
+    isScorer, isSingleScorer,
     // Score After Match fields
     scoringMode: match?.scoringMode ?? 'LIVE',
     scoreModeRequestedBy: match?.scoreModeRequestedBy ?? null,

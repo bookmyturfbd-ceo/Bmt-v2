@@ -40,9 +40,13 @@ export async function POST(
   if (!ctx) return NextResponse.json({ error: 'Not found or not in match' }, { status: 404 });
   if (!ctx.isOMC) return NextResponse.json({ error: 'OMC only' }, { status: 403 });
 
-  const { mode } = await req.json();
-  if (!['LIVE', 'SCORE_AFTER'].includes(mode)) {
+  const { mode, singleScorerId } = await req.json();
+  if (!['LIVE', 'LIVE_SINGLE', 'SCORE_AFTER'].includes(mode)) {
     return NextResponse.json({ error: 'Invalid mode' }, { status: 400 });
+  }
+
+  if (mode === 'LIVE_SINGLE' && !singleScorerId) {
+    return NextResponse.json({ error: 'Missing singleScorerId' }, { status: 400 });
   }
 
   // Allow picking mode even after match becomes LIVE (since that's when the UI prompts for it)
@@ -57,12 +61,14 @@ export async function POST(
       scoringMode: mode,
       scoreModeRequestedBy: ctx.myTeamId,
       scoreModeAgreed: false,
+      proposedSingleScorerId: mode === 'LIVE_SINGLE' ? singleScorerId : null,
     },
   });
 
   await broadcastMatchEvent(matchId, 'SCORE_MODE_REQUEST', {
     mode,
     fromTeamId: ctx.myTeamId,
+    singleScorerId: mode === 'LIVE_SINGLE' ? singleScorerId : undefined,
   });
 
   return NextResponse.json({ ok: true, scoringMode: updated.scoringMode });
@@ -95,6 +101,17 @@ export async function PATCH(
   const { accept } = await req.json();
 
   if (accept) {
+    if (match.scoringMode === 'LIVE_SINGLE' && match.proposedSingleScorerId) {
+      // Clear existing scorers and assign the single scorer to both teams
+      await prisma.matchScorer.deleteMany({ where: { matchId } });
+      await prisma.matchScorer.createMany({
+        data: [
+          { matchId, teamId: match.teamA_Id, playerId: match.proposedSingleScorerId },
+          { matchId, teamId: match.teamB_Id, playerId: match.proposedSingleScorerId }
+        ]
+      });
+    }
+
     await prisma.match.update({
       where: { id: matchId },
       data: { scoreModeAgreed: true },
@@ -109,6 +126,7 @@ export async function PATCH(
         scoringMode: 'LIVE',
         scoreModeRequestedBy: null,
         scoreModeAgreed: false,
+        proposedSingleScorerId: null,
       },
     });
     await broadcastMatchEvent(matchId, 'SCORE_MODE_REJECTED', { fromTeamId: ctx.myTeamId });

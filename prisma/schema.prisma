@@ -124,6 +124,7 @@ enum SportType {
 
 enum ScoringMode {
   LIVE         // Real-time event logging (existing)
+  LIVE_SINGLE  // Real-time event logging by a single assigned scorer
   SCORE_AFTER  // Both OMCs submit final score after the match
 }
 
@@ -335,6 +336,8 @@ model Player {
 
   // Reels
   reels                Reel[]
+
+  proposedSingleScorerFor Match[] @relation("MatchProposedScorer")
 
   @@map("players")
 }
@@ -936,6 +939,8 @@ model Match {
   scoringMode          ScoringMode @default(LIVE)
   scoreModeRequestedBy String?     // teamId that proposed the mode
   scoreModeAgreed      Boolean     @default(false)
+  proposedSingleScorerId String?   // playerId of the proposed single scorer
+
 
   seasonId    String?
 
@@ -945,6 +950,7 @@ model Match {
   teamA       Team        @relation("TeamAMatches", fields: [teamA_Id], references: [id], onDelete: Restrict)
   teamB       Team        @relation("TeamBMatches", fields: [teamB_Id], references: [id], onDelete: Restrict)
   season      ChallengeSeason? @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  proposedSingleScorer Player? @relation("MatchProposedScorer", fields: [proposedSingleScorerId], references: [id])
 
   playerStats      PlayerMatchStat[]
   disputes         ChallengeDispute[]
