@@ -92,7 +92,18 @@ export async function GET(
     scoringMode: match?.scoringMode ?? 'LIVE',
     scoreModeRequestedBy: match?.scoreModeRequestedBy ?? null,
     scoreModeAgreed: match?.scoreModeAgreed ?? false,
+    // End-game dual-confirm
+    matchEndedByA: match?.matchEndedByA ?? false,
+    matchEndedByB: match?.matchEndedByB ?? false,
+    // Score submission state
     scoreSubmittedByA: match?.scoreSubmittedByA ?? false,
     scoreSubmittedByB: match?.scoreSubmittedByB ?? false,
+    submittedScoreA:  match?.submittedScoreA  ?? null,
+    submittedScoreB:  match?.submittedScoreB  ?? null,
+    submittedScoreA2: match?.submittedScoreA2 ?? null,
+    submittedScoreB2: match?.submittedScoreB2 ?? null,
+    // Accept/dispute state
+    agreedByA: match?.agreedByA ?? false,
+    agreedByB: match?.agreedByB ?? false,
   });
 }

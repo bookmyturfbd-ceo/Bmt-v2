@@ -409,6 +409,10 @@ export default function LiveScoringPage() {
   const [scoreModeRequest, setScoreModeRequest]   = useState<{ mode: string; fromTeamId: string; singleScorerId?: string } | null>(null);
   const [showModeGate, setShowModeGate]           = useState(false);
   const [modeGateLoading, setModeGateLoading]     = useState(false);
+  // End-game dual-confirm
+  const [myEndedGame, setMyEndedGame]             = useState(false);
+  const [opponentEndedGame, setOpponentEndedGame] = useState(false);
+  const [endGameLoading, setEndGameLoading]       = useState(false);
   // Score entry panel
   const [showScoreEntry, setShowScoreEntry]       = useState(false);
   const [mySubmittedScore, setMySubmittedScore]   = useState<{ us: number; them: number } | null>(null);
@@ -416,6 +420,11 @@ export default function LiveScoringPage() {
   const [scoreEntryUs, setScoreEntryUs]           = useState(0);
   const [scoreEntryThem, setScoreEntryThem]       = useState(0);
   const [scoreSubmitting, setScoreSubmitting]     = useState(false);
+  // Score comparison (after both submit)
+  const [scoresRevealed, setScoresRevealed]       = useState<{ scoreA: number; scoreB: number } | null>(null);
+  const [myAccepted, setMyAccepted]               = useState(false);
+  const [opponentAccepted, setOpponentAccepted]   = useState(false);
+  const [acceptLoading, setAcceptLoading]         = useState(false);
   // Post-match stats modal (Score After only)
   const [showStatsModal, setShowStatsModal]       = useState(false);
 
@@ -439,6 +448,22 @@ export default function LiveScoringPage() {
     setOpponentSubmitted(
       d.isTeamA ? (d.scoreSubmittedByB ?? false) : (d.scoreSubmittedByA ?? false)
     );
+    // End-game dual-confirm hydration
+    setMyEndedGame(d.isTeamA ? (d.matchEndedByA ?? false) : (d.matchEndedByB ?? false));
+    setOpponentEndedGame(d.isTeamA ? (d.matchEndedByB ?? false) : (d.matchEndedByA ?? false));
+    // Score comparison hydration: if both submitted and agreed, restore revealed state
+    if (d.scoreSubmittedByA && d.scoreSubmittedByB && d.submittedScoreA !== null) {
+      const sA = d.submittedScoreA ?? 0;
+      const sB = d.submittedScoreB ?? 0;
+      const sA2 = d.submittedScoreA2 ?? 0;
+      const sB2 = d.submittedScoreB2 ?? 0;
+      if (sA === sA2 && sB === sB2 && d.match?.status === 'SCORE_ENTRY') {
+        setScoresRevealed({ scoreA: sA, scoreB: sB });
+        setMySubmittedScore(d.isTeamA ? { us: sA, them: sB } : { us: sB2, them: sA2 });
+      }
+    }
+    setMyAccepted(d.isTeamA ? (d.agreedByA ?? false) : (d.agreedByB ?? false));
+    setOpponentAccepted(d.isTeamA ? (d.agreedByB ?? false) : (d.agreedByA ?? false));
     // Surface accept/reject ONLY to the opponent (not the proposer)
     if (d.scoreModeRequestedBy && d.scoreModeRequestedBy !== d.myTeamId && !d.scoreModeAgreed) {
       setScoreModeRequest({ mode: d.scoringMode, fromTeamId: d.scoreModeRequestedBy, singleScorerId: d.match?.proposedSingleScorerId });
@@ -528,17 +553,35 @@ export default function LiveScoringPage() {
       if (event === 'SCORE_ENTRY_OPEN') {
         setShowScoreEntry(true);
         setTimerRunning(false);
+        loadState();
       }
       if (event === 'OPPONENT_SUBMITTED') {
         setOpponentSubmitted(true);
       }
+      if (event === 'SCORES_REVEALED') {
+        setScoresRevealed({ scoreA: data.scoreA, scoreB: data.scoreB });
+        setShowScoreEntry(true);
+      }
+      if (event === 'SCORE_ACCEPTED') {
+        // If it came from the opponent, mark them as accepted
+        if (data.fromTeamId !== stateRef.current?.myTeamId) {
+          setOpponentAccepted(true);
+        }
+      }
       if (event === 'BOTH_AGREED') {
         setMatchResult(data);
         setShowScoreEntry(false);
+        setScoresRevealed(null);
       }
       if (event === 'SCORE_DISPUTED') {
         setMsg('⚠️ Score mismatch! Match is now in dispute.');
         loadState();
+      }
+      if (event === 'END_GAME_REQUEST') {
+        // Opponent pressed End — show them the confirm prompt
+        if (data.fromTeamId !== stateRef.current?.myTeamId) {
+          setOpponentEndedGame(true);
+        }
       }
     });
     return () => { channel?.unsubscribe?.(); };
@@ -743,15 +786,38 @@ export default function LiveScoringPage() {
     const d = await r.json();
     if (r.ok) {
       setMySubmittedScore({ us: scoreEntryUs, them: scoreEntryThem });
-      if (d.agreed) {
-        // Both agreed — result shown via BOTH_AGREED broadcast (or set directly)
-        setMatchResult({ scoreA: d.scoreA, scoreB: d.scoreB, winnerId: d.winnerId, mmrChangeA: d.mmrChangeA, mmrChangeB: d.mmrChangeB });
-        setShowScoreEntry(false);
-      }
+      // If both submitted and agreed, SCORES_REVEALED WS fires — no need to set result here
     } else {
       setMsg('❌ ' + d.error);
     }
     setScoreSubmitting(false);
+  };
+
+  const handleAcceptScore = async (dispute = false) => {
+    setAcceptLoading(true);
+    const r = await fetch(`/api/matches/${matchId}/accept-score`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dispute }),
+    });
+    const d = await r.json();
+    if (r.ok) {
+      if (dispute) {
+        setMsg('⚠️ You disputed the score. Match is now in dispute.');
+        setScoresRevealed(null);
+        loadState();
+      } else {
+        setMyAccepted(true);
+        if (d.finalized) {
+          // Both accepted — result fires via BOTH_AGREED but set directly too
+          setMatchResult({ scoreA: d.scoreA, scoreB: d.scoreB, winnerId: d.winnerId, mmrChangeA: d.mmrChangeA, mmrChangeB: d.mmrChangeB });
+          setShowScoreEntry(false); setScoresRevealed(null);
+        }
+        // else wait for opponent — SCORE_ACCEPTED WS will update opponentAccepted
+      }
+    } else {
+      setMsg('❌ ' + d.error);
+    }
+    setAcceptLoading(false);
   };
 
   const handleSignOff = async () => {
@@ -1085,16 +1151,63 @@ export default function LiveScoringPage() {
         />
       )}
 
-      {/* ── Score After Match: minimal action bar (replaces event buttons) ── */}
+      {/* ── Score After Match: End Game dual-confirm bar ── */}
       {match.status === 'LIVE' && scoringMode === 'SCORE_AFTER' && isOMC && (
         <div className="fixed bottom-0 left-0 right-0 z-[100] bg-[#0d0e14]/95 backdrop-blur-md border-t border-[#1e2028] px-4 pt-4 pb-8">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">📋 Score After Match Mode</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-amber-400">📋 Score After Match</span>
+            {myEndedGame && !opponentEndedGame && (
+              <span className="text-[9px] text-neutral-500 font-bold">Waiting for {opponentTeam.name}…</span>
+            )}
           </div>
-          <button onClick={handleFullTime}
-            className="w-full py-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 font-black text-sm flex items-center justify-center gap-2 active:scale-95 transition-all">
-            🏁 End Match
-          </button>
+
+          {/* I haven't pressed yet */}
+          {!myEndedGame && (
+            <button
+              disabled={endGameLoading}
+              onClick={async () => {
+                setEndGameLoading(true);
+                const r = await fetch(`/api/matches/${matchId}/fulltime`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+                const d = await r.json();
+                if (r.ok) {
+                  setMyEndedGame(true);
+                  if (d.fullTimeConfirmed) { setTimerRunning(false); setShowScoreEntry(true); loadState(); }
+                } else setMsg('❌ ' + d.error);
+                setEndGameLoading(false);
+              }}
+              className="w-full py-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 font-black text-sm flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50"
+            >
+              {endGameLoading ? <Loader2 size={14} className="animate-spin" /> : '🏁 End Match'}
+            </button>
+          )}
+
+          {/* I pressed, waiting for opponent */}
+          {myEndedGame && !opponentEndedGame && (
+            <div className="w-full py-4 rounded-2xl bg-neutral-800/60 border border-white/10 flex items-center justify-center gap-2">
+              <Loader2 size={14} className="animate-spin text-amber-400" />
+              <span className="text-sm font-black text-neutral-400">Waiting for {opponentTeam.name} to end…</span>
+            </div>
+          )}
+
+          {/* Opponent pressed, I haven't — prompt me to confirm */}
+          {!myEndedGame && opponentEndedGame && (
+            <button
+              disabled={endGameLoading}
+              onClick={async () => {
+                setEndGameLoading(true);
+                const r = await fetch(`/api/matches/${matchId}/fulltime`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+                const d = await r.json();
+                if (r.ok) {
+                  setMyEndedGame(true);
+                  if (d.fullTimeConfirmed) { setTimerRunning(false); setShowScoreEntry(true); loadState(); }
+                } else setMsg('❌ ' + d.error);
+                setEndGameLoading(false);
+              }}
+              className="w-full py-4 rounded-2xl bg-amber-500 text-black font-black text-sm flex items-center justify-center gap-2 active:scale-95 transition-all animate-pulse disabled:opacity-50"
+            >
+              {endGameLoading ? <Loader2 size={14} className="animate-spin" /> : '🏁 Opponent ended — Tap to confirm!'}
+            </button>
+          )}
         </div>
       )}
 
@@ -1217,51 +1330,97 @@ export default function LiveScoringPage() {
       {showScoreEntry && match.status === 'SCORE_ENTRY' && scoringMode === 'SCORE_AFTER' && (
         <div className="fixed inset-0 z-[300] bg-[#08090f]/98 backdrop-blur-sm flex flex-col">
           <div className="flex-1 flex flex-col items-center justify-center px-6">
-            <div className="text-5xl mb-4">📋</div>
-            <h2 className="text-2xl font-black text-white mb-1 text-center">Final Score</h2>
-            <p className="text-sm text-neutral-500 mb-8 text-center">
-              Enter the score from <strong className="text-white">{myTeam.name}</strong>'s perspective
-            </p>
 
-            {mySubmittedScore ? (
+            {/* ── Phase 3: Score Comparison (both submitted + agreed) ── */}
+            {scoresRevealed ? (
+              <div className="w-full max-w-sm flex flex-col items-center gap-6">
+                <div className="text-center">
+                  <div className="text-5xl mb-3">🏁</div>
+                  <h2 className="text-2xl font-black text-white mb-1">Final Score</h2>
+                  <p className="text-sm text-neutral-500">Both teams submitted the same score. Accept to finalise.</p>
+                </div>
+
+                {/* Big scoreline */}
+                <div className="flex items-center gap-6 w-full justify-center py-4">
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="w-12 h-12 rounded-xl bg-neutral-800 border border-white/10 overflow-hidden flex items-center justify-center">
+                      {match.teamA.logoUrl ? <img src={match.teamA.logoUrl} className="w-full h-full object-cover" alt="" /> : <Shield size={16} className="text-neutral-500" />}
+                    </div>
+                    <span className="text-[10px] font-black text-neutral-500 truncate max-w-[70px] text-center">{match.teamA.name}</span>
+                  </div>
+                  <span className="text-6xl font-black text-white tabular-nums">{scoresRevealed.scoreA}</span>
+                  <span className="text-2xl font-black text-neutral-600">:</span>
+                  <span className="text-6xl font-black text-white tabular-nums">{scoresRevealed.scoreB}</span>
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="w-12 h-12 rounded-xl bg-neutral-800 border border-white/10 overflow-hidden flex items-center justify-center">
+                      {match.teamB.logoUrl ? <img src={match.teamB.logoUrl} className="w-full h-full object-cover" alt="" /> : <Shield size={16} className="text-neutral-500" />}
+                    </div>
+                    <span className="text-[10px] font-black text-neutral-500 truncate max-w-[70px] text-center">{match.teamB.name}</span>
+                  </div>
+                </div>
+
+                {/* Accept/dispute or waiting */}
+                {!myAccepted ? (
+                  <div className="flex gap-3 w-full">
+                    <button onClick={() => handleAcceptScore(true)} disabled={acceptLoading}
+                      className="flex-1 py-3.5 rounded-2xl border border-red-500/30 text-red-400 font-black text-sm active:scale-95 transition-all disabled:opacity-50">
+                      ⚠️ Dispute
+                    </button>
+                    <button onClick={() => handleAcceptScore(false)} disabled={acceptLoading}
+                      className="flex-2 flex-grow py-3.5 rounded-2xl bg-[#00ff41] text-black font-black text-sm flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50">
+                      {acceptLoading ? <Loader2 size={14} className="animate-spin" /> : '✓ Accept & Finalise'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className={`w-full p-4 rounded-2xl border text-center ${opponentAccepted ? 'bg-[#00ff41]/10 border-[#00ff41]/30' : 'bg-neutral-800 border-white/10'}`}>
+                    {opponentAccepted
+                      ? <p className="text-[#00ff41] font-black text-sm">✓ Both accepted — finalising…</p>
+                      : <div className="flex items-center justify-center gap-2"><Loader2 size={13} className="animate-spin text-neutral-400" /><p className="text-neutral-400 text-sm font-bold">Waiting for {opponentTeam.name} to accept…</p></div>
+                    }
+                  </div>
+                )}
+              </div>
+
+            /* ── Phase 2: Submitted, waiting for opponent ── */
+            ) : mySubmittedScore ? (
               <div className="w-full max-w-xs">
+                <div className="text-5xl mb-4 text-center">📋</div>
                 <div className="p-5 bg-[#00ff41]/10 border border-[#00ff41]/30 rounded-2xl text-center mb-6">
                   <p className="text-[10px] font-black uppercase tracking-widest text-[#00ff41] mb-2">Your Submission</p>
-                  <p className="text-4xl font-black text-white">
-                    {mySubmittedScore.us} — {mySubmittedScore.them}
-                  </p>
+                  <p className="text-4xl font-black text-white">{mySubmittedScore.us} — {mySubmittedScore.them}</p>
                   <p className="text-xs text-neutral-500 mt-1">{myTeam.name} — {opponentTeam.name}</p>
                 </div>
                 <div className={`p-4 rounded-2xl border text-center ${opponentSubmitted ? 'bg-green-500/10 border-green-500/30' : 'bg-neutral-800 border-white/10'}`}>
                   {opponentSubmitted
-                    ? <p className="text-green-400 font-black text-sm">✓ Opponent submitted — comparing...</p>
-                    : <p className="text-neutral-400 text-sm font-bold">Waiting for {opponentTeam.name} to submit...</p>
+                    ? <p className="text-green-400 font-black text-sm">✓ Opponent submitted — comparing…</p>
+                    : <div className="flex items-center justify-center gap-2"><Loader2 size={13} className="animate-spin text-neutral-400" /><p className="text-neutral-400 text-sm font-bold">Waiting for {opponentTeam.name}…</p></div>
                   }
                 </div>
               </div>
+
+            /* ── Phase 1: Enter score ── */
             ) : isOMC ? (
               <div className="w-full max-w-xs flex flex-col gap-6">
+                <div className="text-center">
+                  <div className="text-5xl mb-3">📋</div>
+                  <h2 className="text-2xl font-black text-white mb-1">Final Score</h2>
+                  <p className="text-sm text-neutral-500">Enter from <strong className="text-white">{myTeam.name}</strong>'s perspective</p>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
-                  {/* My score */}
                   <div className="flex flex-col items-center gap-2">
                     <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500">{myTeam.name}</p>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setScoreEntryUs(s => Math.max(0, s - 1))}
-                        className="w-10 h-10 rounded-xl bg-neutral-800 border border-white/10 text-white font-black text-lg flex items-center justify-center active:scale-90">−</button>
+                      <button onClick={() => setScoreEntryUs(s => Math.max(0, s - 1))} className="w-10 h-10 rounded-xl bg-neutral-800 border border-white/10 text-white font-black text-lg flex items-center justify-center active:scale-90">−</button>
                       <span className="text-4xl font-black text-white w-10 text-center tabular-nums">{scoreEntryUs}</span>
-                      <button onClick={() => setScoreEntryUs(s => s + 1)}
-                        className="w-10 h-10 rounded-xl bg-[#00ff41]/20 border border-[#00ff41]/40 text-[#00ff41] font-black text-lg flex items-center justify-center active:scale-90">+</button>
+                      <button onClick={() => setScoreEntryUs(s => s + 1)} className="w-10 h-10 rounded-xl bg-[#00ff41]/20 border border-[#00ff41]/40 text-[#00ff41] font-black text-lg flex items-center justify-center active:scale-90">+</button>
                     </div>
                   </div>
-                  {/* Their score */}
                   <div className="flex flex-col items-center gap-2">
                     <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500">{opponentTeam.name}</p>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setScoreEntryThem(s => Math.max(0, s - 1))}
-                        className="w-10 h-10 rounded-xl bg-neutral-800 border border-white/10 text-white font-black text-lg flex items-center justify-center active:scale-90">−</button>
+                      <button onClick={() => setScoreEntryThem(s => Math.max(0, s - 1))} className="w-10 h-10 rounded-xl bg-neutral-800 border border-white/10 text-white font-black text-lg flex items-center justify-center active:scale-90">−</button>
                       <span className="text-4xl font-black text-white w-10 text-center tabular-nums">{scoreEntryThem}</span>
-                      <button onClick={() => setScoreEntryThem(s => s + 1)}
-                        className="w-10 h-10 rounded-xl bg-neutral-800 border border-white/10 text-white font-black text-lg flex items-center justify-center active:scale-90">+</button>
+                      <button onClick={() => setScoreEntryThem(s => s + 1)} className="w-10 h-10 rounded-xl bg-neutral-800 border border-white/10 text-white font-black text-lg flex items-center justify-center active:scale-90">+</button>
                     </div>
                   </div>
                 </div>
@@ -1271,7 +1430,7 @@ export default function LiveScoringPage() {
                 </button>
               </div>
             ) : (
-              <p className="text-neutral-500 text-sm text-center">Waiting for your OMC to submit the score...</p>
+              <p className="text-neutral-500 text-sm text-center">Waiting for your OMC to submit the score…</p>
             )}
           </div>
         </div>

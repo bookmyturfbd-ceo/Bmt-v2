@@ -104,7 +104,7 @@ export async function POST(
     const agreed = sA1 === sA2 && sB1 === sB2;
 
     if (!agreed) {
-      // Dispute
+      // Dispute — scores don't match
       await prisma.match.update({
         where: { id: matchId },
         data: { status: 'DISPUTED', finalOutcome: 'disputed' },
@@ -116,102 +116,18 @@ export async function POST(
       return NextResponse.json({ ok: true, agreed: false, dispute: true });
     }
 
-    // ── Agreed — finalise match ───────────────────────────────────────────────
-    const finalScoreA = sA1;
-    const finalScoreB = sB1;
-    const winnerId = finalScoreA > finalScoreB ? match.teamA_Id
-                   : finalScoreB > finalScoreA ? match.teamB_Id
-                   : null;
-
-    const sportType = match.teamA.sportType as any;
-    const { mmrChangeA, mmrChangeB, mmrField } = calcTeamMMR(match.teamA_Id, match.teamB_Id, winnerId, sportType);
-
-    // MMR cap: max 2 games per week between same teams
-    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const recentCount = await prisma.match.count({
-      where: {
-        status: 'COMPLETED', createdAt: { gte: oneWeekAgo },
-        OR: [
-          { teamA_Id: match.teamA_Id, teamB_Id: match.teamB_Id },
-          { teamA_Id: match.teamB_Id, teamB_Id: match.teamA_Id },
-        ]
-      }
+    // ── Agreed scores — reveal to both teams for acceptance ───────────────────
+    // Finalization happens in /accept-score once both teams confirm
+    await broadcastMatchEvent(matchId, 'SCORES_REVEALED', {
+      scoreA: sA1,
+      scoreB: sB1,
+      submittedByA: { scoreA: sA1, scoreB: sB1 },
+      submittedByB: { scoreA: sA2, scoreB: sB2 },
     });
-    const effectiveMmrChangeA = recentCount >= 2 ? 0 : mmrChangeA;
-    const effectiveMmrChangeB = recentCount >= 2 ? 0 : mmrChangeB;
-
-    // Rostered players base MMR (badge MMR comes later via /stats)
-    const rosterMemberIds = match.rosterPicks.map(r => r.memberId);
-    const rosterMembers = await prisma.teamMember.findMany({
-      where: { id: { in: rosterMemberIds } },
-      select: { playerId: true, teamId: true },
-    });
-
-    const playerBaseResults = calcPlayerBaseMMR(
-      rosterMembers.map(m => ({ playerId: m.playerId, teamId: m.teamId })),
-      recentCount >= 2 ? null : winnerId,
-      sportType,
-    );
-
-    const statUpserts = rosterMembers.map(m => prisma.playerMatchStat.upsert({
-      where: { matchId_playerId: { matchId, playerId: m.playerId } },
-      create: {
-        matchId,
-        playerId: m.playerId,
-        teamId: m.teamId,
-        mmrChange: playerBaseResults.find(r => r.playerId === m.playerId)?.mmrChange ?? 0,
-      },
-      update: {
-        mmrChange: playerBaseResults.find(r => r.playerId === m.playerId)?.mmrChange ?? 0,
-      },
-    }));
-
-    const playerMmrUpdates = playerBaseResults.map(r =>
-      prisma.player.update({
-        where: { id: r.playerId },
-        data: {
-          [r.mmrField]: { increment: r.mmrChange },
-          mmr: { increment: r.mmrChange },
-        },
-      })
-    );
-
-    await prisma.$transaction([
-      prisma.match.update({
-        where: { id: matchId },
-        data: {
-          status: 'COMPLETED',
-          scoreA: finalScoreA,
-          scoreB: finalScoreB,
-          goalsA: finalScoreA,
-          goalsB: finalScoreB,
-          winnerId,
-          mmrChangeA: effectiveMmrChangeA,
-          mmrChangeB: effectiveMmrChangeB,
-          finalOutcome: 'agreed',
-          agreedByA: true,
-          agreedByB: true,
-        },
-      }),
-      prisma.team.update({ where: { id: match.teamA_Id }, data: { [mmrField]: { increment: effectiveMmrChangeA }, teamMmr: { increment: effectiveMmrChangeA } } }),
-      prisma.team.update({ where: { id: match.teamB_Id }, data: { [mmrField]: { increment: effectiveMmrChangeB }, teamMmr: { increment: effectiveMmrChangeB } } }),
-      ...statUpserts,
-      ...playerMmrUpdates,
-    ]);
-
-    const payload = {
-      scoreA: finalScoreA,
-      scoreB: finalScoreB,
-      winnerId,
-      mmrChangeA: effectiveMmrChangeA,
-      mmrChangeB: effectiveMmrChangeB,
-    };
-
-    await broadcastMatchEvent(matchId, 'BOTH_AGREED', payload);
-
-    return NextResponse.json({ ok: true, agreed: true, ...payload });
+    return NextResponse.json({ ok: true, agreed: true, waiting: true, scoreA: sA1, scoreB: sB1 });
   } catch (e: any) {
     console.error('[submit-score POST]', e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
+

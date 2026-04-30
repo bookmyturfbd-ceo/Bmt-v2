@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { broadcastMatchEvent } from '@/lib/supabaseRealtime';
 
 function pid(req: NextRequest) { return req.cookies.get('bmt_player_id')?.value ?? null; }
 
@@ -12,8 +13,7 @@ export async function POST(
   if (!playerId) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
 
   try {
-    const body = await req.json();
-    const { confirmed } = body; // true = confirming full time
+    await req.json().catch(() => ({})); // consume body, ignore contents
 
     const match = await prisma.match.findUnique({
       where: { id: matchId },
@@ -30,41 +30,39 @@ export async function POST(
     if (!isA && !isB) return NextResponse.json({ error: 'Not in match' }, { status: 403 });
 
     const myTeam = isA ? match.teamA : match.teamB;
+    const myTeamId = isA ? match.teamA_Id : match.teamB_Id;
     const myRole = myTeam.members.find(m => m.playerId === playerId)?.role
       ?? (myTeam.ownerId === playerId ? 'owner' : 'member');
     if (!['owner','manager','captain'].includes(myRole))
       return NextResponse.json({ error: 'Only OMC can call full time' }, { status: 403 });
 
-    // track with match columns matchEndedByA/B (re-used from old schema)
+    // Idempotent — if already flagged, don't re-broadcast
+    const alreadyEnded = isA ? match.matchEndedByA : match.matchEndedByB;
+
+    // Save this team's end flag
     const updateData = isA ? { matchEndedByA: true } : { matchEndedByB: true };
     const updated = await prisma.match.update({ where: { id: matchId }, data: updateData });
 
+    // ── Both ended → proceed to score entry ───────────────────────────────────
     if (updated.matchEndedByA && updated.matchEndedByB) {
       if (match.scoringMode === 'SCORE_AFTER') {
-        // ── SCORE_AFTER: skip event computation; open score submission panel ──
-        // Log FULL_TIME marker (minute irrelevant, use 0)
         await prisma.matchEvent.create({
           data: { matchId, type: 'FULL_TIME', teamId: match.teamA_Id, minute: 0, status: 'CONFIRMED' }
         });
-        await prisma.match.update({
-          where: { id: matchId },
-          data: { status: 'SCORE_ENTRY' },
-        });
+        await prisma.match.update({ where: { id: matchId }, data: { status: 'SCORE_ENTRY' } });
+        await broadcastMatchEvent(matchId, 'SCORE_ENTRY_OPEN', {});
         return NextResponse.json({ ok: true, fullTimeConfirmed: true, scoreAfterMode: true, scoreA: 0, scoreB: 0 });
       }
 
-      // ── LIVE: auto-confirm pending events, compute score from event log ──
+      // ── LIVE scoring path ────────────────────────────────────────────────────
       await prisma.matchEvent.updateMany({
         where: { matchId, status: 'PENDING' },
         data: { status: 'CONFIRMED', resolvedAt: new Date(), resolution: 'auto_fulltime' }
       });
-
-      // Log FULL_TIME marker event
       await prisma.matchEvent.create({
         data: { matchId, type: 'FULL_TIME', teamId: match.teamA_Id, minute: 90, status: 'CONFIRMED' }
       });
 
-      // Compute score from confirmed events
       const events = await prisma.matchEvent.findMany({
         where: { matchId, status: 'CONFIRMED', type: { in: ['GOAL', 'PENALTY_SCORED', 'OWN_GOAL'] } }
       });
@@ -74,15 +72,17 @@ export async function POST(
         else { if (e.teamId === match.teamA_Id) sA++; else sB++; }
       });
 
-      await prisma.match.update({
-        where: { id: matchId },
-        data: { status: 'SCORE_ENTRY', scoreA: sA, scoreB: sB }
-      });
-
+      await prisma.match.update({ where: { id: matchId }, data: { status: 'SCORE_ENTRY', scoreA: sA, scoreB: sB } });
+      await broadcastMatchEvent(matchId, 'FULL_TIME', { scoreA: sA, scoreB: sB });
       return NextResponse.json({ ok: true, fullTimeConfirmed: true, scoreA: sA, scoreB: sB });
     }
 
+    // ── Only one team pressed — broadcast request to opponent ─────────────────
+    if (!alreadyEnded) {
+      await broadcastMatchEvent(matchId, 'END_GAME_REQUEST', { fromTeamId: myTeamId });
+    }
     return NextResponse.json({ ok: true, fullTimeConfirmed: false });
+
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
