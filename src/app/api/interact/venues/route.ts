@@ -32,7 +32,6 @@ export async function GET(req: NextRequest) {
             id: true,
             name: true,
             slots: {
-              where: { status: { in: ['available', 'walkin'] } },
               select: {
                 id: true,
                 startTime: true,
@@ -40,6 +39,7 @@ export async function GET(req: NextRequest) {
                 price: true,
                 days: true,
                 timeCategory: true,
+                status: true,
               },
               orderBy: { startTime: 'asc' },
             }
@@ -105,28 +105,35 @@ export async function GET(req: NextRequest) {
     const TC_ORDER: Record<string, number> = { Morning: 0, Afternoon: 1, Evening: 2, Night: 3 };
 
     const result = sportFiltered.map(turf => {
-      const availableSlots: any[] = [];
+      const allSlots: any[] = [];
       turf.grounds.forEach(ground => {
         ground.slots.forEach(slot => {
+          // Skip slots that are permanently unavailable (blocked by admin)
+          if (slot.status === 'blocked') return;
+
           const dayMatch = !dayOfWeek || !slot.days.length ||
-            slot.days.some((d: string) => d.toLowerCase().startsWith(dayOfWeek.slice(0, 3)));
-          const isBooked = bookedSlotIds.has(slot.id);
-          if (dayMatch && !isBooked) {
-            availableSlots.push({
-              id:           slot.id,
-              groundId:     ground.id,
-              groundName:   ground.name,
-              startTime:    slot.startTime,
-              endTime:      slot.endTime,
-              price:        slot.price,
-              timeCategory: slot.timeCategory,
-            });
-          }
+            slot.days.some((d: string) => d.toLowerCase().startsWith(dayOfWeek!.slice(0, 3)));
+          if (!dayMatch) return; // Skip slots not offered on this weekday
+
+          const isBookedByBooking = bookedSlotIds.has(slot.id);
+          const isBookedByStatus  = slot.status === 'booked';
+          const isBooked = isBookedByBooking || isBookedByStatus;
+
+          allSlots.push({
+            id:           slot.id,
+            groundId:     ground.id,
+            groundName:   ground.name,
+            startTime:    slot.startTime,
+            endTime:      slot.endTime,
+            price:        slot.price,
+            timeCategory: slot.timeCategory,
+            status:       isBooked ? 'booked' : (slot.status === 'walkin' ? 'walkin' : 'available'),
+          });
         });
       });
 
-      // Sort: Morning → Afternoon → Evening → Night, then by startTime within each
-      availableSlots.sort((a, b) => {
+      // Sort: Morning → Afternoon → Evening → Night, then startTime
+      allSlots.sort((a, b) => {
         const tA = TC_ORDER[a.timeCategory] ?? 9;
         const tB = TC_ORDER[b.timeCategory] ?? 9;
         if (tA !== tB) return tA - tB;
@@ -141,12 +148,13 @@ export async function GET(req: NextRequest) {
         division:       turf.division?.name || '',
         imageUrls:      (turf as any).imageUrls || [],
         logoUrl:        (turf as any).logoUrl || null,
-        availableSlots,
-        totalSlots:     availableSlots.length,
+        availableSlots: allSlots,          // key kept for backward compat
+        totalSlots:     allSlots.length,
+        availableCount: allSlots.filter(s => s.status !== 'booked').length,
       };
     });
 
-    // If no date was given, include all turfs. If date given, only show turfs with ≥1 slot.
+    // Only show turfs that have at least 1 slot on this day (when a date is given)
     const filtered = date ? result.filter(t => t.totalSlots > 0) : result;
 
     return NextResponse.json({ turfs: filtered });

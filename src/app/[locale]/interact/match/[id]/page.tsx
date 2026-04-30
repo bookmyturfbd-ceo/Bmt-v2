@@ -1031,41 +1031,88 @@ export default function InteractionBoardPage() {
                 <p className="text-xs mt-1">Try a different date</p>
               </div>
             ) : (
-              turfs.filter((t:any) => !venueSearch || t.name.toLowerCase().includes(venueSearch.toLowerCase())).map((turf: any) => (
-                <div key={turf.id} className="mb-3 rounded-2xl border border-white/10 bg-neutral-900 overflow-hidden">
-                  <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5">
-                    <Building2 size={14} className="text-neutral-500 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-black text-sm truncate">{turf.name}</p>
-                      <p className="text-[10px] text-neutral-500">{turf.area || turf.city || ''}</p>
-                    </div>
+              turfs.filter((t:any) => !venueSearch || t.name.toLowerCase().includes(venueSearch.toLowerCase())).map((turf: any) => {
+                const isOpen = expandedTurf === turf.id;
+                const availableCount = (turf.availableSlots || []).filter((s: any) => s.status !== 'booked').length;
+                const totalCount = (turf.availableSlots || []).length;
+                return (
+                  <div key={turf.id} className="mb-2 rounded-2xl border border-white/10 bg-neutral-900 overflow-hidden">
+                    {/* ── Accordion Header (always visible, tap to toggle) ── */}
+                    <button
+                      onClick={() => setExpandedTurf(isOpen ? null : turf.id)}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left transition-all active:bg-white/5"
+                    >
+                      <Building2 size={14} className="text-neutral-500 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-black text-sm truncate text-white">{turf.name}</p>
+                        <p className="text-[10px] text-neutral-500">{turf.area || turf.city || ''}</p>
+                      </div>
+                      {/* Slot count badge */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {availableCount > 0 ? (
+                          <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-[#00ff41]/10 border border-[#00ff41]/20 text-[#00ff41]">
+                            {availableCount} free
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/20 text-red-400">
+                            Full
+                          </span>
+                        )}
+                        <ChevronDown size={14} className={`text-neutral-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                      </div>
+                    </button>
+
+                    {/* ── Slot grid (only when expanded) ── */}
+                    {isOpen && (
+                      <div className="border-t border-white/5 p-2">
+                        {totalCount === 0 ? (
+                          <p className="text-center text-xs text-neutral-600 py-4">No slots for this date</p>
+                        ) : (
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {(turf.availableSlots || []).map((slot: any) => {
+                              const isPicked = match.selectedSlotId === slot.id;
+                              const isBooked = slot.status === 'booked';
+                              const isWalkin = slot.status === 'walkin';
+                              return (
+                                <button key={slot.id}
+                                  disabled={isBooked || saving}
+                                  onClick={async () => {
+                                    if (isBooked) return;
+                                    setSaving(true); setMsg('');
+                                    const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'book_bmt_slot', slotId: slot.id, date: venueDate }) });
+                                    const d = await r.json();
+                                    if (r.ok) { setPendingBmtSlot({ slotId: slot.id, date: venueDate, turfName: turf.name, startTime: slot.startTime, endTime: slot.endTime, price: slot.price }); setMsg('✅ Slot sent to opponent!'); loadMatch(); }
+                                    else setMsg('❌ ' + d.error);
+                                    setSaving(false);
+                                  }}
+                                  className={`flex flex-col items-center py-2.5 px-1 rounded-xl border text-center transition-all ${
+                                    isPicked
+                                      ? 'bg-[#00ff41]/15 border-[#00ff41]/40 text-[#00ff41]'
+                                      : isBooked
+                                        ? 'bg-red-950/40 border-red-500/20 text-red-500/60 cursor-not-allowed'
+                                        : 'bg-neutral-800 border-white/10 text-white hover:border-fuchsia-500/40 active:scale-[0.96]'
+                                  }`}
+                                >
+                                  <span className="text-[10px] font-black leading-tight">{slot.startTime}</span>
+                                  <span className="text-[8px] opacity-60 leading-tight">–{slot.endTime}</span>
+                                  {isBooked ? (
+                                    <span className="text-[8px] font-black mt-0.5 text-red-400">Booked</span>
+                                  ) : isPicked ? (
+                                    <span className="text-[8px] font-black mt-0.5 text-[#00ff41]">Sent ✓</span>
+                                  ) : (
+                                    <span className="text-[8px] font-black mt-0.5 text-[#00ff41]">৳{Math.round(slot.price/2)}{isWalkin ? ' 🚶' : ''}</span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div className="grid grid-cols-3 gap-1 p-2">
-                    {(turf.availableSlots || []).map((slot: any) => {
-                      const isPicked = match.selectedSlotId === slot.id;
-                      const isFull = slot.status === 'booked';
-                      return (
-                        <button key={slot.id} disabled={isFull || saving}
-                          onClick={async () => {
-                            if (isFull) return;
-                            setSaving(true); setMsg('');
-                            const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'book_bmt_slot', slotId: slot.id, date: venueDate }) });
-                            const d = await r.json();
-                            if (r.ok) { setPendingBmtSlot({ slotId: slot.id, date: venueDate, turfName: turf.name, startTime: slot.startTime, endTime: slot.endTime, price: slot.price }); setMsg('✅ Slot sent to opponent!'); loadMatch(); }
-                            else setMsg('❌ ' + d.error);
-                            setSaving(false);
-                          }}
-                          className={`flex flex-col items-center py-2.5 rounded-xl border text-center transition-all ${isPicked ? 'bg-[#00ff41]/15 border-[#00ff41]/40 text-[#00ff41]' : isFull ? 'bg-neutral-800 border-white/5 text-neutral-600 cursor-not-allowed' : 'bg-neutral-800 border-white/10 text-white hover:border-fuchsia-500/40'}`}
-                        >
-                          <span className="text-[10px] font-black">{slot.startTime}</span>
-                          <span className="text-[8px] opacity-70">–{slot.endTime}</span>
-                          <span className="text-[9px] font-bold mt-0.5 text-[#00ff41]">{isFull ? 'Full' : `৳${slot.price/2}`}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))
+                );
+              })
+
             )}
           </div>
         );
