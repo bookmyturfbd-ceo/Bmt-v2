@@ -616,7 +616,7 @@ export default function LiveScoringPage() {
       matchResult.winnerId === null ? 'draw' :
       matchResult.winnerId === tid ? 'win' : 'loss';
 
-    const onDismissPath = (scoringMode === 'SCORE_AFTER' && isOMCState) 
+    const onDismissPath = isOMCState 
         ? `/${locale}/matches/${matchId}/stats` 
         : `/${locale}/arena?tab=history`;
 
