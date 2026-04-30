@@ -108,12 +108,12 @@ export async function GET(req: NextRequest) {
       const allSlots: any[] = [];
       turf.grounds.forEach(ground => {
         ground.slots.forEach(slot => {
-          // Skip slots that are permanently unavailable (blocked by admin)
-          if (slot.status === 'blocked') return;
+          // Skip slots permanently unavailable (maintenance = blocked by admin)
+          if (slot.status === 'maintenance') return;
 
           const dayMatch = !dayOfWeek || !slot.days.length ||
             slot.days.some((d: string) => d.toLowerCase().startsWith(dayOfWeek!.slice(0, 3)));
-          if (!dayMatch) return; // Skip slots not offered on this weekday
+          if (!dayMatch) return;
 
           const isBookedByBooking = bookedSlotIds.has(slot.id);
           const isBookedByStatus  = slot.status === 'booked';
@@ -127,7 +127,7 @@ export async function GET(req: NextRequest) {
             endTime:      slot.endTime,
             price:        slot.price,
             timeCategory: slot.timeCategory,
-            status:       isBooked ? 'booked' : (slot.status === 'walkin' ? 'walkin' : 'available'),
+            status:       isBooked ? 'booked' : 'available',
           });
         });
       });

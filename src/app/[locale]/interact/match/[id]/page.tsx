@@ -1072,7 +1072,6 @@ export default function InteractionBoardPage() {
                             {(turf.availableSlots || []).map((slot: any) => {
                               const isPicked = match.selectedSlotId === slot.id;
                               const isBooked = slot.status === 'booked';
-                              const isWalkin = slot.status === 'walkin';
                               return (
                                 <button key={slot.id}
                                   disabled={isBooked || saving}
@@ -1087,20 +1086,20 @@ export default function InteractionBoardPage() {
                                   }}
                                   className={`flex flex-col items-center py-2.5 px-1 rounded-xl border text-center transition-all ${
                                     isPicked
-                                      ? 'bg-[#00ff41]/15 border-[#00ff41]/40 text-[#00ff41]'
+                                      ? 'bg-[#00ff41]/15 border-[#00ff41]/40'
                                       : isBooked
-                                        ? 'bg-red-950/40 border-red-500/20 text-red-500/60 cursor-not-allowed'
-                                        : 'bg-neutral-800 border-white/10 text-white hover:border-fuchsia-500/40 active:scale-[0.96]'
+                                        ? 'bg-red-950/40 border-red-500/20 opacity-60 cursor-not-allowed'
+                                        : 'bg-neutral-800 border-white/10 hover:border-fuchsia-500/40 active:scale-[0.96]'
                                   }`}
                                 >
-                                  <span className="text-[10px] font-black leading-tight">{slot.startTime}</span>
-                                  <span className="text-[8px] opacity-60 leading-tight">–{slot.endTime}</span>
+                                  <span className={`text-[10px] font-black leading-tight ${isBooked ? 'text-red-400' : isPicked ? 'text-[#00ff41]' : 'text-white'}`}>{slot.startTime}</span>
+                                  <span className="text-[8px] opacity-50 leading-tight">–{slot.endTime}</span>
                                   {isBooked ? (
                                     <span className="text-[8px] font-black mt-0.5 text-red-400">Booked</span>
                                   ) : isPicked ? (
                                     <span className="text-[8px] font-black mt-0.5 text-[#00ff41]">Sent ✓</span>
                                   ) : (
-                                    <span className="text-[8px] font-black mt-0.5 text-[#00ff41]">৳{Math.round(slot.price/2)}{isWalkin ? ' 🚶' : ''}</span>
+                                    <span className="text-[8px] font-black mt-0.5 text-[#00ff41]">৳{Math.round(slot.price / 2)}</span>
                                   )}
                                 </button>
                               );
