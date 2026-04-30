@@ -3,17 +3,12 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Loader2, ChevronLeft, CheckCircle, Award, Target, Shield, X } from 'lucide-react';
 
+import { BADGES_BY_SPORT, maxBadges } from '@/lib/rankUtils';
+
 type Player = { id: string; fullName: string; avatarUrl?: string };
 type Member = { id: string; playerId: string; role: string; sportRole?: string; player: Player };
 type Team = { id: string; name: string; sportType: string; members: Member[]; ownerId: string };
 type RosterPick = { teamId: string; memberId: string; isStarter: boolean };
-
-const BADGES = [
-  { key: 'MVP',      label: 'MVP',          icon: '🏅', color: '#f59e0b',  desc: 'Man of the Match' },
-  { key: 'PLAYMAKER',label: 'Playmaker',    icon: '🎯', color: '#a78bfa',  desc: 'Best assists / chances' },
-  { key: 'ENGINE',   label: 'Engine',       icon: '⚡', color: '#60a5fa',  desc: 'Box-to-box workhorse' },
-  { key: 'GUARDIAN', label: 'Guardian',     icon: '🛡️', color: '#34d399',  desc: 'Best defender / keeper' },
-];
 
 export default function PlayerStatsPage() {
   const params  = useParams();
@@ -32,6 +27,7 @@ export default function PlayerStatsPage() {
   const [myScore, setMyScore]     = useState(0);
   const [isCricket, setIsCricket] = useState(false);
   const [scoringMode, setScoringMode] = useState('LIVE');
+  const [sportType, setSportType] = useState('FUTSAL_5');
 
   // Per-player stats state: { [playerId]: { goals, assists, saves, minutesPlayed, badge } }
   const [stats, setStats] = useState<Record<string, any>>({});
@@ -54,6 +50,7 @@ export default function PlayerStatsPage() {
     const mt: Team = d.isTeamA ? d.match.teamA : d.match.teamB;
     setMyTeam(mt);
     const sport = mt.sportType as string;
+    setSportType(sport);
     setIsCricket(['CRICKET_7','CRICKET_FULL'].includes(sport));
 
     const sc = d.isTeamA ? (d.match.scoreA ?? 0) : (d.match.scoreB ?? 0);
@@ -121,6 +118,9 @@ export default function PlayerStatsPage() {
   const totalRuns    = Object.values(stats).reduce((s, p) => s + (p.runs || 0), 0);
   const badgeCount   = Object.values(badges).filter(Boolean).length;
   
+  const allowedBadges = BADGES_BY_SPORT[sportType] || BADGES_BY_SPORT['FUTSAL_5'];
+  const badgeLimit = maxBadges(sportType);
+
   // If LIVE mode, bypass goal validation since they are pre-filled from events and locked
   const isScoreAfter = scoringMode === 'SCORE_AFTER';
   const isValid = !isScoreAfter ? true : (isCricket
@@ -217,7 +217,7 @@ export default function PlayerStatsPage() {
                 {/* Badge Icon (if assigned) */}
                 {mBadge && (
                   <div className="absolute top-2 right-2 text-lg drop-shadow-md z-10" style={{ animation: 'popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
-                    {BADGES.find(b => b.key === mBadge)?.icon}
+                    {allowedBadges.find(b => b.key === mBadge)?.emoji}
                   </div>
                 )}
                 
@@ -257,20 +257,29 @@ export default function PlayerStatsPage() {
       <div className="fixed bottom-0 left-0 right-0 px-4 pb-8 pt-3 bg-[#08090f]/95 backdrop-blur-md border-t border-[#1e2028] z-40">
         <div className="flex justify-between items-end mb-2 px-1">
           <p className="text-xs font-bold text-neutral-400">Badges Used</p>
-          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${badgeCount <= 4 ? 'bg-neutral-800 text-white' : 'bg-red-500/20 text-red-400'}`}>{badgeCount} / 4</span>
+          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${badgeCount <= badgeLimit ? 'bg-neutral-800 text-white' : 'bg-red-500/20 text-red-400'}`}>{badgeCount} / {badgeLimit}</span>
         </div>
         {err && <p className="text-red-400 text-xs font-bold mb-2">{err}</p>}
         <button
           onClick={handleSubmit}
-          disabled={!isValid || !isOMC || submitting}
+          disabled={!isValid || !isOMC || submitting || badgeCount > badgeLimit}
           className="w-full py-4 rounded-2xl bg-[#00ff41] text-black font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-40"
         >
           {submitting ? <Loader2 size={18} className="animate-spin" /> : '✓ Finalise Stats & Badges'}
         </button>
         {isScoreAfter && !isValid && (
-          <p className="text-amber-400 text-[11px] font-bold text-center mt-1.5">
-            {isCricket ? `Assign all ${myScore} runs first` : `Assign all ${myScore} goals first`}
-          </p>
+          <div className="mt-2 text-center text-[11px] font-bold text-amber-400">
+            {isCricket ? (
+              totalRuns > myScore ? <p>⚠️ You assigned {totalRuns} runs but the team scored {myScore}.</p> :
+              <p>⚠️ Assign all {myScore} runs first (currently {totalRuns}).</p>
+            ) : (
+              <>
+                {totalGoals > myScore && <p>⚠️ You assigned {totalGoals} goals but the team scored {myScore}.</p>}
+                {totalGoals < myScore && <p>⚠️ Assign all {myScore} goals first (currently {totalGoals}).</p>}
+                {totalAssists > myScore && <p>⚠️ You assigned {totalAssists} assists but the team only scored {myScore} goals.</p>}
+              </>
+            )}
+          </div>
         )}
       </div>
 
@@ -304,7 +313,7 @@ export default function PlayerStatsPage() {
               <div>
                 <h4 className="text-xs font-black text-white uppercase tracking-widest mb-3">Award Badge</h4>
                 <div className="grid grid-cols-2 gap-2">
-                  {BADGES.map(b => {
+                  {allowedBadges.map(b => {
                     const isSelected = pBadge === b.key;
                     // Check if badge is assigned to someone else
                     const assignedToOtherId = Object.keys(badges).find(pid => badges[pid] === b.key && pid !== selectedPlayerId);
@@ -321,14 +330,14 @@ export default function PlayerStatsPage() {
                         className={`p-3 rounded-xl border flex flex-col items-start gap-1 transition-all active:scale-95 text-left ${isSelected ? 'bg-white/10 border-white/30' : 'bg-neutral-900/50 border-white/5 hover:bg-white/5'}`}
                       >
                         <div className="flex items-center gap-2 w-full">
-                          <span className="text-xl">{b.icon}</span>
+                          <span className="text-xl">{b.emoji}</span>
                           <span className={`text-xs font-black flex-1 ${isSelected ? 'text-white' : 'text-neutral-400'}`}>{b.label}</span>
                           {isSelected && <CheckCircle size={14} className="text-[#00ff41]" />}
                         </div>
                         {assignedToOther ? (
                           <p className="text-[9px] font-bold text-amber-500 truncate w-full">Currently with {assignedToOther.player.fullName.split(' ')[0]}</p>
                         ) : (
-                          <p className={`text-[9px] font-bold truncate w-full ${isSelected ? 'text-neutral-300' : 'text-neutral-600'}`}>{b.desc}</p>
+                          <p className={`text-[9px] font-bold truncate w-full ${isSelected ? 'text-neutral-300' : 'text-neutral-600'}`}>+{b.bonus} MMR Bonus</p>
                         )}
                       </button>
                     );
