@@ -133,7 +133,7 @@ export async function PATCH(
 
     await prisma.match.update({
       where: { id: matchId },
-      data: { scoreModeAgreed: true },
+      data: { scoreModeAgreed: true, scoreModeRequestedBy: null },
     });
     await broadcastMatchEvent(matchId, 'SCORE_MODE_AGREED', { mode: match.scoringMode });
     return NextResponse.json({ ok: true, agreed: true, mode: match.scoringMode });

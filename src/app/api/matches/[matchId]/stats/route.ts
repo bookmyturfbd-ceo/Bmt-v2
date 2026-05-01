@@ -35,8 +35,6 @@ export async function POST(
     if (!match) return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     if (match.status !== 'COMPLETED')
       return NextResponse.json({ error: 'Match must be COMPLETED first' }, { status: 400 });
-    if ((match as any).badgeBonusApplied)
-      return NextResponse.json({ error: 'Badges have already been distributed for this match' }, { status: 409 });
 
     const isA = match.teamA.ownerId === playerId || match.teamA.members.some(m => m.playerId === playerId);
     const isB = match.teamB.ownerId === playerId || match.teamB.members.some(m => m.playerId === playerId);
@@ -44,6 +42,14 @@ export async function POST(
 
     const myTeam   = isA ? match.teamA : match.teamB;
     const myTeamId = isA ? match.teamA_Id : match.teamB_Id;
+
+    // Check if THIS team already distributed badges/stats
+    const existingStats = await prisma.playerMatchStat.findFirst({
+      where: { matchId, teamId: myTeamId }
+    });
+    if (existingStats) {
+      return NextResponse.json({ error: 'Stats and badges have already been distributed for your team in this match' }, { status: 409 });
+    }
     const myRole = myTeam.members.find(m => m.playerId === playerId)?.role
       ?? (myTeam.ownerId === playerId ? 'owner' : 'member');
     if (!['owner','manager','captain'].includes(myRole))
@@ -129,11 +135,6 @@ export async function POST(
       }));
 
     await prisma.$transaction([
-      // Mark match as badge-distributed
-      prisma.match.update({
-        where: { id: matchId },
-        data: { badgeBonusApplied: true } as any,
-      }),
       ...statUpdates,
       ...badgeMmrUpdates,
     ]);

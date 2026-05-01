@@ -53,15 +53,31 @@ export function subscribeToMatchChannel(
  * This is critical for reliability on serverless (Vercel) — WebSocket handshakes
  * are too slow for short-lived lambda functions and the broadcast never fires.
  *
- * Requires: Realtime → Broadcast enabled in Supabase Dashboard.
+ * Requires: Realtime + Broadcast enabled in Supabase Dashboard.
  */
 export async function broadcastMatchEvent(
   matchId: string,
   event: string,
   data: Record<string, any>
 ): Promise<boolean> {
+  return await _broadcast(matchId, `match:${matchId}:scoring`, event, data);
+}
+
+export async function broadcastInteractEvent(
+  matchId: string,
+  event: string,
+  data: Record<string, any>
+): Promise<boolean> {
+  return await _broadcast(matchId, `interact:${matchId}`, event, data);
+}
+
+async function _broadcast(
+  matchId: string,
+  topic: string,
+  event: string,
+  data: Record<string, any>
+): Promise<boolean> {
   try {
-    const topic = `match:${matchId}:scoring`;
     const res = await fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
       method: 'POST',
       headers: {
@@ -75,12 +91,12 @@ export async function broadcastMatchEvent(
     });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      console.error(`[broadcastMatchEvent] ${event} → HTTP ${res.status}`, text);
+      console.error(`[broadcastEvent] ${event} -> HTTP ${res.status}`, text);
       return false;
     }
     return true;
   } catch (err) {
-    console.error(`[broadcastMatchEvent] ${event} network error:`, err);
+    console.error(`[broadcastEvent] ${event} network error:`, err);
     return false;
   }
 }

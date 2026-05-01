@@ -31,16 +31,21 @@ export async function POST(
 
     const myTeam = isA ? match.teamA : match.teamB;
     const myTeamId = isA ? match.teamA_Id : match.teamB_Id;
+
+    const scorers = await prisma.matchScorer.findMany({ where: { matchId } });
+    const isSingleScorer = match.scoringMode === 'LIVE_SINGLE' && scorers.filter(s => s.playerId === playerId).length === 2;
+
     const myRole = myTeam.members.find(m => m.playerId === playerId)?.role
       ?? (myTeam.ownerId === playerId ? 'owner' : 'member');
-    if (!['owner','manager','captain'].includes(myRole))
-      return NextResponse.json({ error: 'Only OMC can call full time' }, { status: 403 });
+    if (!['owner','manager','captain'].includes(myRole) && !isSingleScorer)
+      return NextResponse.json({ error: 'Only OMC or Single Scorer can call full time' }, { status: 403 });
 
     // Idempotent — if already flagged, don't re-broadcast
     const alreadyEnded = isA ? match.matchEndedByA : match.matchEndedByB;
 
-    // Save this team's end flag
-    const updateData = isA ? { matchEndedByA: true } : { matchEndedByB: true };
+    // Save this team's end flag (or BOTH if single scorer)
+    const forceEnd = isSingleScorer;
+    const updateData = forceEnd ? { matchEndedByA: true, matchEndedByB: true } : (isA ? { matchEndedByA: true } : { matchEndedByB: true });
     const updated = await prisma.match.update({ where: { id: matchId }, data: updateData });
 
     // ── Both ended → proceed to score entry ───────────────────────────────────

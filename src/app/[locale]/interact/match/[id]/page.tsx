@@ -95,6 +95,12 @@ export default function InteractionBoardPage() {
         }
       }
       // Auto-advance step based on match state
+      if (d.match?.status === 'LIVE') {
+        const sport = d.match?.teamA?.sportType ?? '';
+        const isCricket = ['CRICKET_7', 'CRICKET_FULL'].includes(sport);
+        router.push(isCricket ? `/${locale}/matches/${matchId}/cricket` : `/${locale}/matches/${matchId}/live`);
+        return;
+      }
       if (d.match?.venueBookedAt || d.match?.status === 'SCHEDULED') {
         setCurrentStep(4);
       } else if (d.match?.venueType === 'BMT') {
@@ -164,6 +170,7 @@ export default function InteractionBoardPage() {
         ch.on('broadcast', { event: 'wbt_turf_selected' }, () => { loadMatch(); });
         ch.on('broadcast', { event: 'wbt_payment_update' }, () => { loadMatch(); });
         ch.on('broadcast', { event: 'wbt_booking_complete' }, () => { setCurrentStep(4); loadMatch(); router.push(`/${locale}/interact`); });
+        ch.on('broadcast', { event: 'match_started' }, () => { loadMatch(); });
         ch.subscribe();
         realtimeRef.current = ch;
       } catch {}

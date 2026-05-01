@@ -1701,3 +1701,440 @@ model WbtCoupon {
 
   @@map("wbt_coupons")
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT ENGINE — Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum TournamentStatus {
+  DRAFT
+  REGISTRATION_OPEN
+  REGISTRATION_CLOSED
+  AUCTION_PENDING
+  AUCTION_LIVE
+  AUCTION_COMPLETED
+  DRAFTING
+  SCHEDULED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum TournamentSport {
+  CRICKET
+  FOOTBALL
+}
+
+enum TournamentFormat {
+  LEAGUE
+  KNOCKOUT
+  GROUP_KNOCKOUT
+  DOUBLE_ELIMINATION
+}
+
+enum TRegistrationType {
+  TEAM
+  PLAYER
+}
+
+enum TPrizeType {
+  APP_COINS
+  REAL_MONEY
+  TROPHY_ONLY
+}
+
+enum TMatchStatus {
+  SCHEDULED
+  SCORER_ASSIGNED
+  LIVE
+  COMPLETED
+  WALKOVER
+  POSTPONED
+  CANCELLED
+}
+
+enum TMatchStage {
+  GROUP
+  ROUND_OF_16
+  QUARTER
+  SEMI
+  FINAL
+  THIRD_PLACE
+}
+
+enum TScorerType {
+  ASSIGNED
+  ORGANIZER
+  ADMIN
+}
+
+enum OperatorType {
+  PLATFORM
+  ORGANIZER
+}
+
+enum TOrgInviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+}
+
+enum TAuctionRoomStatus {
+  WAITING
+  LIVE
+  PAUSED
+  COMPLETED
+}
+
+enum TOrgTxType {
+  TOP_UP
+  MATCH_CHARGE
+  REFUND
+}
+
+enum TDisputeStatus {
+  PENDING
+  REVIEWING
+  UPHELD
+  REJECTED
+}
+
+enum TRegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ORGANIZER — External tournament organizers (invited by super admin)
+// Custom auth: bcrypt password. Completely separate from Player and Owner.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Organizer {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  phone        String   @default("")
+  password     String   // bcrypt hashed
+  isVerified   Boolean  @default(false) // set true by super admin if needed
+  joinedAt     DateTime @default(now())
+
+  wallet       OrganizerWallet?
+  tournaments  Tournament[]
+  invite       OrganizerInvite? @relation(fields: [inviteId], references: [id])
+  inviteId     String?          @unique
+
+  @@map("organizers")
+}
+
+model OrganizerWallet {
+  id           String   @id @default(cuid())
+  organizerId  String   @unique
+  balance      Float    @default(0)    // taka
+  totalToppedUp Float   @default(0)
+  totalSpent   Float    @default(0)
+  updatedAt    DateTime @updatedAt
+
+  organizer    Organizer @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  transactions OrganizerWalletTransaction[]
+
+  @@map("organizer_wallets")
+}
+
+model OrganizerWalletTransaction {
+  id           String     @id @default(cuid())
+  organizerId  String
+  type         TOrgTxType
+  amount       Float
+  matchId      String?    // set when type = MATCH_CHARGE
+  description  String?
+  createdAt    DateTime   @default(now())
+
+  wallet       OrganizerWallet @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+
+  @@map("organizer_wallet_transactions")
+}
+
+model OrganizerInvite {
+  id              String           @id @default(cuid())
+  invitedBy       String           // super_admin user id (plain string — no FK to a specific table)
+  emailOrPhone    String
+  inviteToken     String           @unique @default(cuid())
+  status          TOrgInviteStatus @default(PENDING)
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  organizerUserId String?          // set when organizer account is created
+  createdAt       DateTime         @default(now())
+
+  organizer       Organizer?
+
+  @@map("organizer_invites")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT — Core tournament entity
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Tournament {
+  id                   String            @id @default(cuid())
+  operatorId           String            // Organizer.id OR super_admin string id
+  operatorType         OperatorType
+  sport                TournamentSport
+  name                 String
+  description          String?           @db.Text
+  bannerImageUrl       String?
+
+  registrationType     TRegistrationType
+  maxParticipants      Int
+  entryFee             Int               @default(0) // app coins, 0 = free
+  registrationDeadline DateTime?
+
+  // Player-auction mode (only when registrationType = PLAYER)
+  auctionEnabled       Boolean           @default(false)
+  playerBudgetPerCaptain Int?            // app coins each captain gets to bid
+  auctionStartTime     DateTime?
+
+  // Prizes
+  prizePoolTotal       Int               @default(0) // app coins
+  prizeDistribution    Json              @default("{}") // { "1st": 50, "2nd": 30, "3rd": 20 }
+  prizeType            TPrizeType        @default(TROPHY_ONLY)
+
+  // Format
+  formatType           TournamentFormat
+  groupCount           Int?
+  teamsPerGroup        Int?
+  qualifyPerGroup      Int?
+
+  // MMR
+  mmrEnabled           Boolean           @default(true)
+  mmrMultiplier        Float             @default(1.0)
+
+  status               TournamentStatus  @default(DRAFT)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  organizer            Organizer?        @relation(fields: [operatorId], references: [id], onDelete: Restrict)
+  registrations        TournamentRegistration[]
+  groups               TournamentGroup[]
+  matches              TournamentMatch[]
+  standings            TournamentStanding[]
+  auctionRoom          AuctionRoom?
+  tournamentTeams      TournamentTeam[]
+
+  @@map("tournaments")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT REGISTRATION — Teams or players registering for a tournament
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TournamentRegistration {
+  id            String              @id @default(cuid())
+  tournamentId  String
+  entityType    TRegistrationType   // TEAM | PLAYER
+  entityId      String              // Team.id or Player.id
+  registeredAt  DateTime            @default(now())
+  status        TRegistrationStatus @default(PENDING)
+  entryFeePaid  Boolean             @default(false)
+
+  tournament    Tournament          @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, entityId])
+  @@map("tournament_registrations")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT TEAM — Formed after player auction; captain + picked players
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TournamentTeam {
+  id           String   @id @default(cuid())
+  tournamentId String
+  captainId    String   // Player.id
+  name         String
+  players      String[] @default([]) // array of Player.id values
+  budgetSpent  Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@map("tournament_teams")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT GROUP — Groups for GROUP / GROUP_KNOCKOUT formats
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TournamentGroup {
+  id           String   @id @default(cuid())
+  tournamentId String
+  name         String   // "Group A", "Group B", etc.
+  teamIds      String[] @default([]) // Team.id array
+
+  tournament   Tournament           @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  matches      TournamentMatch[]
+  standings    TournamentStanding[]
+
+  @@map("tournament_groups")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT MATCH — Individual matches within a tournament
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TournamentMatch {
+  id            String       @id @default(cuid())
+  tournamentId  String
+  groupId       String?      // null for knockout stage matches
+  stage         TMatchStage
+  matchNumber   Int
+  teamAId       String       // Team.id
+  teamBId       String       // Team.id
+  scheduledAt   DateTime?
+  venue         String?
+
+  // Scorer
+  scorerId      String?      // User id (Organizer.id or admin id)
+  scorerType    TScorerType?
+  matchMode     String       @default("TOURNAMENT") // "TOURNAMENT" | "CASUAL"
+
+  // Status
+  status        TMatchStatus @default(SCHEDULED)
+
+  // Result
+  winnerId      String?      // Team.id
+  resultSummary Json?        // sport-specific result data (scores, wickets, etc.)
+
+  // Dispute
+  disputeStatus TDisputeStatus @default(PENDING)
+  hasDispute    Boolean        @default(false)
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  tournament    Tournament   @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  group         TournamentGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  scorerToken   TournamentScorerToken?
+  disputes      TournamentDispute[]
+
+  @@map("tournament_matches")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT SCORER TOKEN — Token-based access for external scorers
+// Token IS the authentication — no login required for the match
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TournamentScorerToken {
+  id         String    @id @default(cuid())
+  matchId    String    @unique
+  token      String    @unique @default(cuid())
+  scorerRef  String?   // email or phone used when sending the link
+  usedAt     DateTime?
+  expiresAt  DateTime?
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+
+  match      TournamentMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@map("tournament_scorer_tokens")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT STANDING — Live standings per group (or overall for LEAGUE)
+// Recomputable from scratch from TournamentMatch results at any time
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TournamentStanding {
+  id              String   @id @default(cuid())
+  tournamentId    String
+  groupId         String?  // null for overall standings
+  teamId          String   // Team.id
+
+  played          Int      @default(0)
+  won             Int      @default(0)
+  lost            Int      @default(0)
+  drawn           Int      @default(0)  // football
+  noResult        Int      @default(0)  // cricket
+  points          Int      @default(0)
+
+  // Cricket
+  nrr             Float    @default(0)  // net run rate
+
+  // Football
+  goalDifference  Int      @default(0)
+  goalsScored     Int      @default(0)
+  goalsConceded   Int      @default(0)
+
+  // Tiebreaker
+  headToHead      Json     @default("{}") // H2H record vs other teams
+
+  position        Int      @default(0)
+  qualified       Boolean  @default(false)
+
+  updatedAt       DateTime @updatedAt
+
+  tournament      Tournament      @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  group           TournamentGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  @@unique([tournamentId, groupId, teamId])
+  @@map("tournament_standings")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT DISPUTE — Team raises a dispute about a logged match event
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TournamentDispute {
+  id              String         @id @default(cuid())
+  matchId         String
+  raisedByTeamId  String         // Team.id
+  eventRef        String?        // delivery id or event id being disputed
+  reason          String         @db.Text // min 10 chars enforced at API level
+  status          TDisputeStatus @default(PENDING)
+  resolvedBy      String?        // Organizer.id or admin id
+  resolutionNote  String?        @db.Text
+  raisedAt        DateTime       @default(now())
+  resolvedAt      DateTime?
+
+  match           TournamentMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@map("tournament_disputes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AUCTION ROOM — Real-time player auction for player-based tournaments
+// Built last — schema ready now, UI/logic in Phase 8
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AuctionRoom {
+  id                     String             @id @default(cuid())
+  tournamentId           String             @unique
+  status                 TAuctionRoomStatus @default(WAITING)
+  currentPlayerId        String?            // Player.id being auctioned
+  currentBasePrice       Int?
+  currentHighestBid      Int?
+  currentHighestBidderId String?            // Player.id (captain)
+  bidTimerSeconds        Int                @default(30)
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  tournament             Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  bids                   AuctionBid[]
+
+  @@map("auction_rooms")
+}
+
+model AuctionBid {
+  id            String   @id @default(cuid())
+  auctionRoomId String
+  playerId      String   // Player.id being bid on
+  captainId     String   // Player.id placing the bid
+  amount        Int
+  timestamp     DateTime @default(now())
+
+  room          AuctionRoom @relation(fields: [auctionRoomId], references: [id], onDelete: Cascade)
+
+  @@map("auction_bids")
+}
+

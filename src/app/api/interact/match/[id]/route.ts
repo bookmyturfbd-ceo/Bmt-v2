@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { broadcastMatchEvent } from '@/lib/supabaseRealtime';
+import { broadcastMatchEvent, broadcastInteractEvent } from '@/lib/supabaseRealtime';
 
 function getPlayerId(req: NextRequest) {
   return req.cookies.get('bmt_player_id')?.value ?? null;
@@ -259,6 +259,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const updated = await prisma.match.update({ where: { id: matchId }, data: updateData });
       if (updated.matchStartedByA && updated.matchStartedByB) {
         await prisma.match.update({ where: { id: matchId }, data: { status: 'LIVE' } });
+        await broadcastInteractEvent(matchId, 'match_started', {});
       }
       return NextResponse.json({ ok: true, match: updated });
     }
@@ -270,7 +271,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const { venueType } = body;
       if (!['BMT', 'OPEN_WBT'].includes(venueType)) return NextResponse.json({ error: 'Invalid venue type' }, { status: 400 });
       await prisma.match.update({ where: { id: matchId }, data: { venueType, venueConfirmedByB: false } });
-      await broadcastMatchEvent(matchId, 'venue_type_set', { venueType });
+      await broadcastInteractEvent(matchId, 'venue_type_set', { venueType });
       return NextResponse.json({ ok: true });
     }
 
@@ -282,11 +283,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const { accept } = body;
       if (accept) {
         await prisma.match.update({ where: { id: matchId }, data: { venueConfirmedByB: true } });
-        await broadcastMatchEvent(matchId, 'venue_type_confirmed', { venueType: match.venueType });
+        await broadcastInteractEvent(matchId, 'venue_type_confirmed', { venueType: match.venueType });
       } else {
         // Rejected — clear so Team A can re-choose
         await prisma.match.update({ where: { id: matchId }, data: { venueType: null, venueConfirmedByB: false } });
-        await broadcastMatchEvent(matchId, 'venue_type_rejected', {});
+        await broadcastInteractEvent(matchId, 'venue_type_rejected', {});
       }
       return NextResponse.json({ ok: true });
     }
@@ -297,7 +298,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (!isOMC || !isTeamA) return NextResponse.json({ error: 'Only challenger OMC can clear venue type' }, { status: 403 });
       if ((match as any).venueConfirmedByB) return NextResponse.json({ error: 'Opponent already accepted' }, { status: 400 });
       await prisma.match.update({ where: { id: matchId }, data: { venueType: null, venueConfirmedByB: false } });
-      await broadcastMatchEvent(matchId, 'venue_type_cleared', {});
+      await broadcastInteractEvent(matchId, 'venue_type_cleared', {});
       return NextResponse.json({ ok: true });
     }
 
@@ -313,7 +314,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const existing = await prisma.booking.findFirst({ where: { slotId, date, status: { not: 'cancelled' } } });
       if (existing) return NextResponse.json({ error: 'Slot already booked for this date' }, { status: 409 });
       await prisma.match.update({ where: { id: matchId }, data: { selectedSlotId: slotId, matchDate: date } });
-      await broadcastMatchEvent(matchId, 'bmt_slot_selected', {
+      await broadcastInteractEvent(matchId, 'bmt_slot_selected', {
         slotId, date,
         turfName: slot.ground.turf.name,
         startTime: slot.startTime,
@@ -329,7 +330,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (action === 'clear_bmt_slot') {
       if (!isOMC || !isTeamA) return NextResponse.json({ error: 'Only challenger OMC can clear slot' }, { status: 403 });
       await prisma.match.update({ where: { id: matchId }, data: { selectedSlotId: null, matchDate: null } });
-      await broadcastMatchEvent(matchId, 'bmt_slot_cleared', {});
+      await broadcastInteractEvent(matchId, 'bmt_slot_cleared', {});
       return NextResponse.json({ ok: true });
     }
 
@@ -341,7 +342,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (!accept) {
         // Decline — clear selected slot so challenger can pick another
         await prisma.match.update({ where: { id: matchId }, data: { selectedSlotId: null, matchDate: null } });
-        await broadcastMatchEvent(matchId, 'bmt_slot_response', { accepted: false });
+        await broadcastInteractEvent(matchId, 'bmt_slot_response', { accepted: false });
         return NextResponse.json({ ok: true, message: 'Slot declined' });
       }
       // Accept — run the full booking logic
@@ -378,7 +379,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         prisma.match.update({ where: { id: matchId }, data: { status: 'SCHEDULED', venueBookedAt: new Date(), bookingCode: code } }),
       ]);
 
-      await broadcastMatchEvent(matchId, 'bmt_slot_response', { accepted: true, bookingCode: code });
+      await broadcastInteractEvent(matchId, 'bmt_slot_response', { accepted: true, bookingCode: code });
       return NextResponse.json({ ok: true, bookingCode: code });
     }
 
@@ -390,7 +391,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const turf = await prisma.wbtTurf.findUnique({ where: { id: wbtTurfId }, include: { division: true, city: true } });
       if (!turf) return NextResponse.json({ error: 'WBT Turf not found' }, { status: 404 });
       await prisma.match.update({ where: { id: matchId }, data: { wbtTurfId, wbtTurfName: turf.name, wbtFrom, wbtTo, matchDate } });
-      await broadcastMatchEvent(matchId, 'wbt_turf_selected', { wbtTurfId, turfName: turf.name, wbtFrom, wbtTo, matchDate, city: turf.city.name });
+      await broadcastInteractEvent(matchId, 'wbt_turf_selected', { wbtTurfId, turfName: turf.name, wbtFrom, wbtTo, matchDate, city: turf.city.name });
       return NextResponse.json({ ok: true });
     }
 
@@ -411,7 +412,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         : Math.min(coupon.discountValue / 2, fee / 2);        // split flat discount
 
       await prisma.match.update({ where: { id: matchId }, data: { wbtCouponCode: coupon.code, wbtCouponDiscount: discount } });
-      await broadcastMatchEvent(matchId, 'wbt_coupon_applied', { couponCode: coupon.code, discountPerTeam: discount });
+      await broadcastInteractEvent(matchId, 'wbt_coupon_applied', { couponCode: coupon.code, discountPerTeam: discount });
       return NextResponse.json({ ok: true, discount });
     }
 
@@ -446,11 +447,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           await prisma.wbtCoupon.update({ where: { code: freshMatch.wbtCouponCode }, data: { usedCount: { increment: 1 } } });
         }
         await prisma.match.update({ where: { id: matchId }, data: { status: 'SCHEDULED', venueBookedAt: new Date(), bookingCode: code } });
-        await broadcastMatchEvent(matchId, 'wbt_booking_complete', { bookingCode: code });
+        await broadcastInteractEvent(matchId, 'wbt_booking_complete', { bookingCode: code });
         return NextResponse.json({ ok: true, bookingCode: code, bothPaid: true });
       }
 
-      await broadcastMatchEvent(matchId, 'wbt_payment_update', { teamA: updatedMatch?.wbtPaymentA, teamB: updatedMatch?.wbtPaymentB });
+      await broadcastInteractEvent(matchId, 'wbt_payment_update', { teamA: updatedMatch?.wbtPaymentA, teamB: updatedMatch?.wbtPaymentB });
       return NextResponse.json({ ok: true, bothPaid: false });
     }
 

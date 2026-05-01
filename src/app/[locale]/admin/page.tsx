@@ -16,6 +16,7 @@ import ShopPanel from '@/components/admin/ShopPanel';
 import ShopOrdersPanel from '@/components/admin/ShopOrdersPanel';
 import ShopIncomePanel from '@/components/admin/ShopIncomePanel';
 import OpenWbtPanel from '@/components/admin/OpenWbtPanel';
+import TournamentsAdminPanel from '@/components/admin/TournamentsAdminPanel';
 
 const PAGE_TITLES: Record<AdminPage, string> = {
   overview:         'Dashboard Overview',
@@ -32,6 +33,7 @@ const PAGE_TITLES: Record<AdminPage, string> = {
   shop:             'Shop Front',
   shopOrders:       'Shop Orders',
   shopIncome:       'Shop Income',
+  tournaments:      'Tournament Engine',
 };
 
 export default function AdminPage() {
@@ -139,6 +141,12 @@ export default function AdminPage() {
           {activePage === 'openWbt' && (
             <section>
               <OpenWbtPanel />
+            </section>
+          )}
+
+          {activePage === 'tournaments' && (
+            <section className="h-full">
+              <TournamentsAdminPanel />
             </section>
           )}
 

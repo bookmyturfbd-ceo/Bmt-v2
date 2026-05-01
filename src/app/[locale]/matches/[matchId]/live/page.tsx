@@ -536,6 +536,7 @@ export default function LiveScoringPage() {
         // Show accept/reject modal only to the opponent
         if (data.fromTeamId !== stateRef.current?.myTeamId) {
           setScoreModeRequest({ mode: data.mode, fromTeamId: data.fromTeamId, singleScorerId: data.singleScorerId });
+          setShowModeGate(false);
         }
       }
       if (event === 'SCORE_MODE_AGREED') {
@@ -1093,7 +1094,7 @@ export default function LiveScoringPage() {
 
 
       {/* ── Action Bar (OMC only, LIVE only) ── */}
-      {match.status === 'LIVE' && (
+      {match.status === 'LIVE' && (scoringMode === 'LIVE_SINGLE' ? isSingleScorer : (isOMC || isScorer)) && (
         <div className="fixed bottom-0 left-0 right-0 z-[100] bg-[#0d0e14]/95 backdrop-blur-md border-t border-[#1e2028]">
           <div className="flex gap-2 px-4 pt-4 pb-6">
             <button onClick={() => setSheetType('GOAL')}
@@ -1133,6 +1134,15 @@ export default function LiveScoringPage() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Single Scorer Notice (for non-scorers) ── */}
+      {match.status === 'LIVE' && scoringMode === 'LIVE_SINGLE' && !isSingleScorer && (
+        <div className="fixed bottom-0 left-0 right-0 z-[100] bg-[#0d0e14]/95 backdrop-blur-md border-t border-[#1e2028] px-4 py-6 text-center">
+          <p className="text-sm font-bold text-neutral-400">
+            {state?.scorers?.[0]?.player?.fullName || 'Assigned Scorer'} is scoring for you.
+          </p>
         </div>
       )}
 

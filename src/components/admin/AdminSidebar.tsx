@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { LayoutDashboard, Building2, UserCircle2, Settings, ChevronLeft, ChevronRight, Zap, Menu, X, Banknote, ChevronDown, ChevronUp, Users, Wallet, KeyRound, Monitor, Trophy, Swords, ShoppingBag, PackageCheck, BarChart3, Globe2 } from 'lucide-react';
 
-export type AdminPage = 'overview' | 'platformSettings' | 'manageTurfs' | 'managePros' | 'payouts' | 'walletRecharge' | 'players' | 'frontend' | 'competitiveTeams' | 'challengeMarket' | 'openWbt' | 'shop' | 'shopOrders' | 'shopIncome';
+export type AdminPage = 'overview' | 'platformSettings' | 'manageTurfs' | 'managePros' | 'payouts' | 'walletRecharge' | 'players' | 'frontend' | 'competitiveTeams' | 'challengeMarket' | 'openWbt' | 'shop' | 'shopOrders' | 'shopIncome' | 'tournaments';
 
 interface NavGroup {
   label: string;
@@ -48,6 +48,7 @@ const NAV_GROUPS: NavGroup[] = [
     children: [
       { key: 'competitiveTeams', icon: Trophy, label: 'Teams' },
       { key: 'challengeMarket', icon: Swords, label: 'Challenge Market' },
+      { key: 'tournaments', icon: Trophy, label: 'Tournaments' },
       { key: 'openWbt', icon: Globe2, label: 'Open WBT' },
     ],
   },
