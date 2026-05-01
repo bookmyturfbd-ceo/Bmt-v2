@@ -976,7 +976,7 @@ export default function MarketPage() {
             const won       = m.winnerId === myTeamH?.id;
             const draw      = m.winnerId === null && m.scoreA === m.scoreB;
             const isDispute = m.status === 'DISPUTED';
-            const hasStats  = m.playerStats?.length > 0 || m.playerMatchStats?.length > 0;
+            const hasBadges = m.playerStats?.some((s: any) => s.badge && s.badge !== 'NONE');
 
             return (
               <div key={m.id} className={`rounded-2xl border overflow-hidden ${
@@ -1004,11 +1004,11 @@ export default function MarketPage() {
                     <span className="text-[9px] text-neutral-700 font-bold">MMR</span>
                   </div>
                 </div>
-                {!hasStats && !isDispute && (
+                {!hasBadges && !isDispute && (
                   <div className="px-4 pb-4">
                     <button onClick={() => openPlayerStatsModal(m)}
                       className="w-full py-2.5 bg-neutral-800 hover:bg-neutral-700 border border-white/10 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 transition-all">
-                      {statsLoading ? <Loader2 size={12} className="animate-spin" /> : '📊'} Enter Player Stats
+                      {statsLoading ? <Loader2 size={12} className="animate-spin" /> : '📊'} Distribute Badges & Stats
                     </button>
                   </div>
                 )}

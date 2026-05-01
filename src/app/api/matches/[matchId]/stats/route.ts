@@ -43,11 +43,13 @@ export async function POST(
     const myTeam   = isA ? match.teamA : match.teamB;
     const myTeamId = isA ? match.teamA_Id : match.teamB_Id;
 
-    // Check if THIS team already distributed badges/stats
-    const existingStats = await prisma.playerMatchStat.findFirst({
-      where: { matchId, teamId: myTeamId }
+    // Check if THIS team already distributed badges
+    // We check if any PlayerMatchStat for this team has a badge other than 'NONE'
+    // because PlayerMatchStat records are created with badge='NONE' during sign-off.
+    const existingBadges = await prisma.playerMatchStat.findFirst({
+      where: { matchId, teamId: myTeamId, badge: { not: 'NONE' } }
     });
-    if (existingStats) {
+    if (existingBadges) {
       return NextResponse.json({ error: 'Stats and badges have already been distributed for your team in this match' }, { status: 409 });
     }
     const myRole = myTeam.members.find(m => m.playerId === playerId)?.role

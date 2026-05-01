@@ -150,7 +150,7 @@ export async function GET(req: NextRequest) {
     const matchInclude = {
       teamA: { select: { id: true, name: true, logoUrl: true, sportType: true, teamMmr: true } },
       teamB: { select: { id: true, name: true, logoUrl: true, sportType: true, teamMmr: true } },
-      playerStats: { where: { teamId: { in: myTeamIds } }, select: { id: true } },
+      playerStats: { where: { teamId: { in: myTeamIds } }, select: { id: true, badge: true } },
       scorers: true,
     };
 
