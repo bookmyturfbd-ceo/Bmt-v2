@@ -20,9 +20,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Email and password required' }, { status: 400 });
     }
 
-    const organizer = await prisma.organizer.findUnique({ where: { email } });
+    const normalizedEmail = email.toLowerCase().trim();
+    const organizer = await prisma.organizer.findUnique({ where: { email: normalizedEmail } });
     if (!organizer) {
       return NextResponse.json({ success: false, error: 'Invalid credentials' }, { status: 401 });
+    }
+
+    if (organizer.banStatus !== 'none') {
+      return NextResponse.json({ success: false, error: "You don't have access to your panel. Contact BMT Support." }, { status: 403 });
     }
 
     const isValid = await bcrypt.compare(password, organizer.password);

@@ -1,57 +1,54 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { Users, Search, RefreshCw, Shield, Ban, CheckCircle2, X, Eye, ChevronDown, AlertTriangle } from 'lucide-react';
+import { Users, Search, RefreshCw, Shield, Ban, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 
-interface Player {
+interface PlayerWithStats {
   id: string; fullName: string; email: string; phone: string; joinedAt: string;
   walletBalance?: number; banStatus?: 'none' | 'soft' | 'perma'; banUntil?: string;
-  avatarBase64?: string;
+  avatarUrl?: string;
+  recharged: number;
+  spent: number;
 }
-interface WalletRequest { id: string; playerId: string; amount: number; status: string; }
-interface Booking { id: string; slotId: string; price?: number; playerName?: string; playerId?: string; }
-interface Slot { id: string; price: number; }
 
 export default function PlayersPanel() {
-  const [players, setPlayers]   = useState<Player[]>([]);
-  const [walletReqs, setWalletReqs] = useState<WalletRequest[]>([]);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [slots, setSlots]       = useState<Slot[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [search, setSearch]     = useState('');
+  const [players, setPlayers] = useState<PlayerWithStats[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch]   = useState('');
+  const [page, setPage]       = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalPlayers, setTotalPlayers] = useState(0);
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'soft' | 'perma'>('all');
+  
   const [expanded, setExpanded] = useState<string | null>(null);
   const [banDays, setBanDays]   = useState<Record<string, string>>({});
   const [actionId, setActionId] = useState<string | null>(null);
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'soft' | 'perma'>('all');
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [ps, wr, bs, ss] = await Promise.all([
-      fetch('/api/bmt/players').then(r => r.json()),
-      fetch('/api/bmt/wallet-requests').then(r => r.json()),
-      fetch('/api/bmt/bookings').then(r => r.json()),
-      fetch('/api/bmt/slots').then(r => r.json()),
-    ]);
-    setPlayers(Array.isArray(ps) ? ps : []);
-    setWalletReqs(Array.isArray(wr) ? wr : []);
-    setBookings(Array.isArray(bs) ? bs : []);
-    setSlots(Array.isArray(ss) ? ss : []);
+    try {
+      const res = await fetch(`/api/admin/players?page=${page}&limit=20&search=${encodeURIComponent(search)}&status=${filterStatus}`);
+      const d = await res.json();
+      if (d.data) {
+        setPlayers(d.data);
+        setTotalPages(d.totalPages || 1);
+        setTotalPlayers(d.total || 0);
+      }
+    } catch (e) {
+      console.error(e);
+    }
     setLoading(false);
-  }, []);
+  }, [page, search, filterStatus]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    // Debounce search
+    const t = setTimeout(() => { load(); }, 300);
+    return () => clearTimeout(t);
+  }, [load]);
 
-  const playerStats = (p: Player) => {
-    const recharged = walletReqs
-      .filter(r => r.playerId === p.id && r.status === 'approved')
-      .reduce((s, r) => s + r.amount, 0);
-    const spent = bookings
-      .filter(b => b.playerId === p.id || b.playerName === p.fullName)
-      .reduce((s, b) => {
-        const slot = slots.find(sl => sl.id === b.slotId);
-        return s + (b.price ?? slot?.price ?? 0);
-      }, 0);
-    return { recharged, spent };
-  };
+  // Reset page when search or filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [search, filterStatus]);
 
   const applyBan = async (id: string, banStatus: 'soft' | 'perma' | 'none') => {
     setActionId(id);
@@ -62,7 +59,7 @@ export default function PlayersPanel() {
       now.setDate(now.getDate() + days);
       patch.banUntil = now.toISOString();
     } else {
-      patch.banUntil = undefined;
+      patch.banUntil = null;
     }
     await fetch(`/api/bmt/players/${id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -72,22 +69,7 @@ export default function PlayersPanel() {
     await load();
   };
 
-  const today = new Date().toISOString().split('T')[0];
-
-  const filtered = players
-    .filter(p => {
-      const q = search.toLowerCase();
-      return p.fullName.toLowerCase().includes(q) || p.email.toLowerCase().includes(q);
-    })
-    .filter(p => {
-      if (filterStatus === 'active') return !p.banStatus || p.banStatus === 'none';
-      if (filterStatus === 'soft') return p.banStatus === 'soft';
-      if (filterStatus === 'perma') return p.banStatus === 'perma';
-      return true;
-    })
-    .sort((a, b) => b.joinedAt.localeCompare(a.joinedAt));
-
-  const statusBadge = (p: Player) => {
+  const statusBadge = (p: PlayerWithStats) => {
     if (p.banStatus === 'perma') return <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/30 text-red-400">Perma Banned</span>;
     if (p.banStatus === 'soft' && p.banUntil && new Date(p.banUntil) > new Date()) return <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400">Soft Ban</span>;
     return <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-accent/10 border border-accent/30 text-accent">Active</span>;
@@ -97,7 +79,7 @@ export default function PlayersPanel() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-black">Players</h2>
+          <h2 className="text-2xl font-black">Players ({totalPlayers})</h2>
           <p className="text-sm text-[var(--muted)] mt-0.5">Manage all registered players, bans, and activity.</p>
         </div>
         <button onClick={load} disabled={loading} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--panel-bg)] border border-[var(--panel-border)] text-xs font-bold hover:opacity-80 disabled:opacity-50">
@@ -105,26 +87,11 @@ export default function PlayersPanel() {
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: 'Total Players',  value: players.length,  color: 'text-blue-400' },
-          { label: 'Joined Today',   value: players.filter(p => p.joinedAt === today).length, color: 'text-accent' },
-          { label: 'Soft Banned',    value: players.filter(p => p.banStatus === 'soft').length, color: 'text-orange-400' },
-          { label: 'Perma Banned',   value: players.filter(p => p.banStatus === 'perma').length, color: 'text-red-400' },
-        ].map(s => (
-          <div key={s.label} className="glass-panel border border-[var(--panel-border)] rounded-2xl p-4">
-            <p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)]">{s.label}</p>
-            <p className={`text-3xl font-black mt-1 ${s.color}`}>{s.value}</p>
-          </div>
-        ))}
-      </div>
-
       {/* Search + Filter */}
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or email…"
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, email or phone…"
             className="w-full bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none focus:border-accent/50 placeholder:text-[var(--muted)] transition-colors" />
         </div>
         <div className="flex gap-2">
@@ -138,17 +105,16 @@ export default function PlayersPanel() {
       </div>
 
       {/* Players Table */}
-      {loading ? (
+      {loading && players.length === 0 ? (
         <div className="flex items-center justify-center py-16 text-[var(--muted)]"><RefreshCw size={16} className="animate-spin mr-2" /> Loading…</div>
-      ) : filtered.length === 0 ? (
+      ) : players.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-16 text-center border border-dashed border-[var(--panel-border)] rounded-2xl">
           <Users size={28} className="text-[var(--muted)]" />
           <p className="font-bold text-[var(--muted)]">No players found</p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {filtered.map(p => {
-            const { recharged, spent } = playerStats(p);
+          {players.map(p => {
             const isExp = expanded === p.id;
             const isBanned = p.banStatus === 'soft' || p.banStatus === 'perma';
             return (
@@ -157,8 +123,8 @@ export default function PlayersPanel() {
                 <div className="p-4 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-xl overflow-hidden bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
-                      {p.avatarBase64
-                        ? <img src={p.avatarBase64} alt="avatar" className="w-full h-full object-cover" />
+                      {p.avatarUrl
+                        ? <img src={p.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
                         : <span className="text-sm font-black text-accent">{p.fullName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}</span>}
                     </div>
                     <div className="min-w-0">
@@ -167,12 +133,13 @@ export default function PlayersPanel() {
                         {statusBadge(p)}
                       </div>
                       <p className="text-[10px] text-[var(--muted)] truncate">{p.email}</p>
+                      <p className="text-[10px] text-[var(--muted)] truncate">{p.phone}</p>
                     </div>
                   </div>
                   <div className="hidden sm:flex items-center gap-4 shrink-0 text-right">
-                    <div><p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)]">Joined</p><p className="text-xs font-bold">{p.joinedAt}</p></div>
-                    <div><p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)]">Recharged</p><p className="text-xs font-black text-accent">৳{recharged.toLocaleString()}</p></div>
-                    <div><p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)]">Spent</p><p className="text-xs font-black text-blue-400">৳{spent.toLocaleString()}</p></div>
+                    <div><p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)]">Joined</p><p className="text-xs font-bold">{new Date(p.joinedAt).toLocaleDateString()}</p></div>
+                    <div><p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)]">Recharged</p><p className="text-xs font-black text-accent">৳{p.recharged.toLocaleString()}</p></div>
+                    <div><p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)]">Spent</p><p className="text-xs font-black text-blue-400">৳{p.spent.toLocaleString()}</p></div>
                   </div>
                   <button onClick={() => setExpanded(isExp ? null : p.id)}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-[var(--panel-border)] text-xs font-bold text-[var(--muted)] hover:text-white hover:border-white/20 transition-all shrink-0">
@@ -185,9 +152,9 @@ export default function PlayersPanel() {
                   <div className="border-t border-[var(--panel-border)] p-4 flex flex-col gap-3 bg-black/20">
                     {/* Mobile stats */}
                     <div className="flex sm:hidden gap-4 text-sm">
-                      <div><p className="text-[9px] text-[var(--muted)] font-black uppercase tracking-widest">Joined</p><p className="font-bold">{p.joinedAt}</p></div>
-                      <div><p className="text-[9px] text-[var(--muted)] font-black uppercase tracking-widest">Recharged</p><p className="font-black text-accent">৳{recharged.toLocaleString()}</p></div>
-                      <div><p className="text-[9px] text-[var(--muted)] font-black uppercase tracking-widest">Spent</p><p className="font-black text-blue-400">৳{spent.toLocaleString()}</p></div>
+                      <div><p className="text-[9px] text-[var(--muted)] font-black uppercase tracking-widest">Joined</p><p className="font-bold">{new Date(p.joinedAt).toLocaleDateString()}</p></div>
+                      <div><p className="text-[9px] text-[var(--muted)] font-black uppercase tracking-widest">Recharged</p><p className="font-black text-accent">৳{p.recharged.toLocaleString()}</p></div>
+                      <div><p className="text-[9px] text-[var(--muted)] font-black uppercase tracking-widest">Spent</p><p className="font-black text-blue-400">৳{p.spent.toLocaleString()}</p></div>
                     </div>
 
                     {/* Ban controls */}
@@ -234,6 +201,29 @@ export default function PlayersPanel() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 border-t border-[var(--panel-border)] pt-4">
+          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Page {page} of {totalPages}</p>
+          <div className="flex gap-2">
+            <button 
+              disabled={page === 1} 
+              onClick={() => setPage(p => p - 1)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-[var(--panel-border)] text-xs font-bold text-[var(--muted)] hover:text-white hover:border-white/20 transition-all disabled:opacity-50"
+            >
+              <ChevronLeft size={14} /> Prev
+            </button>
+            <button 
+              disabled={page === totalPages} 
+              onClick={() => setPage(p => p + 1)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-[var(--panel-border)] text-xs font-bold text-[var(--muted)] hover:text-white hover:border-white/20 transition-all disabled:opacity-50"
+            >
+              Next <ChevronRight size={14} />
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -16,7 +16,9 @@ import ShopPanel from '@/components/admin/ShopPanel';
 import ShopOrdersPanel from '@/components/admin/ShopOrdersPanel';
 import ShopIncomePanel from '@/components/admin/ShopIncomePanel';
 import OpenWbtPanel from '@/components/admin/OpenWbtPanel';
-import TournamentsAdminPanel from '@/components/admin/TournamentsAdminPanel';
+import TournamentListTab from '@/components/admin/tournaments/TournamentListTab';
+import OrganizerListTab from '@/components/admin/tournaments/OrganizerListTab';
+import OrganizerRechargePanel from '@/components/admin/OrganizerRechargePanel';
 
 const PAGE_TITLES: Record<AdminPage, string> = {
   overview:         'Dashboard Overview',
@@ -34,6 +36,9 @@ const PAGE_TITLES: Record<AdminPage, string> = {
   shopOrders:       'Shop Orders',
   shopIncome:       'Shop Income',
   tournaments:      'Tournament Engine',
+  bmtTournaments:   'BMT Tournaments',
+  organizers:       'Organizers',
+  orgRecharge:      'Org Wallet Recharges',
 };
 
 export default function AdminPage() {
@@ -144,10 +149,20 @@ export default function AdminPage() {
             </section>
           )}
 
-          {activePage === 'tournaments' && (
+          {activePage === 'bmtTournaments' && (
             <section className="h-full">
-              <TournamentsAdminPanel />
+              <TournamentListTab />
             </section>
+          )}
+
+          {activePage === 'organizers' && (
+            <section className="h-full">
+              <OrganizerListTab />
+            </section>
+          )}
+
+          {activePage === 'orgRecharge' && (
+            <section><OrganizerRechargePanel /></section>
           )}
 
           {activePage === 'shop' && (

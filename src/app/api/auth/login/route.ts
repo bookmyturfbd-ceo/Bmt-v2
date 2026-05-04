@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import prisma from '@/lib/prisma';
+import crypto from 'crypto';
+
+function signToken(payload: object): string {
+  const data = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const secret = process.env.BMT_SECRET || 'bmt_secret_key';
+  const sig = crypto.createHmac('sha256', secret).update(data).digest('base64url');
+  return `${data}.${sig}`;
+}
 
 export async function POST(request: NextRequest) {
   const { credential, password } = await request.json();
@@ -47,6 +55,47 @@ export async function POST(request: NextRequest) {
     response.cookies.set('bmt_role',     'owner',    cookieOpts);
     response.cookies.set('bmt_owner_id', owner.id,   cookieOpts);
     response.cookies.set('bmt_name',     name,       cookieOpts);
+    return response;
+  }
+
+  // ── Organizer ────────────────────────────────────────────────────────────────
+  const organizer = await prisma.organizer.findFirst({
+    where: { email: { equals: cred, mode: 'insensitive' } },
+  });
+
+  if (organizer) {
+    if (organizer.banStatus !== 'none') {
+      return NextResponse.json(
+        { error: "You don't have access to your panel. Contact BMT Support." },
+        { status: 403 }
+      );
+    }
+
+    const passwordMatch = await bcrypt.compare(pw, organizer.password);
+    if (!passwordMatch) {
+      return NextResponse.json(
+        { error: 'Invalid credentials. Check your email and password.' },
+        { status: 401 }
+      );
+    }
+
+    const token = signToken({ id: organizer.id, type: 'ORGANIZER', exp: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+    const response = NextResponse.json({ ok: true, redirect: '/en/organizer/dashboard' });
+    
+    // Set the secure JWT for the organizer portal
+    response.cookies.set('org_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60
+    });
+    
+    // Also set legacy cookies just in case the unified layout needs them
+    response.cookies.set('bmt_auth', '1', cookieOpts);
+    response.cookies.set('bmt_role', 'organizer', cookieOpts);
+    response.cookies.set('bmt_name', organizer.name, cookieOpts);
+    
     return response;
   }
 

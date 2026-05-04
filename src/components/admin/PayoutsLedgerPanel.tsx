@@ -12,7 +12,8 @@ import autoTable from 'jspdf-autotable';
 // ── Types ────────────────────────────────────────────────────────────────────
 interface Owner  { id: string; name: string; email: string; walletBalance?: number; pendingBmtCut?: number; }
 interface Turf   { id: string; name: string; ownerId: string; status: string; revenueModelType?: string; revenueModelValue?: number; }
-interface Booking { id: string; turfId: string; price?: number; bmtCut?: number; date: string; }
+interface TodayTurfRow { turfId: string; turfName: string; bookingCount: number; gross: number; bmtCut: number; ownerShare: number; }
+interface BookingStats { totalBmtCut: number; todayDate: string; todayGross: number; todayBmtCut: number; todayByTurf: TodayTurfRow[]; }
 interface Payout {
   id: string; ownerId: string; ownerName: string; turfName: string;
   amount: number; bmtCut: number; date: string;
@@ -247,7 +248,22 @@ export default function PayoutsLedgerPanel() {
   const owners  = useApiEntity<Owner>('owners');
   const turfs   = useApiEntity<Turf>('turfs');
   const payouts = useApiEntity<Payout>('payouts');
-  const bookings = useApiEntity<Booking>('bookings');
+
+  // Aggregated booking stats — fetched from /api/admin/bookings (server-computed, no raw records)
+  const [bookingStats, setBookingStats] = useState<BookingStats | null>(null);
+  const [bookingStatsLoading, setBookingStatsLoading] = useState(true);
+
+  const loadBookingStats = useCallback(async () => {
+    setBookingStatsLoading(true);
+    try {
+      const res = await fetch('/api/admin/bookings');
+      if (res.ok) setBookingStats(await res.json());
+    } finally {
+      setBookingStatsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadBookingStats(); }, [loadBookingStats]);
 
   const [disburseTarget, setDisburseTarget] = useState<{ owner: Owner; turf?: Turf; balance: number } | null>(null);
   const [proofUrl,   setProofUrl]   = useState<string | null>(null);
@@ -285,46 +301,15 @@ export default function PayoutsLedgerPanel() {
     return { owner, turf: primaryTurf, balance };
   }).filter(r => r.turf); // only show owners with at least one turf
 
-  // Stats
+  // Stats — derived from server-aggregated bookingStats, no local computation over raw rows
   const totalUnpaid       = owners.items.reduce((s, o) => s + (o.walletBalance ?? 0), 0);
-  const todayDate         = new Date().toISOString().split('T')[0];
-  // BMT cut = sum of bmtCut across all bookings ever made
-  const realizedBmtCut    = bookings.items.reduce((s, b) => s + (b.bmtCut ?? 0), 0);
+  const todayDate         = bookingStats?.todayDate ?? new Date().toISOString().split('T')[0];
   const pendingCount      = owners.items.filter(o => (o.walletBalance ?? 0) > 0).length;
 
-  // 30-day daily breakdown — calculated from actual bookings data
-  // bmtCut on each booking = revenue already collected by BMT at payment time
-  const days30 = Array.from({ length: 30 }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (29 - i));
-    return d.toISOString().split('T')[0];
-  });
-  // Use payouts history for the 30-day breakdown (disbursement dates)
-  const daily30 = days30.map(date => ({
-    date,
-    revenue: payouts.items.filter(p => p.date === date).reduce((s, p) => s + (p.bmtCut ?? 0), 0),
-    turfs: [...new Set(payouts.items.filter(p => p.date === date).map(p => p.turfName))].length,
-  }));
-  const total30 = daily30.reduce((s, d) => s + d.revenue, 0);
-
-  // Today's bookings grouped by turf
-  const todayBookings = bookings.items.filter(b => b.date === todayDate);
-  const todayByTurf = turfs.items
-    .map(t => {
-      const tb = todayBookings.filter(b => b.turfId === t.id);
-      return {
-        turfName: t.name,
-        bookingCount: tb.length,
-        bmtCut: tb.reduce((s, b) => s + (b.bmtCut ?? 0), 0),
-        ownerShare: tb.reduce((s, b) => s + ((b.price ?? 0) - (b.bmtCut ?? 0)), 0),
-        gross: tb.reduce((s, b) => s + (b.price ?? 0), 0),
-      };
-    })
-    .filter(r => r.bookingCount > 0);
-  const todayTotalCut   = todayByTurf.reduce((s, r) => s + r.bmtCut, 0);
-  const todayTotalGross = todayByTurf.reduce((s, r) => s + r.gross, 0);
-
-  // Total BMT collected = sum of all bmtCut on bookings
-  const totalBmtCollected = realizedBmtCut;
+  const todayByTurf       = bookingStats?.todayByTurf ?? [];
+  const todayTotalCut     = bookingStats?.todayBmtCut ?? 0;
+  const todayTotalGross   = bookingStats?.todayGross ?? 0;
+  const totalBmtCollected = bookingStats?.totalBmtCut ?? 0;
 
   const generatePDF = () => {
     const doc = new jsPDF();
@@ -370,9 +355,9 @@ export default function PayoutsLedgerPanel() {
     .filter(p => !dateFilter || p.date === dateFilter)
     .sort((a, b) => b.date.localeCompare(a.date));
 
-  const loading = owners.loading || turfs.loading || payouts.loading || bookings.loading;
+  const loading = owners.loading || turfs.loading || payouts.loading || bookingStatsLoading;
 
-  const reload = () => { owners.reload(); turfs.reload(); payouts.reload(); bookings.reload(); };
+  const reload = () => { owners.reload(); turfs.reload(); payouts.reload(); loadBookingStats(); };
 
   return (
     <div className="flex flex-col gap-8">

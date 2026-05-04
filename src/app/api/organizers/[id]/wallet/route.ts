@@ -58,8 +58,8 @@ export async function POST(
       }),
       prisma.organizerWalletTransaction.create({
         data: {
-          organizerId: id,
-          type: 'TOP_UP',
+          wallet:      { connect: { organizerId: id } },
+          type:        'TOP_UP',
           amount,
           description: description || 'Wallet top up'
         }

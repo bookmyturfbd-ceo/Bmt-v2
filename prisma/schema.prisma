@@ -1777,6 +1777,7 @@ enum TOrgInviteStatus {
   PENDING
   ACCEPTED
   EXPIRED
+  CANCELLED
 }
 
 enum TAuctionRoomStatus {
@@ -1789,6 +1790,7 @@ enum TAuctionRoomStatus {
 enum TOrgTxType {
   TOP_UP
   MATCH_CHARGE
+  TOURNAMENT_CHARGE
   REFUND
 }
 
@@ -1818,11 +1820,15 @@ model Organizer {
   password     String   // bcrypt hashed
   isVerified   Boolean  @default(false) // set true by super admin if needed
   joinedAt     DateTime @default(now())
+  chargePerTournament Int @default(0)
+  banStatus    BanStatus @default(none)
+  banReason    String?
 
-  wallet       OrganizerWallet?
-  tournaments  Tournament[]
-  invite       OrganizerInvite? @relation(fields: [inviteId], references: [id])
-  inviteId     String?          @unique
+  wallet           OrganizerWallet?
+  tournaments      Tournament[]
+  rechargeRequests OrganizerRechargeRequest[]
+  invite           OrganizerInvite? @relation(fields: [inviteId], references: [id])
+  inviteId         String?          @unique
 
   @@map("organizers")
 }
@@ -1854,6 +1860,21 @@ model OrganizerWalletTransaction {
 
   @@map("organizer_wallet_transactions")
 }
+
+model OrganizerRechargeRequest {
+  id               String               @id @default(cuid())
+  organizerId      String
+  amount           Float
+  method           WalletRechargeMethod
+  screenshotBase64 String?              @db.Text
+  status           WalletRequestStatus  @default(pending)
+  createdAt        DateTime             @default(now())
+
+  organizer        Organizer @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+
+  @@map("organizer_recharge_requests")
+}
+
 
 model OrganizerInvite {
   id              String           @id @default(cuid())
@@ -1904,14 +1925,27 @@ model Tournament {
   groupCount           Int?
   teamsPerGroup        Int?
   qualifyPerGroup      Int?
+  formatConfig         Json?             // format-specific settings object
+  formatConfigLocked   Boolean           @default(false) // locked after first match
+
 
   // MMR
   mmrEnabled           Boolean           @default(true)
   mmrMultiplier        Float             @default(1.0)
 
+  // Scheduling & venue
+  venue                String?
+  startDate            DateTime?
+  endDate              DateTime?
+  startTime            String?           // e.g. "18:00"
+
   status               TournamentStatus  @default(DRAFT)
+  // Registration gate — countdown + open/close control
+  registrationOpenAt   DateTime?         // one-time countdown target; null = not set
+  isRegistrationOpen   Boolean           @default(false) // manual toggle
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
+
 
   organizer            Organizer?        @relation(fields: [operatorId], references: [id], onDelete: Restrict)
   registrations        TournamentRegistration[]

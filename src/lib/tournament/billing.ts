@@ -44,6 +44,7 @@ export async function chargeMatchFee(
   }
 
   // Atomic deduction + transaction record
+  // wallet.organizerId == organizer UUID == what organizer_wallet_transactions.organizerId FK expects
   const [updatedWallet] = await prisma.$transaction([
     prisma.organizerWallet.update({
       where: { organizerId: tournament.operatorId },
@@ -54,9 +55,9 @@ export async function chargeMatchFee(
     }),
     prisma.organizerWalletTransaction.create({
       data: {
-        organizerId: tournament.operatorId,
-        type: 'MATCH_CHARGE',
-        amount: MATCH_CHARGE_TAKA,
+        wallet:      { connect: { organizerId: tournament.operatorId } },
+        type:        'MATCH_CHARGE',
+        amount:      MATCH_CHARGE_TAKA,
         matchId,
         description: `Match charge for tournament match ${matchId}`,
       },
@@ -65,6 +66,7 @@ export async function chargeMatchFee(
 
   return { ok: true, newBalance: updatedWallet.balance };
 }
+
 
 /**
  * Refund ৳40 to the organizer wallet when a match is cancelled.
@@ -80,6 +82,11 @@ export async function refundMatchFee(
 
   if (!tournament || tournament.operatorType === 'PLATFORM') return;
 
+  const wallet = await prisma.organizerWallet.findUnique({
+    where: { organizerId: tournament.operatorId },
+  });
+  if (!wallet) return; // no wallet to refund
+
   await prisma.$transaction([
     prisma.organizerWallet.update({
       where: { organizerId: tournament.operatorId },
@@ -90,9 +97,9 @@ export async function refundMatchFee(
     }),
     prisma.organizerWalletTransaction.create({
       data: {
-        organizerId: tournament.operatorId,
-        type: 'REFUND',
-        amount: MATCH_CHARGE_TAKA,
+        wallet:      { connect: { organizerId: tournament.operatorId } },
+        type:        'REFUND',
+        amount:      MATCH_CHARGE_TAKA,
         matchId,
         description: `Refund for cancelled match ${matchId}`,
       },
@@ -120,6 +127,11 @@ export async function refundUnplayedMatches(tournamentId: string): Promise<void>
 
   const refundTotal = liveMatches * MATCH_CHARGE_TAKA;
 
+  const wallet = await prisma.organizerWallet.findUnique({
+    where: { organizerId: tournament.operatorId },
+  });
+  if (!wallet) return;
+
   await prisma.$transaction([
     prisma.organizerWallet.update({
       where: { organizerId: tournament.operatorId },
@@ -130,9 +142,9 @@ export async function refundUnplayedMatches(tournamentId: string): Promise<void>
     }),
     prisma.organizerWalletTransaction.create({
       data: {
-        organizerId: tournament.operatorId,
-        type: 'REFUND',
-        amount: refundTotal,
+        wallet:      { connect: { organizerId: tournament.operatorId } },
+        type:        'REFUND',
+        amount:      refundTotal,
         description: `Tournament ${tournamentId} cancelled — refund for ${liveMatches} unplayed matches`,
       },
     }),

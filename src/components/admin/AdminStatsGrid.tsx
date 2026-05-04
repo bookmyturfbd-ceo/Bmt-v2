@@ -2,76 +2,50 @@
 import { useEffect, useState } from 'react';
 import { Users, Building2, TrendingUp, Wallet, Trophy, ShoppingBag, Briefcase, UserCheck, BadgeDollarSign, CalendarCheck2 } from 'lucide-react';
 
-interface Player  { id: string; joinedAt: string; banStatus?: string; }
-interface Turf    { id: string; status: string; }
-interface Booking { id: string; slotId: string; price?: number; bmtCut?: number; ownerShare?: number; }
-interface Slot    { id: string; price: number; }
-interface WalletRequest { id: string; amount: number; status: string; }
-interface Owner   { id: string; walletBalance?: number; pendingBmtCut?: number; }
-interface MonthlyFee { id: string; amount: number; paid: boolean; }
-interface ShopOrder { id: string; total: number; status: string; }
-interface ChallengePayment { id: string; amount: number; }
-
 export default function AdminStatsGrid() {
-  const [players,     setPlayers]     = useState<Player[]>([]);
-  const [turfs,       setTurfs]       = useState<Turf[]>([]);
-  const [bookings,    setBookings]    = useState<Booking[]>([]);
-  const [slots,       setSlots]       = useState<Slot[]>([]);
-  const [wallets,     setWallets]     = useState<WalletRequest[]>([]);
-  const [owners,      setOwners]      = useState<Owner[]>([]);
-  const [monthlyFees, setMonthlyFees] = useState<MonthlyFee[]>([]);
-  const [shopOrders,  setShopOrders]  = useState<ShopOrder[]>([]);
-  const [cmPayments,  setCmPayments]  = useState<ChallengePayment[]>([]);
+  const [statsData, setStatsData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/bmt/players').then(r => r.json()),
-      fetch('/api/bmt/turfs').then(r => r.json()),
-      fetch('/api/bmt/bookings').then(r => r.json()),
-      fetch('/api/bmt/slots').then(r => r.json()),
-      fetch('/api/bmt/wallet-requests').then(r => r.json()),
-      fetch('/api/bmt/owners').then(r => r.json()),
-      fetch('/api/bmt/monthly-fees').then(r => r.json()),
-      fetch('/api/shop/orders').then(r => r.json()),
-      fetch('/api/admin/challenge-market').then(r => r.json()).then(d => d.payments ?? []).catch(() => []),
-    ]).then(([ps, ts, bs, ss, ws, os, mf, so, cm]) => {
-      setPlayers(Array.isArray(ps) ? ps : []);
-      setTurfs(Array.isArray(ts) ? ts : []);
-      setBookings(Array.isArray(bs) ? bs : []);
-      setSlots(Array.isArray(ss) ? ss : []);
-      setWallets(Array.isArray(ws) ? ws : []);
-      setOwners(Array.isArray(os) ? os : []);
-      setMonthlyFees(Array.isArray(mf) ? mf : []);
-      setShopOrders(Array.isArray(so) ? so : []);
-      setCmPayments(Array.isArray(cm) ? cm : []);
-    });
+    fetch('/api/admin/stats')
+      .then(r => r.json())
+      .then(data => {
+        setStatsData(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to load stats', err);
+        setLoading(false);
+      });
   }, []);
 
-  const today        = new Date().toISOString().split('T')[0];
-  const activePlayers = players.filter(p => !p.banStatus || p.banStatus === 'none').length;
-  const joinedToday  = players.filter(p => p.joinedAt === today).length;
-  const activeTurfs  = turfs.filter(t => t.status === 'published' || t.status === 'approved').length;
+  if (loading) {
+    return (
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
+        {[1,2,3,4,5,6,7,8].map(i => (
+          <div key={i} className="h-32 glass-panel rounded-2xl bg-[var(--panel-bg)] opacity-50" />
+        ))}
+      </div>
+    );
+  }
 
-  // Gross = sum of all booking prices
-  const grossRevenue = bookings.reduce((s, b) => {
-    const slot = slots.find(sl => sl.id === b.slotId);
-    return s + (b.price ?? slot?.price ?? 0);
-  }, 0);
-
-  // BMT profit = sum of pendingBmtCut on all owners (accumulated on each booking)
-  // + sum of already disbursed bmtCut (from payouts entity — which we don't load here, keep it simple)
-  const pendingBmtCut = owners.reduce((s, o) => s + (o.pendingBmtCut ?? 0), 0);
-  // Also sum from booking records (for bookings where bmtCut is stored directly)
-  const bmtCutFromBookings = bookings.reduce((s, b) => s + (b.bmtCut ?? 0), 0);
-  // Use whichever is non-zero (pendingBmtCut on owners is the authoritative source)
-  const bmtProfit    = pendingBmtCut || bmtCutFromBookings;
-
-  const walletRevenue = wallets.filter(w => w.status === 'approved').reduce((s, w) => s + w.amount, 0);
-
-  // Lifetime monthly fee revenue = all paid monthly fee records
-  const lifetimeMonthlyRevenue = monthlyFees.filter(f => f.paid).reduce((s, f) => s + f.amount, 0);
-  const totalMonthlyFees       = monthlyFees.length;
-  const paidMonthlyFees        = monthlyFees.filter(f => f.paid).length;
+  const {
+    activePlayers = 0,
+    joinedToday = 0,
+    totalTurfs = 0,
+    activeTurfs = 0,
+    grossRevenue = 0,
+    bmtProfit = 0,
+    walletRevenue = 0,
+    walletApprovedCount = 0,
+    lifetimeMonthlyRevenue = 0,
+    totalMonthlyFees = 0,
+    paidMonthlyFees = 0,
+    shopOrdersRevenue = 0,
+    shopOrdersCount = 0,
+    cmPaymentsRevenue = 0,
+    cmPaymentsCount = 0
+  } = statsData || {};
 
   const stats = [
     {
@@ -80,7 +54,7 @@ export default function AdminStatsGrid() {
     },
     {
       label: 'Active Turfs',         value: activeTurfs.toLocaleString(),
-      sub: `${turfs.length} total registered`,  icon: Building2,       color: 'text-accent',      bg: 'bg-accent/10',      border: 'border-accent/20',
+      sub: `${totalTurfs} total registered`,  icon: Building2,       color: 'text-accent',      bg: 'bg-accent/10',      border: 'border-accent/20',
     },
     {
       label: 'Gross Turf Revenue',   value: `৳${grossRevenue.toLocaleString()}`,
@@ -97,16 +71,16 @@ export default function AdminStatsGrid() {
     },
     {
       label: 'Wallet Recharged',     value: `৳${walletRevenue.toLocaleString()}`,
-      sub: `${wallets.filter(w => w.status === 'approved').length} approved`,  icon: Wallet, color: 'text-purple-400', bg: 'bg-purple-400/10', border: 'border-purple-400/20',
+      sub: `${walletApprovedCount} approved`,  icon: Wallet, color: 'text-purple-400', bg: 'bg-purple-400/10', border: 'border-purple-400/20',
     },
     {
-      label: 'Challenge Market',     value: `৳${cmPayments.reduce((s, p) => s + p.amount, 0).toLocaleString()}`,
-      sub: `${cmPayments.length} subscription payments`,
+      label: 'Challenge Market',     value: `৳${cmPaymentsRevenue.toLocaleString()}`,
+      sub: `${cmPaymentsCount} subscription payments`,
       icon: Trophy, color: 'text-orange-400', bg: 'bg-orange-400/10', border: 'border-orange-400/20',
     },
     {
-      label: 'Shop Revenue',         value: `৳${shopOrders.filter(o => o.status !== 'cancelled').reduce((s, o) => s + o.total, 0).toLocaleString()}`,
-      sub: `${shopOrders.filter(o => o.status !== 'cancelled').length} orders`,
+      label: 'Shop Revenue',         value: `৳${shopOrdersRevenue.toLocaleString()}`,
+      sub: `${shopOrdersCount} orders`,
       icon: ShoppingBag, color: 'text-pink-400', bg: 'bg-pink-400/10', border: 'border-pink-400/20',
     },
     {

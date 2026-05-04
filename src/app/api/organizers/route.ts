@@ -11,6 +11,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
+
     // Validate invite
     const invite = await prisma.organizerInvite.findUnique({ where: { inviteToken } });
     if (!invite) {
@@ -29,7 +31,7 @@ export async function POST(request: Request) {
       prisma.organizer.create({
         data: {
           name,
-          email,
+          email: normalizedEmail,
           phone: phone || '',
           password: hashedPassword,
           isVerified: true,

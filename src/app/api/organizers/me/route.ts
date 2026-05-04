@@ -34,7 +34,15 @@ export async function GET() {
     const organizer = await prisma.organizer.findUnique({
       where: { id: decoded.id },
       include: {
-        wallet: true,
+        wallet: {
+          include: {
+            transactions: {
+              orderBy: { createdAt: 'desc' },
+              take: 50,
+            }
+          }
+        },
+
         tournaments: {
           orderBy: { createdAt: 'desc' },
           include: {
