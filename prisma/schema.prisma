@@ -2172,3 +2172,32 @@ model AuctionBid {
   @@map("auction_bids")
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// OTP VERIFICATION — Phone number verification for signup & reset
+// ─────────────────────────────────────────────────────────────────────────────
+
+model OtpVerification {
+  id        String   @id @default(cuid())
+  phone     String
+  otp       String
+  purpose   String   // "signup" | "reset"
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([phone, otp])
+  @@map("otp_verifications")
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// TURF SERVICE SETTING — Super admin controlled "coming soon" mode for turfs
+// Singleton: always upsert id="singleton"
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TurfServiceSetting {
+  id          String    @id @default("singleton")
+  isActive    Boolean   @default(false)
+  launchAt    DateTime? // countdown target; null = not set
+  updatedAt   DateTime  @updatedAt
+
+  @@map("turf_service_settings")
+}

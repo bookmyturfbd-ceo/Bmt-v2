@@ -38,7 +38,12 @@ export async function POST(request: NextRequest) {
 
   // ── Turf Owner ───────────────────────────────────────────────────────────────
   const owner = await prisma.owner.findFirst({
-    where: { email: { equals: cred, mode: 'insensitive' } },
+    where: { 
+      OR: [
+        { email: { equals: cred, mode: 'insensitive' } },
+        { phone: cred }
+      ]
+    },
   });
 
   if (owner) {
@@ -60,7 +65,12 @@ export async function POST(request: NextRequest) {
 
   // ── Organizer ────────────────────────────────────────────────────────────────
   const organizer = await prisma.organizer.findFirst({
-    where: { email: { equals: cred, mode: 'insensitive' } },
+    where: { 
+      OR: [
+        { email: { equals: cred, mode: 'insensitive' } },
+        { phone: cred }
+      ]
+    },
   });
 
   if (organizer) {
@@ -101,7 +111,12 @@ export async function POST(request: NextRequest) {
 
   // ── Player ───────────────────────────────────────────────────────────────────
   const player = await prisma.player.findFirst({
-    where: { email: { equals: cred, mode: 'insensitive' } },
+    where: { 
+      OR: [
+        { email: { equals: cred, mode: 'insensitive' } },
+        { phone: cred }
+      ]
+    },
   });
 
   if (!player) {

@@ -12,7 +12,7 @@ export default async function RootPage() {
   const roleCookie = cookieStore.get('bmt_role');
   const initialAuth = !!authCookie && (!roleCookie || roleCookie.value === 'player');
 
-  const [sports, turfs, bannerData, sponsorData] = await Promise.all([
+  const [sports, turfs, bannerData, sponsorData, turfServiceSetting] = await Promise.all([
     prisma.sport.findMany(),
     prisma.turf.findMany({
       where: { status: 'published' },
@@ -29,6 +29,7 @@ export default async function RootPage() {
       prisma.sponsor.findMany({ where: { active: true }, orderBy: { order: 'asc' } }),
       prisma.sponsorSettings.findUnique({ where: { id: 'singleton' } }),
     ]),
+    prisma.turfServiceSetting.findUnique({ where: { id: 'singleton' } }),
   ]);
 
   const [bannerSlides, carouselSettings] = bannerData;
@@ -77,7 +78,11 @@ export default async function RootPage() {
           settings={sponsorSettings ?? { autoSlide: true, intervalMs: 3500 }} 
         />
         <SearchBar turfs={turfsWithSportIds as any} sports={sports} />
-        <SportsTurfSection initialSports={sports} initialTurfs={turfsWithSportIds as any} />
+        <SportsTurfSection
+          initialSports={sports}
+          initialTurfs={turfsWithSportIds as any}
+          turfServiceSetting={turfServiceSetting ?? { isActive: false, launchAt: null }}
+        />
       </div>
     </div>
   );

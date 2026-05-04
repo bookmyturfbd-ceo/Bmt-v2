@@ -1,11 +1,12 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Building2, MapPin, ChevronRight } from 'lucide-react';
+import { Building2, MapPin, ChevronRight, Clock } from 'lucide-react';
 import { useLocale } from 'next-intl';
 
 interface Sport { id: string; name: string; category?: string; }
 interface Turf  { id: string; name: string; sportIds: string[]; cityId: string; area?: string; logoUrl?: string; imageUrls?: string[]; status: string; }
+interface TurfServiceSetting { isActive: boolean; launchAt: string | null; }
 
 const SPORT_EMOJI: Record<string, string> = {
   default: '🏟', futsal: '⚽', football: '⚽', cricket: '🏏',
@@ -22,22 +23,101 @@ function sportEmoji(name: string): string {
 
 const FALLBACK = 'https://images.unsplash.com/photo-1518605368461-1ee18cd30f6b?auto=format&fit=crop&q=80';
 
+// ── Countdown display ────────────────────────────────────────────────────────
+function useCountdown(launchAt: string | null) {
+  const [timeLeft, setTimeLeft] = useState({ d: 0, h: 0, m: 0, s: 0, done: false });
+
+  useEffect(() => {
+    if (!launchAt) return;
+    const tick = () => {
+      const diff = new Date(launchAt).getTime() - Date.now();
+      if (diff <= 0) { setTimeLeft({ d: 0, h: 0, m: 0, s: 0, done: true }); return; }
+      setTimeLeft({
+        d: Math.floor(diff / 86400000),
+        h: Math.floor((diff % 86400000) / 3600000),
+        m: Math.floor((diff % 3600000) / 60000),
+        s: Math.floor((diff % 60000) / 1000),
+        done: false,
+      });
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [launchAt]);
+
+  return timeLeft;
+}
+
+function CountdownUnit({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div className="w-16 h-16 rounded-2xl bg-black/60 border border-accent/30 flex items-center justify-center shadow-[0_0_20px_rgba(0,255,65,0.1)]">
+        <span className="text-2xl font-black text-accent font-mono tabular-nums">{String(value).padStart(2, '0')}</span>
+      </div>
+      <span className="text-[9px] font-black uppercase tracking-widest text-neutral-500">{label}</span>
+    </div>
+  );
+}
+
+function ComingSoonOverlay({ launchAt }: { launchAt: string | null }) {
+  const ct = useCountdown(launchAt);
+
+  return (
+    <section className="py-8 px-4">
+      <div className="relative overflow-hidden rounded-3xl border border-accent/20 bg-gradient-to-b from-black/80 to-neutral-900/80 p-8 flex flex-col items-center text-center gap-6 shadow-[0_0_60px_rgba(0,255,65,0.08)]">
+        {/* Ambient glow */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_-10%,rgba(0,255,65,0.08),transparent)] pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col items-center gap-2">
+          <div className="w-16 h-16 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center mb-2">
+            <Clock size={28} className="text-accent" />
+          </div>
+          <h3 className="text-2xl font-black text-white tracking-tight">Turf Booking</h3>
+          <p className="text-accent font-black text-sm tracking-widest uppercase">Coming Soon</p>
+          <p className="text-xs text-neutral-400 font-medium mt-1 max-w-[260px]">
+            We&apos;re finalizing our turf partnerships. Stay tuned — booking goes live soon!
+          </p>
+        </div>
+
+        {launchAt && !ct.done && (
+          <div className="relative z-10 flex items-end gap-3">
+            <CountdownUnit value={ct.d} label="Days" />
+            <span className="text-accent font-black text-2xl mb-4">:</span>
+            <CountdownUnit value={ct.h} label="Hrs" />
+            <span className="text-accent font-black text-2xl mb-4">:</span>
+            <CountdownUnit value={ct.m} label="Min" />
+            <span className="text-accent font-black text-2xl mb-4">:</span>
+            <CountdownUnit value={ct.s} label="Sec" />
+          </div>
+        )}
+
+        {ct.done && (
+          <div className="relative z-10 px-4 py-2 bg-accent/20 border border-accent/40 rounded-full text-accent font-black text-sm animate-pulse">
+            🚀 Launching now — refresh!
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export default function SportsTurfSection({
   initialSports = [],
   initialTurfs  = [],
+  turfServiceSetting = { isActive: false, launchAt: null },
 }: {
   initialSports: Sport[];
   initialTurfs:  Turf[];
+  turfServiceSetting?: TurfServiceSetting;
 }) {
   const t      = useTranslations('Home');
   const locale = useLocale();
 
-  // Build unique sport items from DB (deduplicated by name)
   const sportItems = Array.from(
     new Map(initialSports.map(s => [s.name, s])).values()
   );
 
-  const [selected, setSelected] = useState<string | null>(null); // null = All
+  const [selected, setSelected] = useState<string | null>(null);
 
   const publishedTurfs = initialTurfs;
   const filteredTurfs  = selected
@@ -51,6 +131,11 @@ export default function SportsTurfSection({
       })()
     : publishedTurfs;
 
+  // If coming soon mode is active, show overlay instead of turf list
+  if (turfServiceSetting.isActive) {
+    return <ComingSoonOverlay launchAt={turfServiceSetting.launchAt} />;
+  }
+
   return (
     <>
       {/* ── Sports Pill Row ── */}
@@ -62,9 +147,7 @@ export default function SportsTurfSection({
           </span>
         </div>
 
-        {/* Horizontal scroll pill row */}
         <div className="flex gap-2.5 overflow-x-auto green-scrollbar px-4 pb-3 snap-x">
-          {/* All button */}
           <button
             onClick={() => setSelected(null)}
             className={`flex items-center gap-2 px-4 py-2 rounded-full shrink-0 transition-all active:scale-95 snap-start border text-xs font-black whitespace-nowrap
@@ -117,7 +200,6 @@ export default function SportsTurfSection({
           <div className="flex gap-3 overflow-x-auto green-scrollbar px-4 pb-4 snap-x snap-mandatory">
             {filteredTurfs.map(turf => {
               const coverImage = turf.imageUrls?.[0] || turf.logoUrl || FALLBACK;
-              // Sport badge: 0 = no badge | 1 = sport name | 2+ = Multisports
               const sportIds = turf.sportIds ?? [];
               const badgeLabel: string | null = selected
                 ? selected
@@ -134,7 +216,6 @@ export default function SportsTurfSection({
                   className="shrink-0 w-[60vw] max-w-[240px] snap-start block active:scale-[0.97] transition-transform"
                 >
                   <div className="glass-panel rounded-3xl overflow-hidden flex flex-col border border-[var(--panel-border)] shadow-md">
-                    {/* Cover image */}
                     <div className="relative h-32 w-full bg-neutral-900 shrink-0">
                       <img
                         src={coverImage}
@@ -142,13 +223,11 @@ export default function SportsTurfSection({
                         className="w-full h-full object-cover"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-                      {/* Sport badge — only shown when a label exists */}
                       {badgeLabel && (
                         <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-md text-[9px] font-black tracking-widest uppercase text-white border border-white/10">
                           {badgeLabel}
                         </div>
                       )}
-                      {/* Logo overlay */}
                       {turf.logoUrl && (
                         <div className="absolute -bottom-5 right-4 w-11 h-11 rounded-full bg-neutral-800 border-[3px] border-black overflow-hidden shadow-lg z-10">
                           <img src={turf.logoUrl} alt="Logo" className="w-full h-full object-cover" />
@@ -156,7 +235,6 @@ export default function SportsTurfSection({
                       )}
                     </div>
 
-                    {/* Info */}
                     <div className={`px-4 pb-4 flex flex-col gap-1 ${turf.logoUrl ? 'pt-7' : 'pt-4'}`}>
                       <h4 className="text-[15px] font-bold tracking-tight truncate text-foreground">
                         {turf.name}

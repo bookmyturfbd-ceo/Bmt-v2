@@ -1,14 +1,10 @@
 'use client';
 import { useState } from 'react';
-import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
-import { Eye, EyeOff, UserPlus, Phone, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, Lock, Phone, ShieldCheck, ArrowRight } from 'lucide-react';
 import AuthInput from '@/components/auth/AuthInput';
 
-export default function RegisterPage() {
-  const t = useTranslations('Auth.register');
-  const val = useTranslations('Auth.validation');
-
+export default function ForgotPasswordPage() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [showPw, setShowPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
@@ -16,8 +12,6 @@ export default function RegisterPage() {
   const [form, setForm] = useState({
     phone: '',
     otp: '',
-    fullName: '',
-    email: '',
     password: '',
     confirmPassword: '',
   });
@@ -34,11 +28,11 @@ export default function RegisterPage() {
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.phone.trim()) {
-      setErrors({ phone: val('fieldRequired') });
+      setErrors({ phone: 'Mobile number is required' });
       return;
     }
     if (!/^(?:\+88|88)?01[3-9]\d{8}$/.test(form.phone.trim())) {
-      setErrors({ phone: val('phoneInvalid') });
+      setErrors({ phone: 'Invalid BD mobile number format' });
       return;
     }
 
@@ -48,7 +42,7 @@ export default function RegisterPage() {
       const res = await fetch('/api/auth/otp/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: form.phone, purpose: 'signup' }),
+        body: JSON.stringify({ phone: form.phone, purpose: 'reset' }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -76,7 +70,7 @@ export default function RegisterPage() {
       const res = await fetch('/api/auth/otp/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: form.phone, otp: form.otp, purpose: 'signup' }),
+        body: JSON.stringify({ phone: form.phone, otp: form.otp, purpose: 'reset' }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -96,13 +90,10 @@ export default function RegisterPage() {
     
     // Validate final step
     const eObj: Record<string, string> = {};
-    if (!form.fullName.trim()) eObj.fullName = val('fieldRequired');
-    if (!form.email.trim()) eObj.email = val('fieldRequired');
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) eObj.email = val('emailInvalid');
-    if (!form.password) eObj.password = val('fieldRequired');
-    else if (form.password.length < 8) eObj.password = val('passwordTooShort');
-    if (!form.confirmPassword) eObj.confirmPassword = val('fieldRequired');
-    else if (form.password !== form.confirmPassword) eObj.confirmPassword = val('passwordMismatch');
+    if (!form.password) eObj.password = 'Password is required';
+    else if (form.password.length < 8) eObj.password = 'Password must be at least 8 characters';
+    if (!form.confirmPassword) eObj.confirmPassword = 'Confirm your password';
+    else if (form.password !== form.confirmPassword) eObj.confirmPassword = 'Passwords do not match';
     
     if (Object.keys(eObj).length > 0) {
       setErrors(eObj);
@@ -112,25 +103,20 @@ export default function RegisterPage() {
     setSubmitting(true);
     setServerErr('');
     try {
-      const res = await fetch('/api/bmt/players', {
+      const res = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fullName: form.fullName,
-          email:    form.email,
-          phone:    form.phone,
-          password: form.password,
-          otp:      form.otp,
-          joinedAt: new Date().toISOString().split('T')[0],
+          phone: form.phone,
+          otp: form.otp,
+          newPassword: form.password,
         }),
       });
       const data = await res.json();
-      if (!res.ok) { setServerErr(data.error || 'Registration failed.'); setSubmitting(false); return; }
-      document.cookie = `bmt_auth=1; path=/; max-age=86400; SameSite=Lax`;
-      document.cookie = `bmt_role=player; path=/; max-age=86400; SameSite=Lax`;
-      document.cookie = `bmt_player_id=${data.id}; path=/; max-age=86400; SameSite=Lax`;
-      document.cookie = `bmt_name=${encodeURIComponent(form.fullName)}; path=/; max-age=86400; SameSite=Lax`;
-      window.location.href = window.location.origin + '/en';
+      if (!res.ok) { setServerErr(data.error || 'Failed to reset password.'); setSubmitting(false); return; }
+      
+      // Success, redirect to login
+      window.location.href = window.location.origin + '/en/login?reset=success';
     } catch {
       setServerErr('Network error. Please try again.');
       setSubmitting(false);
@@ -148,9 +134,9 @@ export default function RegisterPage() {
           <div className="w-20 h-20 mb-4 drop-shadow-[0_0_15px_rgba(0,255,0,0.2)]">
             <img src="/logo.png" alt="BMT Logo" className="w-full h-full object-contain" />
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-[var(--foreground)]">{t('title')}</h1>
+          <h1 className="text-2xl font-black tracking-tight text-[var(--foreground)]">Reset Password</h1>
           <p className="text-sm text-neutral-500 font-medium mt-1">
-            {step === 1 ? 'Verify your mobile number' : step === 2 ? 'Enter verification code' : t('subtitle')}
+            {step === 1 ? 'Enter your registered mobile number' : step === 2 ? 'Enter verification code' : 'Set your new password'}
           </p>
         </div>
 
@@ -158,7 +144,7 @@ export default function RegisterPage() {
           {step === 1 && (
             <form onSubmit={handleSendOtp} className="flex flex-col gap-4">
               <AuthInput
-                label={t('phoneLabel')}
+                label="Mobile Number"
                 type="tel"
                 placeholder="017XXXXXXXX"
                 value={form.phone}
@@ -212,28 +198,9 @@ export default function RegisterPage() {
           {step === 3 && (
             <form onSubmit={handleFinalSubmit} className="flex flex-col gap-4">
               <AuthInput
-                label={t('fullNameLabel')}
-                type="text"
-                placeholder={t('fullNamePlaceholder')}
-                value={form.fullName}
-                onChange={set('fullName')}
-                error={errors.fullName}
-                autoComplete="name"
-              />
-              <AuthInput
-                label={t('emailLabel')}
-                type="email"
-                placeholder={t('emailPlaceholder')}
-                value={form.email}
-                onChange={set('email')}
-                error={errors.email}
-                autoComplete="email"
-              />
-              <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent my-1" />
-              <AuthInput
-                label={t('passwordLabel')}
+                label="New Password"
                 type={showPw ? 'text' : 'password'}
-                placeholder={t('passwordPlaceholder')}
+                placeholder="Min. 8 characters"
                 value={form.password}
                 onChange={set('password')}
                 error={errors.password}
@@ -245,9 +212,9 @@ export default function RegisterPage() {
                 }
               />
               <AuthInput
-                label={t('confirmPasswordLabel')}
+                label="Confirm New Password"
                 type={showConfirmPw ? 'text' : 'password'}
-                placeholder={t('confirmPasswordPlaceholder')}
+                placeholder="Min. 8 characters"
                 value={form.confirmPassword}
                 onChange={set('confirmPassword')}
                 error={errors.confirmPassword}
@@ -265,8 +232,8 @@ export default function RegisterPage() {
                 disabled={submitting}
                 className="mt-2 w-full bg-accent text-black font-black py-3.5 rounded-xl hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(0,255,0,0.2)] text-sm tracking-wide disabled:opacity-60"
               >
-                <UserPlus size={16} className="stroke-[2.5]" />
-                {submitting ? 'Creating account…' : t('submit')}
+                <Lock size={16} className="stroke-[2.5]" />
+                {submitting ? 'Resetting...' : 'Reset Password'}
               </button>
             </form>
           )}
@@ -274,20 +241,13 @@ export default function RegisterPage() {
 
         <div className="flex flex-col items-center gap-2 mt-6">
           <p className="text-sm text-neutral-500 font-medium">
-            {t('alreadyHaveAccount')}{' '}
+            Remembered your password?{' '}
             <Link href="/login" className="text-accent font-bold hover:underline">
-              {t('loginLink')}
+              Login here
             </Link>
-          </p>
-          <p className="text-xs text-neutral-600 font-medium text-center leading-relaxed">
-            {t('ownerCta')}{' '}
-            <a href="mailto:contact@bookmyturf.com" className="text-neutral-400 font-bold hover:text-[var(--foreground)] dark:hover:text-white transition-colors">
-              {t('ownerCtaLink')}
-            </a>
           </p>
         </div>
       </div>
     </div>
   );
 }
-

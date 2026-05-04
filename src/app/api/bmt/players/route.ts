@@ -64,10 +64,29 @@ export async function GET(req: NextRequest) {
 // POST /api/bmt/players  — register a new player (bcrypt-hashes password)
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { fullName, email, phone, password, joinedAt } = body;
+  const { fullName, email, phone, password, joinedAt, otp } = body;
 
-  if (!fullName || !email || !password) {
-    return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 });
+  if (!fullName || !email || !password || !phone) {
+    return NextResponse.json({ error: 'Missing required fields (including phone).' }, { status: 400 });
+  }
+
+  // Enforce OTP verification
+  if (!otp) {
+    return NextResponse.json({ error: 'OTP is required for registration.' }, { status: 400 });
+  }
+
+  const otpRecord = await prisma.otpVerification.findFirst({
+    where: {
+      phone: phone.trim(),
+      otp: otp.trim(),
+      purpose: 'signup',
+      verified: true,
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  if (!otpRecord) {
+    return NextResponse.json({ error: 'Please verify your phone number with OTP first.' }, { status: 400 });
   }
 
   // Duplicate email check
@@ -80,6 +99,17 @@ export async function POST(req: NextRequest) {
       { status: 409 }
     );
   }
+  
+  // Duplicate phone check
+  const existingPhone = await prisma.player.findFirst({
+    where: { phone: { equals: phone.trim() } },
+  });
+  if (existingPhone) {
+    return NextResponse.json(
+      { error: 'An account with this phone number already exists.' },
+      { status: 409 }
+    );
+  }
 
   const hashed = await bcrypt.hash(password.trim(), 10);
 
@@ -87,7 +117,7 @@ export async function POST(req: NextRequest) {
     data: {
       fullName:  fullName.trim(),
       email:     email.trim().toLowerCase(),
-      phone:     phone?.trim() || '',
+      phone:     phone.trim(),
       password:  hashed,
       joinedAt:  joinedAt ? new Date(joinedAt) : new Date(),
     },
@@ -104,6 +134,11 @@ export async function POST(req: NextRequest) {
       avatarUrl:     true,
       banStatus:     true,
     },
+  });
+
+  // Cleanup OTP
+  await prisma.otpVerification.deleteMany({
+    where: { phone: phone.trim(), purpose: 'signup' }
   });
 
   return NextResponse.json(player, { status: 201 });

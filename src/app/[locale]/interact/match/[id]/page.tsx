@@ -50,6 +50,14 @@ export default function InteractionBoardPage() {
   const [scorerPanelOpen, setScorerPanelOpen] = useState(false);
   const [scorerPlayerId, setScorerPlayerId] = useState<string | null>(null);
   const [scorerSaving, setScorerSaving] = useState(false);
+  const [turfServiceComingSoon, setTurfServiceComingSoon] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/admin/turf-service-setting')
+      .then(r => r.json())
+      .then(d => setTurfServiceComingSoon(d.isActive ?? false))
+      .catch(() => {});
+  }, []);
 
   // Roster state — never reset by polling once user has touched it
   const picksInitialized = useRef(false);
@@ -780,6 +788,7 @@ export default function InteractionBoardPage() {
                 {/* BMT card */}
                 <button
                   onClick={async () => {
+                    if (turfServiceComingSoon) return;
                     setSaving(true); setMsg('');
                     const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'set_venue_type', venueType:'BMT'}) });
                     const d = await r.json();
@@ -787,14 +796,26 @@ export default function InteractionBoardPage() {
                     else setMsg('❌ ' + d.error);
                     setSaving(false);
                   }}
-                  disabled={saving}
-                  className="relative w-full p-5 rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-900/40 to-green-900/20 text-left hover:border-emerald-400/50 hover:from-emerald-900/60 transition-all active:scale-[0.98] disabled:opacity-50"
+                  disabled={saving || turfServiceComingSoon}
+                  className={`relative w-full p-5 rounded-2xl border text-left transition-all ${
+                    turfServiceComingSoon
+                      ? 'border-neutral-700 bg-neutral-900/60 opacity-60 cursor-not-allowed'
+                      : 'border-emerald-500/30 bg-gradient-to-br from-emerald-900/40 to-green-900/20 hover:border-emerald-400/50 hover:from-emerald-900/60 active:scale-[0.98]'
+                  }`}
                 >
-                  <span className="absolute top-3 right-3 text-[8px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">FREE · RECOMMENDED</span>
+                  {turfServiceComingSoon ? (
+                    <span className="absolute top-3 right-3 text-[8px] font-black px-2 py-0.5 rounded-full bg-neutral-700 text-neutral-400 border border-neutral-600">🚧 COMING SOON</span>
+                  ) : (
+                    <span className="absolute top-3 right-3 text-[8px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">FREE · RECOMMENDED</span>
+                  )}
                   <div className="text-3xl mb-2">🏟️</div>
-                  <p className="text-base font-black text-white">Book Turf via BMT</p>
-                  <p className="text-xs text-neutral-400 mt-1">Search our platform's verified turfs. Opponent accepts your slot pick. Fully managed.</p>
-                  {saving && <Loader2 size={14} className="absolute bottom-3 right-3 animate-spin text-emerald-400" />}
+                  <p className={`text-base font-black ${turfServiceComingSoon ? 'text-neutral-500' : 'text-white'}`}>Book Turf via BMT</p>
+                  <p className="text-xs text-neutral-500 mt-1">
+                    {turfServiceComingSoon
+                      ? 'BMT turf booking is coming soon. Use an external turf for now.'
+                      : "Search our platform's verified turfs. Opponent accepts your slot pick. Fully managed."}
+                  </p>
+                  {saving && !turfServiceComingSoon && <Loader2 size={14} className="absolute bottom-3 right-3 animate-spin text-emerald-400" />}
                 </button>
                 {/* Open WBT card */}
                 <button
