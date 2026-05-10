@@ -72,7 +72,11 @@ export async function GET() {
       orderBy: { joinedAt: 'desc' },
       include: {
         wallet: true,
-        _count: { select: { tournaments: true } }
+        _count: { select: { tournaments: true } },
+        tournaments: {
+          select: { id: true, name: true, status: true, entryFee: true, maxParticipants: true, _count: { select: { registrations: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
       }
     });
 

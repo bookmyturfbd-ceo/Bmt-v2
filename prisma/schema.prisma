@@ -1,3 +1,10 @@
+// ─── Book My Turf — Production Prisma Schema ─────────────────────────────────
+// Provider: PostgreSQL (Supabase / Railway raw Postgres URL)
+// Auth: 100% custom — NO Supabase Auth, NO third-party provider
+// Passwords: bcrypt hashed strings stored in password fields
+// Images: plain String fields (CDN URL injected later)
+// ─────────────────────────────────────────────────────────────────────────────
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -6,1468 +13,9 @@ datasource db {
   provider = "postgresql"
 }
 
-model Division {
-  id        String    @id @default(cuid())
-  name      String    @unique
-  createdAt DateTime  @default(now())
-  cities    City[]
-  turfs     Turf[]
-  wbtTurfs  WbtTurf[]
-
-  @@map("divisions")
-}
-
-model City {
-  id         String    @id @default(cuid())
-  name       String
-  divisionId String
-  createdAt  DateTime  @default(now())
-  division   Division  @relation(fields: [divisionId], references: [id], onDelete: Cascade)
-  turfs      Turf[]
-  wbtTurfs   WbtTurf[]
-  homeTeams  Team[]    @relation("TeamHomeAreas")
-
-  @@unique([name, divisionId])
-  @@map("cities")
-}
-
-model Sport {
-  id         String      @id @default(cuid())
-  name       String      @unique
-  createdAt  DateTime    @default(now())
-  category   String      @default("Other")
-  turfSports TurfSport[]
-
-  @@map("sports")
-}
-
-model Amenity {
-  id            String        @id @default(cuid())
-  name          String        @unique
-  createdAt     DateTime      @default(now())
-  turfAmenities TurfAmenity[]
-
-  @@map("amenities")
-}
-
-model Player {
-  id                      String               @id @default(cuid())
-  fullName                String
-  email                   String               @unique
-  phone                   String               @default("")
-  password                String
-  joinedAt                DateTime             @default(now())
-  walletBalance           Float                @default(0)
-  loyaltyPoints           Int                  @default(0)
-  level                   Int                  @default(1)
-  levelProgress           Float                @default(0)
-  avatarUrl               String?
-  banStatus               BanStatus            @default(none)
-  banUntil                DateTime?
-  banReason               String?
-  mmr                     Int                  @default(1000)
-  cricketMmr              Int                  @default(1000)
-  footballMmr             Int                  @default(1000)
-  tournamentCricketMmr    Int                  @default(1000)
-  tournamentFootballMmr   Int                  @default(1000)
-  battingPerformances     BattingPerformance[]
-  bookingSplits           BookingSplit[]
-  bookings                Booking[]
-  bowlingPerformances     BowlingPerformance[]
-  chatMessages            MatchChatMessage[]   @relation("PlayerChatMessages")
-  proposedSingleScorerFor Match[]              @relation("MatchProposedScorer")
-  playGroupChats          PlayGroupChat[]
-  playGroupMemberships    PlayGroupMember[]
-  playJoinRequests        PlayJoinRequest[]
-  playRequestChats        PlayRequestChat[]
-  badges                  PlayerBadge[]
-  matchStats              PlayerMatchStat[]
-  reels                   Reel[]
-  reviews                 Review[]
-  shopOrders              ShopOrder[]
-  teamAnnouncements       TeamAnnouncement[]
-  teamMemberships         TeamMember[]
-  ownedTeams              Team[]               @relation("TeamOwner")
-  walletRequests          WalletRequest[]
-
-  @@map("players")
-}
-
-model PlayerBadge {
-  id          String   @id @default(cuid())
-  playerId    String
-  title       String
-  description String?
-  icon        String
-  earnedAt    DateTime @default(now())
-  isShowcased Boolean  @default(false)
-  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
-
-  @@map("player_badges")
-}
-
-model Owner {
-  id                String             @id @default(cuid())
-  name              String
-  email             String             @unique
-  phone             String             @default("")
-  contactPerson     String?
-  password          String
-  joinedAt          DateTime           @default(now())
-  walletBalance     Float              @default(0)
-  pendingBmtCut     Float              @default(0)
-  isCoach           Boolean            @default(false)
-  financeLock       FinanceLock?
-  ledgerConclusions LedgerConclusion[]
-  ledgerEntries     LedgerEntry[]
-  payouts           Payout[]
-  turfs             Turf[]
-
-  @@map("owners")
-}
-
-model FinanceLock {
-  id       String @id @default(cuid())
-  ownerId  String @unique
-  password String
-  owner    Owner  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-
-  @@map("finance_locks")
-}
-
-model Turf {
-  id                String             @id @default(cuid())
-  name              String
-  ownerId           String
-  divisionId        String
-  cityId            String
-  area              String?
-  lat               Float?
-  lng               Float?
-  mapLink           String?
-  logoUrl           String?
-  imageUrls         String[]           @default([])
-  status            TurfStatus         @default(pending)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  revenueModelType  RevenueModelType?
-  revenueModelValue Float?
-  rules             String?
-  coachType         String?
-  isCoachProfile    Boolean            @default(false)
-  discounts         Discount[]
-  grounds           Ground[]
-  ledgerConclusions LedgerConclusion[]
-  ledgerEntries     LedgerEntry[]
-  reviews           Review[]
-  amenities         TurfAmenity[]
-  sports            TurfSport[]
-  city              City               @relation(fields: [cityId], references: [id])
-  division          Division           @relation(fields: [divisionId], references: [id])
-  owner             Owner              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  homeTeams         Team[]             @relation("TeamHomeTurfs")
-
-  @@map("turfs")
-}
-
-model Review {
-  id         String   @id @default(cuid())
-  turfId     String
-  playerId   String?
-  playerName String?
-  rating     Float
-  comment    String?
-  createdAt  DateTime @default(now())
-  player     Player?  @relation(fields: [playerId], references: [id])
-  turf       Turf     @relation(fields: [turfId], references: [id], onDelete: Cascade)
-
-  @@map("reviews")
-}
-
-model TurfSport {
-  turfId  String
-  sportId String
-  sport   Sport  @relation(fields: [sportId], references: [id], onDelete: Cascade)
-  turf    Turf   @relation(fields: [turfId], references: [id], onDelete: Cascade)
-
-  @@id([turfId, sportId])
-  @@map("turf_sports")
-}
-
-model TurfAmenity {
-  turfId    String
-  amenityId String
-  amenity   Amenity @relation(fields: [amenityId], references: [id], onDelete: Cascade)
-  turf      Turf    @relation(fields: [turfId], references: [id], onDelete: Cascade)
-
-  @@id([turfId, amenityId])
-  @@map("turf_amenities")
-}
-
-model Ground {
-  id     String @id @default(cuid())
-  turfId String
-  name   String
-  turf   Turf   @relation(fields: [turfId], references: [id], onDelete: Cascade)
-  slots  Slot[]
-
-  @@map("grounds")
-}
-
-model Slot {
-  id           String       @id @default(cuid())
-  turfId       String
-  groundId     String
-  startTime    String
-  endTime      String
-  timeCategory TimeCategory
-  days         String[]     @default([])
-  price        Float
-  status       SlotStatus   @default(available)
-  sports       String[]     @default([])
-  bookings     Booking[]
-  ground       Ground       @relation(fields: [groundId], references: [id], onDelete: Cascade)
-
-  @@map("slots")
-}
-
-model Booking {
-  id               String         @id @default(cuid())
-  playerId         String
-  slotId           String
-  turfId           String
-  date             String
-  price            Float
-  ownerShare       Float          @default(0)
-  bmtCut           Float          @default(0)
-  status           BookingStatus  @default(confirmed)
-  createdAt        DateTime       @default(now())
-  paymentProofUrl  String?
-  selectedSport    String?
-  bookingCode      String?
-  notes            String?
-  source           String?
-  groupBookingCode String?
-  groupId          String?
-  splits           BookingSplit[]
-  player           Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  slot             Slot           @relation(fields: [slotId], references: [id])
-
-  @@map("bookings")
-}
-
-model BookingSplit {
-  id        String  @id @default(cuid())
-  bookingId String
-  playerId  String
-  amount    Float
-  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  player    Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
-
-  @@map("booking_splits")
-}
-
-model Discount {
-  id          String       @id @default(cuid())
-  turfId      String
-  code        String
-  type        DiscountType
-  value       Float
-  minBookings Int?
-  maxUses     Int?
-  usedCount   Int          @default(0)
-  active      Boolean      @default(true)
-  expiresAt   DateTime?
-  createdAt   DateTime     @default(now())
-  groundId    String?
-  targetDays  String[]     @default([])
-  targetSport String?
-  targetTimes String[]     @default([])
-  turf        Turf         @relation(fields: [turfId], references: [id], onDelete: Cascade)
-
-  @@unique([turfId, code])
-  @@map("discounts")
-}
-
-model LedgerEntry {
-  id          String          @id @default(cuid())
-  turfId      String
-  ownerId     String
-  month       String
-  type        LedgerEntryType
-  category    LedgerCategory
-  description String
-  amount      Float
-  createdAt   DateTime        @default(now())
-  owner       Owner           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  turf        Turf            @relation(fields: [turfId], references: [id], onDelete: Cascade)
-
-  @@map("ledger_entries")
-}
-
-model LedgerConclusion {
-  id             String   @id @default(cuid())
-  turfId         String
-  ownerId        String
-  month          String
-  totalAppIncome Float    @default(0)
-  totalWalkIn    Float    @default(0)
-  totalCost      Float    @default(0)
-  netProfit      Float    @default(0)
-  concludedAt    DateTime @default(now())
-  owner          Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  turf           Turf     @relation(fields: [turfId], references: [id], onDelete: Cascade)
-
-  @@unique([ownerId, month])
-  @@map("ledger_conclusions")
-}
-
-model Payout {
-  id        String       @id @default(cuid())
-  ownerId   String
-  ownerName String
-  turfName  String
-  amount    Float
-  bmtCut    Float        @default(0)
-  date      String
-  method    PayoutMethod
-  txId      String?
-  proofUrl  String?
-  createdAt DateTime     @default(now())
-  owner     Owner        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-
-  @@map("payouts")
-}
-
-model WalletRequest {
-  id            String               @id @default(cuid())
-  playerId      String
-  playerName    String
-  amount        Float
-  method        WalletRechargeMethod
-  screenshotUrl String?
-  status        WalletRequestStatus  @default(pending)
-  createdAt     DateTime             @default(now())
-  reviewedAt    DateTime?
-  note          String?
-  player        Player               @relation(fields: [playerId], references: [id], onDelete: Cascade)
-
-  @@map("wallet_requests")
-}
-
-model PaymentMethod {
-  id          String               @id @default(cuid())
-  type        WalletRechargeMethod @unique
-  number      String
-  accountType String
-  updatedAt   DateTime             @updatedAt
-
-  @@map("payment_methods")
-}
-
-model InviteToken {
-  id        String     @id @default(cuid())
-  token     String     @unique
-  contact   String
-  role      InviteRole
-  issuedAt  DateTime   @default(now())
-  expiresAt DateTime
-  usedAt    DateTime?
-  usedBy    String?
-
-  @@map("invite_tokens")
-}
-
-model PlatformSetting {
-  key       String   @id
-  value     String
-  updatedAt DateTime @updatedAt
-
-  @@map("platform_settings")
-}
-
-model MonthlyFee {
-  id        String    @id @default(cuid())
-  turfId    String
-  ownerId   String
-  turfName  String
-  ownerName String
-  month     String
-  amount    Float
-  paid      Boolean   @default(false)
-  paidAt    DateTime?
-  createdAt DateTime  @default(now())
-
-  @@unique([turfId, month])
-  @@map("monthly_fees")
-}
-
-model BannerSlide {
-  id        String   @id @default(cuid())
-  imageUrl  String
-  ctaText   String?
-  ctaLink   String?
-  order     Int      @default(0)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-
-  @@map("banner_slides")
-}
-
-model CarouselSettings {
-  id         String  @id @default("singleton")
-  autoSlide  Boolean @default(true)
-  intervalMs Int     @default(3500)
-
-  @@map("carousel_settings")
-}
-
-model TeamAnnouncement {
-  id        String   @id @default(cuid())
-  teamId    String
-  authorId  String
-  title     String
-  content   String
-  createdAt DateTime @default(now())
-  author    Player   @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-
-  @@map("team_announcements")
-}
-
-model Team {
-  id                    String                 @id @default(cuid())
-  name                  String                 @unique
-  logoUrl               String?
-  ownerId               String
-  createdAt             DateTime               @default(now())
-  level                 Int                    @default(1)
-  sportType             SportType
-  teamMmr               Int                    @default(1000)
-  xp                    Int                    @default(0)
-  isSubscribed          Boolean                @default(false)
-  formation             String?
-  cricketMmr            Int                    @default(1000)
-  footballMmr           Int                    @default(1000)
-  teamType              TeamType               @default(REGULAR)
-  disputes              ChallengeDispute[]
-  challengeSubscription ChallengeSubscription?
-  matchesAsTeamA        Match[]                @relation("TeamAMatches")
-  matchesAsTeamB        Match[]                @relation("TeamBMatches")
-  playerStats           PlayerMatchStat[]
-  announcements         TeamAnnouncement[]
-  members               TeamMember[]
-  owner                 Player                 @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  homeAreas             City[]                 @relation("TeamHomeAreas")
-  homeTurfs             Turf[]                 @relation("TeamHomeTurfs")
-
-  @@map("teams")
-}
-
-model TeamMember {
-  id            String   @id @default(cuid())
-  teamId        String
-  playerId      String
-  role          TeamRole @default(member)
-  joinedAt      DateTime @default(now())
-  isStarter     Boolean  @default(false)
-  pitchPosition Int?
-  sportRole     String?
-  player        Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  team          Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-
-  @@unique([teamId, playerId])
-  @@map("team_members")
-}
-
-model Match {
-  id                     String                 @id @default(cuid())
-  teamA_Id               String
-  teamB_Id               String
-  status                 MatchStatus            @default(PENDING)
-  scoreA                 Int                    @default(0)
-  scoreB                 Int                    @default(0)
-  winnerId               String?
-  createdAt              DateTime               @default(now())
-  updatedAt              DateTime               @updatedAt
-  mmrChangeA             Int                    @default(0)
-  mmrChangeB             Int                    @default(0)
-  seasonId               String?
-  bookingIdA             String?
-  bookingIdB             String?
-  finalOutcome           String?
-  formationA             String?
-  formationB             String?
-  goalsA                 Int?
-  goalsB                 Int?
-  matchDate              String?
-  matchEndedByA          Boolean                @default(false)
-  matchEndedByB          Boolean                @default(false)
-  matchStartedByA        Boolean                @default(false)
-  matchStartedByB        Boolean                @default(false)
-  oversA                 Float?
-  oversB                 Float?
-  rosterLockedA          Boolean                @default(false)
-  rosterLockedB          Boolean                @default(false)
-  runsA                  Int?
-  runsB                  Int?
-  scoreSubmittedByA      Boolean                @default(false)
-  scoreSubmittedByB      Boolean                @default(false)
-  selectedSlotId         String?
-  submittedScoreA        Int?
-  submittedScoreA2       Int?
-  submittedScoreB        Int?
-  submittedScoreB2       Int?
-  venueBookedAt          DateTime?
-  wicketsA               Int?
-  wicketsB               Int?
-  bookingCode            String?
-  agreedByA              Boolean                @default(false)
-  agreedByB              Boolean                @default(false)
-  resultSeenByA          Boolean                @default(false)
-  resultSeenByB          Boolean                @default(false)
-  agreedOvers            Int?
-  badgeBonusApplied      Boolean                @default(false)
-  scoreModeAgreed        Boolean                @default(false)
-  scoreModeRequestedBy   String?
-  scoringMode            ScoringMode            @default(LIVE)
-  venueType              VenueType?
-  wbtCouponCode          String?
-  wbtCouponDiscount      Float                  @default(0)
-  wbtFrom                String?
-  wbtPaymentA            Boolean                @default(false)
-  wbtPaymentB            Boolean                @default(false)
-  wbtTo                  String?
-  wbtTurfId              String?
-  wbtTurfName            String?
-  venueConfirmedByB      Boolean                @default(false)
-  proposedSingleScorerId String?
-  disputes               ChallengeDispute[]
-  cricketInnings         CricketInnings[]
-  cricketToss            CricketToss?
-  chatMessages           MatchChatMessage[]
-  events                 MatchEvent[]
-  halfTime               MatchHalfTime?
-  rosterPicks            MatchRosterPick[]
-  scorers                MatchScorer[]
-  signOffs               MatchSignOff[]
-  venueSuggestions       MatchVenueSuggestion[]
-  proposedSingleScorer   Player?                @relation("MatchProposedScorer", fields: [proposedSingleScorerId], references: [id])
-  season                 ChallengeSeason?       @relation(fields: [seasonId], references: [id])
-  teamA                  Team                   @relation("TeamAMatches", fields: [teamA_Id], references: [id])
-  teamB                  Team                   @relation("TeamBMatches", fields: [teamB_Id], references: [id])
-  playerStats            PlayerMatchStat[]
-
-  @@map("matches")
-}
-
-model PlayerMatchStat {
-  id         String    @id @default(cuid())
-  matchId    String
-  playerId   String
-  teamId     String
-  badge      BadgeType @default(NONE)
-  goals      Int       @default(0)
-  assists    Int       @default(0)
-  runs       Int       @default(0)
-  wickets    Int       @default(0)
-  createdAt  DateTime  @default(now())
-  mmrChange  Int       @default(0)
-  overs      Float     @default(0)
-  redCard    Boolean   @default(false)
-  yellowCard Boolean   @default(false)
-  badgeBonus Int       @default(0)
-  match      Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  player     Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  team       Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
-
-  @@unique([matchId, playerId])
-  @@map("player_match_stats")
-}
-
-model MatchRosterPick {
-  id        String  @id @default(cuid())
-  matchId   String
-  teamId    String
-  memberId  String
-  isStarter Boolean @default(true)
-  match     Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
-
-  @@unique([matchId, memberId])
-  @@map("match_roster_picks")
-}
-
-model MatchVenueSuggestion {
-  id       String @id @default(cuid())
-  matchId  String
-  turfId   String
-  slotId   String
-  date     String
-  priority Int
-  match    Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
-
-  @@map("match_venue_suggestions")
-}
-
-model MatchChatMessage {
-  id        String   @id @default(cuid())
-  matchId   String
-  playerId  String
-  teamId    String
-  message   String
-  createdAt DateTime @default(now())
-  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  player    Player   @relation("PlayerChatMessages", fields: [playerId], references: [id], onDelete: Cascade)
-
-  @@map("match_chat_messages")
-}
-
-model MatchScorer {
-  id         String   @id @default(cuid())
-  matchId    String
-  teamId     String
-  playerId   String
-  assignedAt DateTime @default(now())
-  match      Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
-
-  @@unique([matchId, teamId])
-  @@map("match_scorers")
-}
-
-model MatchEvent {
-  id               String         @id @default(cuid())
-  matchId          String
-  type             MatchEventType
-  teamId           String
-  playerId         String?
-  assistPlayerId   String?
-  playerOnId       String?
-  minute           Int
-  status           EventStatus    @default(PENDING)
-  disputedByTeamId String?
-  resolvedAt       DateTime?
-  resolution       String?
-  createdAt        DateTime       @default(now())
-  match            Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
-
-  @@map("match_events")
-}
-
-model MatchSignOff {
-  id          String   @id @default(cuid())
-  matchId     String
-  teamId      String
-  signedOffAt DateTime @default(now())
-  match       Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
-
-  @@unique([matchId, teamId])
-  @@map("match_sign_offs")
-}
-
-model MatchHalfTime {
-  id          String    @id @default(cuid())
-  matchId     String    @unique
-  calledByA   Boolean   @default(false)
-  calledByB   Boolean   @default(false)
-  confirmedAt DateTime?
-  match       Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
-
-  @@map("match_halftimes")
-}
-
-model ChallengeSeason {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  startDate DateTime
-  endDate   DateTime
-  isActive  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  matches   Match[]
-
-  @@map("challenge_seasons")
-}
-
-model ChallengeSubscription {
-  id             String    @id @default(cuid())
-  teamId         String    @unique
-  active         Boolean   @default(true)
-  subscribedAt   DateTime  @default(now())
-  gracePeriodEnd DateTime?
-  team           Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
-
-  @@map("challenge_subscriptions")
-}
-
-model ChallengePayment {
-  id        String   @id @default(cuid())
-  teamId    String
-  ownerId   String
-  amount    Float
-  createdAt DateTime @default(now())
-
-  @@map("challenge_payments")
-}
-
-model ChallengeDispute {
-  id        String        @id @default(cuid())
-  matchId   String
-  teamId    String
-  reason    String
-  status    DisputeStatus @default(PENDING)
-  createdAt DateTime      @default(now())
-  match     Match         @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  team      Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
-
-  @@map("challenge_disputes")
-}
-
-model ChallengeMarketConfig {
-  id               String   @id @default("singleton")
-  monthlyFee       Int      @default(500)
-  updatedAt        DateTime @updatedAt
-  updatedByAdminId String?
-
-  @@map("challenge_market_config")
-}
-
-model ShopCarouselSlide {
-  id        String   @id @default(cuid())
-  imageUrl  String
-  ctaText   String?
-  ctaLink   String?
-  order     Int      @default(0)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-
-  @@map("shop_carousel_slides")
-}
-
-model ShopCarouselSettings {
-  id         String   @id @default("singleton")
-  autoSlide  Boolean  @default(true)
-  intervalMs Int      @default(3500)
-  slideType  String   @default("auto")
-  updatedAt  DateTime @updatedAt
-
-  @@map("shop_carousel_settings")
-}
-
-model ShopCategory {
-  id           String         @id @default(cuid())
-  name         String
-  slug         String         @unique
-  parentId     String?
-  order        Int            @default(0)
-  imageUrl     String?
-  createdAt    DateTime       @default(now())
-  sizeChartUrl String?
-  parent       ShopCategory?  @relation("SubCategories", fields: [parentId], references: [id])
-  children     ShopCategory[] @relation("SubCategories")
-  products     ShopProduct[]
-
-  @@map("shop_categories")
-}
-
-model ShopProduct {
-  id             String            @id @default(cuid())
-  name           String
-  slug           String            @unique
-  categoryId     String
-  mainImage      String
-  galleryImages  String[]          @default([])
-  description    String?
-  seoTitle       String?
-  seoDescription String?
-  productCost    Float             @default(0)
-  marketingCost  Float             @default(0)
-  status         String            @default("active")
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  orderItems     ShopOrderItem[]
-  sizes          ShopProductSize[]
-  category       ShopCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-
-  @@map("shop_products")
-}
-
-model ShopProductSize {
-  id        String      @id @default(cuid())
-  productId String
-  label     String
-  basePrice Float
-  salePrice Float?
-  quantity  Int         @default(0)
-  product   ShopProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  @@map("shop_product_sizes")
-}
-
-model PlayGroup {
-  id            String             @id @default(cuid())
-  ownerId       String
-  createdAt     DateTime           @default(now())
-  name          String             @default("My Group")
-  sport         String?
-  chatMsgs      PlayGroupChat[]
-  members       PlayGroupMember[]
-  listings      PlayListing[]
-  splitRequests PlaySplitRequest[]
-
-  @@map("play_groups")
-}
-
-model PlayGroupMember {
-  id            String             @id @default(cuid())
-  groupId       String
-  playerId      String
-  splitAmount   Float              @default(0)
-  joinedAt      DateTime           @default(now())
-  group         PlayGroup          @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  player        Player             @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  splitRequests PlaySplitRequest[]
-
-  @@unique([groupId, playerId])
-  @@map("play_group_members")
-}
-
-model PlaySplitRequest {
-  id        String          @id @default(cuid())
-  groupId   String
-  memberId  String
-  amount    Float
-  status    PlaySplitStatus @default(PENDING)
-  createdAt DateTime        @default(now())
-  group     PlayGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  member    PlayGroupMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
-
-  @@map("play_split_requests")
-}
-
-model PlayListing {
-  id              String            @id @default(cuid())
-  groupId         String
-  sport           String?
-  playersNeeded   Int               @default(1)
-  description     String?
-  date            String?
-  timeSlot        String?
-  active          Boolean           @default(true)
-  createdAt       DateTime          @default(now())
-  minCricketRank  Int?
-  minFootballRank Int?
-  turfId          String?
-  turfName        String?
-  requests        PlayJoinRequest[]
-  group           PlayGroup         @relation(fields: [groupId], references: [id], onDelete: Cascade)
-
-  @@map("play_listings")
-}
-
-model PlayJoinRequest {
-  id        String            @id @default(cuid())
-  listingId String
-  playerId  String
-  status    PlayJoinStatus    @default(PENDING)
-  createdAt DateTime          @default(now())
-  listing   PlayListing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  player    Player            @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  chatMsgs  PlayRequestChat[]
-
-  @@unique([listingId, playerId])
-  @@map("play_join_requests")
-}
-
-model PlayGroupChat {
-  id        String    @id @default(cuid())
-  groupId   String
-  playerId  String
-  message   String
-  createdAt DateTime  @default(now())
-  group     PlayGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  player    Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
-
-  @@map("play_group_chat")
-}
-
-model PlayRequestChat {
-  id        String          @id @default(cuid())
-  requestId String
-  playerId  String
-  message   String
-  createdAt DateTime        @default(now())
-  player    Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  request   PlayJoinRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-
-  @@map("play_request_chat")
-}
-
-model ShopOrder {
-  id             String          @id @default(cuid())
-  playerId       String?
-  customerName   String
-  customerPhone  String
-  customerEmail  String?
-  address        String
-  district       String
-  paymentMethod  String
-  deliveryCharge Float
-  subtotal       Float
-  total          Float
-  status         String          @default("pending")
-  createdAt      DateTime        @default(now())
-  items          ShopOrderItem[]
-  player         Player?         @relation(fields: [playerId], references: [id])
-
-  @@map("shop_orders")
-}
-
-model ShopOrderItem {
-  id        String      @id @default(cuid())
-  orderId   String
-  productId String
-  sizeLabel String
-  quantity  Int
-  price     Float
-  order     ShopOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product   ShopProduct @relation(fields: [productId], references: [id])
-
-  @@map("shop_order_items")
-}
-
-model CricketToss {
-  id                 String    @id @default(cuid())
-  matchId            String    @unique
-  winnerTeamId       String?
-  electedTo          String?
-  recordedByPlayerId String?
-  confirmedByA       Boolean   @default(false)
-  confirmedByB       Boolean   @default(false)
-  confirmedAt        DateTime?
-  createdAt          DateTime  @default(now())
-  proposedOversA     Int?
-  proposedOversB     Int?
-  calledByTeamId     String?
-  coinLandedOn       String?
-  tossCall           String?
-  match              Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
-
-  @@map("cricket_tosses")
-}
-
-model CricketInnings {
-  id                  String                @id @default(cuid())
-  matchId             String
-  inningsNumber       Int
-  battingTeamId       String
-  bowlingTeamId       String
-  totalRuns           Int                   @default(0)
-  totalWickets        Int                   @default(0)
-  totalOvers          Float                 @default(0)
-  extras              Int                   @default(0)
-  wides               Int                   @default(0)
-  noBalls             Int                   @default(0)
-  battingOrder        Json                  @default("[]")
-  openingBowlerId     String?
-  currentStrikerId    String?
-  currentNonStrikerId String?
-  currentBowlerId     String?
-  currentOverNumber   Int                   @default(1)
-  status              InningsStatus         @default(PENDING)
-  startedAt           DateTime?
-  completedAt         DateTime?
-  createdAt           DateTime              @default(now())
-  battingPerfs        BattingPerformance[]
-  bowlingPerfs        BowlingPerformance[]
-  deliveries          CricketDelivery[]
-  match               Match                 @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  signOffs            CricketMatchSignOff[]
-  overs               CricketOver[]
-
-  @@unique([matchId, inningsNumber])
-  @@map("cricket_innings")
-}
-
-model CricketOver {
-  id                 String            @id @default(cuid())
-  inningsId          String
-  matchId            String
-  overNumber         Int
-  bowlerId           String
-  runs               Int               @default(0)
-  wickets            Int               @default(0)
-  wides              Int               @default(0)
-  noBalls            Int               @default(0)
-  legalBalls         Int               @default(0)
-  status             OverStatus        @default(PENDING)
-  confirmedByBatting Boolean           @default(false)
-  confirmedByBowling Boolean           @default(false)
-  createdAt          DateTime          @default(now())
-  deliveries         CricketDelivery[]
-  innings            CricketInnings    @relation(fields: [inningsId], references: [id], onDelete: Cascade)
-
-  @@unique([inningsId, overNumber])
-  @@map("cricket_overs")
-}
-
-model CricketDelivery {
-  id                  String           @id @default(cuid())
-  inningsId           String
-  matchId             String
-  overId              String
-  overNumber          Int
-  ballNumber          Int
-  deliverySequence    Int
-  bowlerId            String
-  strikerId           String
-  nonStrikerId        String
-  deliveryType        DeliveryType
-  runs                Int              @default(0)
-  strikerRuns         Int              @default(0)
-  nonStrikerRuns      Int              @default(0)
-  isWicket            Boolean          @default(false)
-  dismissalType       DismissalType?
-  dismissedPlayerId   String?
-  fielderId           String?
-  bowlerCredited      Boolean          @default(true)
-  isBye               Boolean          @default(false)
-  isLegBye            Boolean          @default(false)
-  isFreeHit           Boolean          @default(false)
-  status              DeliveryStatus   @default(PENDING)
-  submittedByPlayerId String
-  confirmedByPlayerId String?
-  createdAt           DateTime         @default(now())
-  innings             CricketInnings   @relation(fields: [inningsId], references: [id], onDelete: Cascade)
-  over                CricketOver      @relation(fields: [overId], references: [id], onDelete: Cascade)
-  disputes            CricketDispute[]
-
-  @@map("cricket_deliveries")
-}
-
-model BattingPerformance {
-  id                   String         @id @default(cuid())
-  inningsId            String
-  matchId              String
-  playerId             String
-  battingPosition      Int
-  runs                 Int            @default(0)
-  ballsFaced           Int            @default(0)
-  fours                Int            @default(0)
-  sixes                Int            @default(0)
-  strikeRate           Float?
-  dismissalType        DismissalType?
-  dismissedByBowlerId  String?
-  dismissedByFielderId String?
-  isOut                Boolean        @default(false)
-  notOut               Boolean        @default(true)
-  hasBatted            Boolean        @default(false)
-  createdAt            DateTime       @default(now())
-  innings              CricketInnings @relation(fields: [inningsId], references: [id], onDelete: Cascade)
-  player               Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
-
-  @@unique([inningsId, playerId])
-  @@map("batting_performances")
-}
-
-model BowlingPerformance {
-  id         String         @id @default(cuid())
-  inningsId  String
-  matchId    String
-  playerId   String
-  legalBalls Int            @default(0)
-  runs       Int            @default(0)
-  wickets    Int            @default(0)
-  wides      Int            @default(0)
-  noBalls    Int            @default(0)
-  economy    Float?
-  createdAt  DateTime       @default(now())
-  innings    CricketInnings @relation(fields: [inningsId], references: [id], onDelete: Cascade)
-  player     Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
-
-  @@unique([inningsId, playerId])
-  @@map("bowling_performances")
-}
-
-model CricketMatchSignOff {
-  id          String             @id @default(cuid())
-  matchId     String
-  inningsId   String?
-  teamId      String
-  type        CricketSignOffType
-  signedOffAt DateTime           @default(now())
-  innings     CricketInnings?    @relation(fields: [inningsId], references: [id], onDelete: Cascade)
-
-  @@map("cricket_match_signoffs")
-}
-
-model CricketDispute {
-  id             String          @id @default(cuid())
-  deliveryId     String
-  raisedByTeamId String
-  reason         String?
-  resolvedAt     DateTime?
-  resolution     String?
-  createdAt      DateTime        @default(now())
-  delivery       CricketDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
-
-  @@map("cricket_disputes")
-}
-
-model Sponsor {
-  id        String   @id @default(cuid())
-  imageUrl  String
-  ctaLink   String?
-  order     Int      @default(0)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  ctaText   String?
-
-  @@map("sponsors")
-}
-
-model SponsorSettings {
-  id         String   @id @default("singleton")
-  autoSlide  Boolean  @default(true)
-  intervalMs Int      @default(3500)
-  updatedAt  DateTime @updatedAt
-
-  @@map("sponsor_settings")
-}
-
-model Reel {
-  id            String   @id @default(cuid())
-  playerId      String
-  muxUploadId   String?  @unique
-  muxAssetId    String?  @unique
-  muxPlaybackId String?
-  status        String   @default("uploading")
-  caption       String?
-  views         Int      @default(0)
-  likes         Int      @default(0)
-  createdAt     DateTime @default(now())
-  player        Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
-
-  @@map("reels")
-}
-
-model WbtTurf {
-  id         String   @id @default(cuid())
-  name       String
-  divisionId String
-  cityId     String
-  createdAt  DateTime @default(now())
-  city       City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
-  division   Division @relation(fields: [divisionId], references: [id], onDelete: Cascade)
-
-  @@map("wbt_turfs")
-}
-
-model WbtCoupon {
-  id            String       @id @default(cuid())
-  code          String       @unique
-  discountType  DiscountType
-  discountValue Float
-  maxUses       Int          @default(0)
-  usedCount     Int          @default(0)
-  expiresAt     DateTime?
-  active        Boolean      @default(true)
-  createdAt     DateTime     @default(now())
-
-  @@map("wbt_coupons")
-}
-
-model Organizer {
-  id                  String                     @id @default(cuid())
-  name                String
-  email               String                     @unique
-  phone               String                     @default("")
-  password            String
-  isVerified          Boolean                    @default(false)
-  joinedAt            DateTime                   @default(now())
-  inviteId            String?                    @unique
-  chargePerTournament Int                        @default(0)
-  banReason           String?
-  banStatus           BanStatus                  @default(none)
-  rechargeRequests    OrganizerRechargeRequest[]
-  wallet              OrganizerWallet?
-  invite              OrganizerInvite?           @relation(fields: [inviteId], references: [id])
-  tournaments         Tournament[]
-
-  @@map("organizers")
-}
-
-model OrganizerWallet {
-  id            String                       @id @default(cuid())
-  organizerId   String                       @unique
-  balance       Float                        @default(0)
-  totalToppedUp Float                        @default(0)
-  totalSpent    Float                        @default(0)
-  updatedAt     DateTime                     @updatedAt
-  transactions  OrganizerWalletTransaction[]
-  organizer     Organizer                    @relation(fields: [organizerId], references: [id], onDelete: Cascade)
-
-  @@map("organizer_wallets")
-}
-
-model OrganizerWalletTransaction {
-  id          String          @id @default(cuid())
-  organizerId String
-  type        TOrgTxType
-  amount      Float
-  matchId     String?
-  description String?
-  createdAt   DateTime        @default(now())
-  wallet      OrganizerWallet @relation(fields: [organizerId], references: [id], onDelete: Cascade)
-
-  @@map("organizer_wallet_transactions")
-}
-
-model OrganizerRechargeRequest {
-  id               String               @id @default(cuid())
-  organizerId      String
-  amount           Float
-  method           WalletRechargeMethod
-  screenshotBase64 String?
-  status           WalletRequestStatus  @default(pending)
-  createdAt        DateTime             @default(now())
-  organizer        Organizer            @relation(fields: [organizerId], references: [id], onDelete: Cascade)
-
-  @@map("organizer_recharge_requests")
-}
-
-model OrganizerInvite {
-  id              String           @id @default(cuid())
-  invitedBy       String
-  emailOrPhone    String
-  inviteToken     String           @unique @default(cuid())
-  status          TOrgInviteStatus @default(PENDING)
-  expiresAt       DateTime
-  acceptedAt      DateTime?
-  organizerUserId String?
-  createdAt       DateTime         @default(now())
-  organizer       Organizer?
-
-  @@map("organizer_invites")
-}
-
-model Tournament {
-  id                     String                   @id @default(cuid())
-  operatorId             String
-  operatorType           OperatorType
-  sport                  TournamentSport
-  name                   String
-  description            String?
-  bannerImageUrl         String?
-  registrationType       TRegistrationType
-  maxParticipants        Int
-  entryFee               Int                      @default(0)
-  registrationDeadline   DateTime?
-  auctionEnabled         Boolean                  @default(false)
-  playerBudgetPerCaptain Int?
-  auctionStartTime       DateTime?
-  prizePoolTotal         Int                      @default(0)
-  prizeDistribution      Json                     @default("{}")
-  prizeType              TPrizeType               @default(TROPHY_ONLY)
-  formatType             TournamentFormat
-  groupCount             Int?
-  teamsPerGroup          Int?
-  qualifyPerGroup        Int?
-  mmrEnabled             Boolean                  @default(true)
-  mmrMultiplier          Float                    @default(1.0)
-  status                 TournamentStatus         @default(DRAFT)
-  createdAt              DateTime                 @default(now())
-  updatedAt              DateTime                 @updatedAt
-  endDate                DateTime?
-  startDate              DateTime?
-  startTime              String?
-  venue                  String?
-  formatConfig           Json?
-  formatConfigLocked     Boolean                  @default(false)
-  isRegistrationOpen     Boolean                  @default(false)
-  registrationOpenAt     DateTime?
-  auctionRoom            AuctionRoom?
-  groups                 TournamentGroup[]
-  matches                TournamentMatch[]
-  registrations          TournamentRegistration[]
-  standings              TournamentStanding[]
-  tournamentTeams        TournamentTeam[]
-  organizer              Organizer                @relation(fields: [operatorId], references: [id])
-
-  @@map("tournaments")
-}
-
-model TournamentRegistration {
-  id           String              @id @default(cuid())
-  tournamentId String
-  entityType   TRegistrationType
-  entityId     String
-  registeredAt DateTime            @default(now())
-  status       TRegistrationStatus @default(PENDING)
-  entryFeePaid Boolean             @default(false)
-  tournament   Tournament          @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-
-  @@unique([tournamentId, entityId])
-  @@map("tournament_registrations")
-}
-
-model TournamentTeam {
-  id           String     @id @default(cuid())
-  tournamentId String
-  captainId    String
-  name         String
-  players      String[]   @default([])
-  budgetSpent  Int        @default(0)
-  createdAt    DateTime   @default(now())
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-
-  @@map("tournament_teams")
-}
-
-model TournamentGroup {
-  id           String               @id @default(cuid())
-  tournamentId String
-  name         String
-  teamIds      String[]             @default([])
-  tournament   Tournament           @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  matches      TournamentMatch[]
-  standings    TournamentStanding[]
-
-  @@map("tournament_groups")
-}
-
-model TournamentMatch {
-  id            String                 @id @default(cuid())
-  tournamentId  String
-  groupId       String?
-  stage         TMatchStage
-  matchNumber   Int
-  teamAId       String
-  teamBId       String
-  scheduledAt   DateTime?
-  venue         String?
-  scorerId      String?
-  scorerType    TScorerType?
-  matchMode     String                 @default("TOURNAMENT")
-  status        TMatchStatus           @default(SCHEDULED)
-  winnerId      String?
-  resultSummary Json?
-  disputeStatus TDisputeStatus         @default(PENDING)
-  hasDispute    Boolean                @default(false)
-  createdAt     DateTime               @default(now())
-  updatedAt     DateTime               @updatedAt
-  disputes      TournamentDispute[]
-  group         TournamentGroup?       @relation(fields: [groupId], references: [id])
-  tournament    Tournament             @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  scorerToken   TournamentScorerToken?
-
-  @@map("tournament_matches")
-}
-
-model TournamentScorerToken {
-  id        String          @id @default(cuid())
-  matchId   String          @unique
-  token     String          @unique @default(cuid())
-  scorerRef String?
-  usedAt    DateTime?
-  expiresAt DateTime?
-  isActive  Boolean         @default(true)
-  createdAt DateTime        @default(now())
-  match     TournamentMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
-
-  @@map("tournament_scorer_tokens")
-}
-
-model TournamentStanding {
-  id             String           @id @default(cuid())
-  tournamentId   String
-  groupId        String?
-  teamId         String
-  played         Int              @default(0)
-  won            Int              @default(0)
-  lost           Int              @default(0)
-  drawn          Int              @default(0)
-  noResult       Int              @default(0)
-  points         Int              @default(0)
-  nrr            Float            @default(0)
-  goalDifference Int              @default(0)
-  goalsScored    Int              @default(0)
-  goalsConceded  Int              @default(0)
-  headToHead     Json             @default("{}")
-  position       Int              @default(0)
-  qualified      Boolean          @default(false)
-  updatedAt      DateTime         @updatedAt
-  group          TournamentGroup? @relation(fields: [groupId], references: [id])
-  tournament     Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-
-  @@unique([tournamentId, groupId, teamId])
-  @@map("tournament_standings")
-}
-
-model TournamentDispute {
-  id             String          @id @default(cuid())
-  matchId        String
-  raisedByTeamId String
-  eventRef       String?
-  reason         String
-  status         TDisputeStatus  @default(PENDING)
-  resolvedBy     String?
-  resolutionNote String?
-  raisedAt       DateTime        @default(now())
-  resolvedAt     DateTime?
-  match          TournamentMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
-
-  @@map("tournament_disputes")
-}
-
-model AuctionRoom {
-  id                     String             @id @default(cuid())
-  tournamentId           String             @unique
-  status                 TAuctionRoomStatus @default(WAITING)
-  currentPlayerId        String?
-  currentBasePrice       Int?
-  currentHighestBid      Int?
-  currentHighestBidderId String?
-  bidTimerSeconds        Int                @default(30)
-  createdAt              DateTime           @default(now())
-  updatedAt              DateTime           @updatedAt
-  bids                   AuctionBid[]
-  tournament             Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-
-  @@map("auction_rooms")
-}
-
-model AuctionBid {
-  id            String      @id @default(cuid())
-  auctionRoomId String
-  playerId      String
-  captainId     String
-  amount        Int
-  timestamp     DateTime    @default(now())
-  room          AuctionRoom @relation(fields: [auctionRoomId], references: [id], onDelete: Cascade)
-
-  @@map("auction_bids")
-}
-
-model OtpVerification {
-  id        String   @id @default(cuid())
-  phone     String
-  otp       String
-  purpose   String
-  expiresAt DateTime
-  verified  Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  @@index([phone, otp])
-  @@map("otp_verifications")
-}
-
-model TurfServiceSetting {
-  id        String    @id @default("singleton")
-  isActive  Boolean   @default(false)
-  launchAt  DateTime?
-  updatedAt DateTime  @updatedAt
-
-  @@map("turf_service_settings")
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────────────────────
 
 enum TurfStatus {
   pending
@@ -1559,57 +107,62 @@ enum VenueType {
 
 enum TeamRole {
   owner
-  member
   manager
   captain
   vice_captain
+  member
 }
 
 enum SportType {
   FUTSAL_5
   FUTSAL_6
-  CRICKET_7
   FUTSAL_7
+  CRICKET_7
   FOOTBALL_FULL
   CRICKET_FULL
 }
 
 enum ScoringMode {
-  LIVE
-  SCORE_AFTER
-  LIVE_SINGLE
+  LIVE         // Real-time event logging (existing)
+  LIVE_SINGLE  // Real-time event logging by a single assigned scorer
+  SCORE_AFTER  // Both OMCs submit final score after the match
 }
 
 enum MatchStatus {
-  SCHEDULED
-  COMPLETED
-  CANCELLED
-  PENDING
-  INTERACTION
-  LIVE
-  SCORE_ENTRY
-  DISPUTED
+  PENDING       // Challenge issued, awaiting acceptance
+  INTERACTION   // Accepted; roster/venue/chat phase
+  SCHEDULED     // Venue booked + roster locked; ready to play
+  LIVE          // Both OMC started the match; scorer selection + live events
+  SCORE_ENTRY   // Full time called; awaiting sign-off from both OMCs
+  COMPLETED     // Both OMCs signed off; MMR awarded
+  DISPUTED      // Score disagreement escalated to admin
+  CANCELLED     // Declined or expired
 }
 
 enum BadgeType {
   NONE
-  MVP
-  THE_SNIPER
-  THE_MAESTRO
-  THE_WALL
-  GOLDEN_BOOT
-  MIDFIELD_GENERAL
-  DEFENSIVE_ANCHOR
-  SAFE_HANDS
-  POWER_HITTER
-  IMPACT_BOWLER
-  GAME_CHANGER
-  THE_ANCHOR
-  STRIKE_BOWLER
-  ECONOMY_MASTER
-  GOLDEN_GLOVE
+  MVP               // All sports — best overall performance
+  // Small-sided Football (5/6/7-a-side)
+  THE_SNIPER        // Top scorer
+  THE_MAESTRO       // Best creator / assists
+  THE_WALL          // Best defender / GK
+  // 11v11 Football
+  GOLDEN_BOOT       // Top goal scorer
+  MIDFIELD_GENERAL  // Commanding midfield display
+  DEFENSIVE_ANCHOR  // Defensive rock
+  SAFE_HANDS        // Best goalkeeper
+  // 7-a-side Cricket
+  POWER_HITTER      // Top run scorer
+  IMPACT_BOWLER     // Key wickets taken
+  GAME_CHANGER      // Match-turning performance
+  // 11v11 Cricket
+  THE_ANCHOR        // Patient top-order batting
+  STRIKE_BOWLER     // Best wicket-taker
+  ECONOMY_MASTER    // Tightest bowling economy
+  GOLDEN_GLOVE      // Best wicketkeeper
 }
 
+// Scoring system enums
 enum MatchEventType {
   GOAL
   OWN_GOAL
@@ -1629,6 +182,8 @@ enum EventStatus {
   REMOVED
 }
 
+// ── Cricket scoring enums ─────────────────────────────────────────────────────
+
 enum DeliveryType {
   LEGAL
   WIDE
@@ -1639,8 +194,8 @@ enum DeliveryStatus {
   PENDING
   CONFIRMED
   CONFLICTED
-  LOCKED
   VOIDED
+  LOCKED
 }
 
 enum DismissalType {
@@ -1669,10 +224,1075 @@ enum CricketSignOffType {
   MATCH
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// GEOGRAPHY — Divisions & Cities
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Division {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  cities City[]
+  turfs  Turf[]
+  wbtTurfs WbtTurf[]
+
+  @@map("divisions")
+}
+
+model City {
+  id         String   @id @default(cuid())
+  name       String
+  divisionId String
+  createdAt  DateTime @default(now())
+
+  division Division @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+  turfs    Turf[]
+  homeTeams Team[]  @relation("TeamHomeAreas")
+  wbtTurfs WbtTurf[]
+
+  @@unique([name, divisionId])
+  @@map("cities")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SPORTS & AMENITIES — Platform-level lookup tables
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Sport {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  category  String   @default("Other")
+  createdAt DateTime @default(now())
+
+  turfSports TurfSport[]
+
+  @@map("sports")
+}
+
+model Amenity {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  turfAmenities TurfAmenity[]
+
+  @@map("amenities")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAYERS — Custom auth: email + bcrypt password
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Player {
+  id             String    @id @default(cuid())
+  fullName       String
+  email          String    @unique
+  phone          String    @default("")
+  // bcrypt hashed password — NEVER store plain text
+  password       String
+  joinedAt       DateTime  @default(now())
+
+  // Gamification
+  walletBalance  Float     @default(0)
+  loyaltyPoints  Int       @default(0)
+  level          Int       @default(1)
+  levelProgress  Float     @default(0)
+  mmr            Int       @default(1000)  // legacy — mirrors footballMmr
+
+  // Dual-sport MMR (v2)
+  footballMmr    Int       @default(1000)
+  cricketMmr     Int       @default(1000)
+
+  // Tournament MMR (v3)
+  tournamentFootballMmr Int @default(1000)
+  tournamentCricketMmr  Int @default(1000)
+
+  // Profile image — CDN URL injected later
+  avatarUrl      String?
+
+  // Moderation
+  banStatus      BanStatus @default(none)
+  banUntil       DateTime?
+  banReason      String?
+
+  bookings       Booking[]
+  walletRequests WalletRequest[]
+  reviews        Review[]
+  ownedTeams     Team[]        @relation("TeamOwner")
+  teamMemberships TeamMember[]
+  matchStats     PlayerMatchStat[]
+  chatMessages   MatchChatMessage[] @relation("PlayerChatMessages")
+  bookingSplits  BookingSplit[]
+  teamAnnouncements TeamAnnouncement[]
+  shopOrders     ShopOrder[]
+  playGroupMemberships PlayGroupMember[]
+  playJoinRequests     PlayJoinRequest[]
+  playGroupChats       PlayGroupChat[]
+  playRequestChats     PlayRequestChat[]
+
+  // Gamification & Badges
+  badges               PlayerBadge[]
+
+  // Cricket Stats Relations
+  battingPerformances  BattingPerformance[]
+  bowlingPerformances  BowlingPerformance[]
+
+  // Reels
+  reels                Reel[]
+
+  proposedSingleScorerFor Match[] @relation("MatchProposedScorer")
+
+  @@map("players")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BADGES — Achievements and titles earned by players
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PlayerBadge {
+  id          String   @id @default(cuid())
+  playerId    String
+  title       String   // e.g. "Man of the Match", "Century", "Fifer"
+  description String?
+  icon        String   // Emoji or identifier
+  earnedAt    DateTime @default(now())
+  isShowcased Boolean  @default(false)
+
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("player_badges")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OWNERS — Turf business accounts. Custom auth, bcrypt password.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Owner {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  phone         String   @default("")
+  contactPerson String?
+  // bcrypt hashed password — set by admin or via invite flow
+  password      String
+
+  joinedAt      DateTime @default(now())
+
+  // Financial wallet (accumulated net share from bookings)
+  walletBalance Float    @default(0)
+  // BMT platform cut pending for this owner's turfs (cleared on payout)
+  pendingBmtCut Float    @default(0)
+
+  turfs         Turf[]
+  payouts       Payout[]
+  ledgerEntries LedgerEntry[]
+  ledgerConclusions LedgerConclusion[]
+  financeLock   FinanceLock?
+
+  @@map("owners")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FINANCE LOCKS — Per-owner 4-digit PIN for the Finance section
+// Stored as bcrypt hash; separate from login password.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FinanceLock {
+  id       String @id @default(cuid())
+  ownerId  String @unique
+  // bcrypt hashed finance PIN
+  password String
+
+  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@map("finance_locks")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TURFS — Core venue entity
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Turf {
+  id         String     @id @default(cuid())
+  name       String
+  ownerId    String
+  divisionId String
+  cityId     String
+  area       String?
+
+  // Map coordinates
+  lat        Float?
+  lng        Float?
+  mapLink    String?
+
+  // CDN URL fields — store external CDN URLs here after upload
+  logoUrl    String?
+  imageUrls  String[]   @default([])
+
+  status     TurfStatus @default(pending)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  // House rules text — set by owner in dashboard
+  rules      String?
+
+  // Revenue model — stored inline as two fields (denormalized for query speed)
+  revenueModelType  RevenueModelType?
+  revenueModelValue Float?
+
+  owner      Owner      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  division   Division   @relation(fields: [divisionId], references: [id])
+  city       City       @relation(fields: [cityId], references: [id])
+
+  sports     TurfSport[]
+  amenities  TurfAmenity[]
+  grounds    Ground[]
+  discounts  Discount[]
+  ledgerEntries     LedgerEntry[]
+  ledgerConclusions LedgerConclusion[]
+  reviews    Review[]
+  homeTeams  Team[]     @relation("TeamHomeTurfs")
+
+  @@map("turfs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REVIEWS — Player feedback per turf
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Review {
+  id         String   @id @default(cuid())
+  turfId     String
+  playerId   String?
+  playerName String?
+  rating     Float
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  turf   Turf    @relation(fields: [turfId], references: [id], onDelete: Cascade)
+  player Player? @relation(fields: [playerId], references: [id], onDelete: SetNull)
+
+  @@map("reviews")
+}
+
+// ─── Many-to-many joins ───────────────────────────────────────────────────────
+
+model TurfSport {
+  turfId  String
+  sportId String
+
+  turf  Turf  @relation(fields: [turfId], references: [id], onDelete: Cascade)
+  sport Sport @relation(fields: [sportId], references: [id], onDelete: Cascade)
+
+  @@id([turfId, sportId])
+  @@map("turf_sports")
+}
+
+model TurfAmenity {
+  turfId    String
+  amenityId String
+
+  turf    Turf    @relation(fields: [turfId], references: [id], onDelete: Cascade)
+  amenity Amenity @relation(fields: [amenityId], references: [id], onDelete: Cascade)
+
+  @@id([turfId, amenityId])
+  @@map("turf_amenities")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GROUNDS — Sub-venues within a turf (e.g. "Pitch A", "Cage B")
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Ground {
+  id     String @id @default(cuid())
+  turfId String
+  name   String
+
+  turf  Turf   @relation(fields: [turfId], references: [id], onDelete: Cascade)
+  slots Slot[]
+
+  @@map("grounds")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SLOTS — Time slots per ground
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Slot {
+  id           String       @id @default(cuid())
+  turfId       String
+  groundId     String
+  startTime    String       // "HH:MM" — 24h
+  endTime      String       // "HH:MM" — 24h
+  timeCategory TimeCategory
+  days         String[]     @default([]) // ["Mon","Tue",…]
+  sports       String[]     @default([])
+  price        Float
+  status       SlotStatus   @default(available)
+
+  ground   Ground    @relation(fields: [groundId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@map("slots")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BOOKINGS — Player → Slot reservations
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Booking {
+  id         String        @id @default(cuid())
+  playerId   String
+  slotId     String
+  turfId     String
+  date       String        // "YYYY-MM-DD"
+  price      Float
+  ownerShare Float         @default(0)
+  bmtCut     Float         @default(0)
+  status     BookingStatus @default(confirmed)
+  createdAt  DateTime      @default(now())
+
+  // The actual sport the player intends to play in hybrid/multi-sport slots
+  selectedSport String?
+
+  // Payment proof — CDN URL or base64 (transition field)
+  paymentProofUrl String?
+
+  // Booking source + code (for Challenge Market bookings)
+  bookingCode String?  // 4-char uppercase code e.g. "8TB3"
+  source      String?  // "challenge_market" | null
+  notes       String?  // e.g. "Challenge Market — Coffee Cup vs Thanda Futsal"
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  slot   Slot   @relation(fields: [slotId], references: [id], onDelete: Restrict)
+
+  // Group split booking — links all member bookings to the same group session
+  groupId          String?  // PlayGroup.id — set when booked via play-group flow
+  groupBookingCode String?  // shared code shown to all members
+  splits           BookingSplit[]
+
+  @@map("bookings")
+}
+
+model BookingSplit {
+  id        String  @id @default(cuid())
+  bookingId String
+  playerId  String
+  amount    Float
+
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  player    Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("booking_splits")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DISCOUNTS — Promotional codes per turf
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Discount {
+  id          String       @id @default(cuid())
+  turfId      String
+  code        String
+  type        DiscountType
+  value       Float
+  minBookings Int?
+  maxUses     Int?
+  usedCount   Int          @default(0)
+  active      Boolean      @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime     @default(now())
+
+  groundId    String?
+  targetSport String?
+  targetDays  String[]     @default([])
+  targetTimes String[]     @default([])
+
+  turf Turf @relation(fields: [turfId], references: [id], onDelete: Cascade)
+
+  @@unique([turfId, code])
+  @@map("discounts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LEDGER ENTRIES — Per-turf monthly income/cost records
+// ─────────────────────────────────────────────────────────────────────────────
+
+model LedgerEntry {
+  id          String         @id @default(cuid())
+  turfId      String
+  ownerId     String
+  month       String         // "YYYY-MM"
+  type        LedgerEntryType
+  category    LedgerCategory
+  description String
+  amount      Float
+  createdAt   DateTime       @default(now())
+
+  turf  Turf  @relation(fields: [turfId], references: [id], onDelete: Cascade)
+  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@map("ledger_entries")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LEDGER CONCLUSIONS — Monthly close-out snapshot per owner/turf
+// ─────────────────────────────────────────────────────────────────────────────
+
+model LedgerConclusion {
+  id             String   @id @default(cuid())
+  turfId         String
+  ownerId        String
+  month          String   // "YYYY-MM"
+  totalAppIncome Float    @default(0)
+  totalWalkIn    Float    @default(0)
+  totalCost      Float    @default(0)
+  netProfit      Float    @default(0)
+  concludedAt    DateTime @default(now())
+
+  turf  Turf  @relation(fields: [turfId], references: [id], onDelete: Cascade)
+  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, month]) // one conclusion per owner per month
+  @@map("ledger_conclusions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PAYOUTS — Disbursement records: BMT → Owner
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Payout {
+  id        String       @id @default(cuid())
+  ownerId   String
+  ownerName String
+  turfName  String
+  amount    Float        // net owner share cleared
+  bmtCut    Float        @default(0)
+  date      String       // "YYYY-MM-DD"
+  method    PayoutMethod
+  txId      String?      // optional: transaction reference
+  // Payment proof image — CDN URL
+  proofUrl  String?
+  createdAt DateTime     @default(now())
+
+  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@map("payouts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WALLET REQUESTS — Player wallet top-up requests
+// ─────────────────────────────────────────────────────────────────────────────
+
+model WalletRequest {
+  id          String               @id @default(cuid())
+  playerId    String
+  playerName  String
+  amount      Float
+  method      WalletRechargeMethod
+  // Payment screenshot — CDN URL (replaces base64 in production)
+  screenshotUrl String?
+  status      WalletRequestStatus  @default(pending)
+  createdAt   DateTime             @default(now())
+  reviewedAt  DateTime?
+  note        String?
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("wallet_requests")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PAYMENT METHODS — BMT platform's receivable accounts (bKash, Nagad, Bank)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PaymentMethod {
+  id          String               @id @default(cuid())
+  type        WalletRechargeMethod @unique
+  number      String
+  accountType String
+  updatedAt   DateTime             @updatedAt
+
+  @@map("payment_methods")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INVITE TOKENS — Admin-generated one-time onboarding links
+// ─────────────────────────────────────────────────────────────────────────────
+
+model InviteToken {
+  id        String     @id @default(cuid())
+  token     String     @unique  // random secure token
+  contact   String              // email or phone of invitee
+  role      InviteRole
+  issuedAt  DateTime   @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+  usedBy    String?             // ownerId or playerId after redemption
+
+  @@map("invite_tokens")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLATFORM SETTINGS — Singleton admin configuration store
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PlatformSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_settings")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MONTHLY FEES — Monthly subscription fees for turfs on the 'monthly' model
+// Auto-generated each month; owner marks as paid via dashboard
+// ─────────────────────────────────────────────────────────────────────────────
+
+model MonthlyFee {
+  id        String   @id @default(cuid())
+  turfId    String
+  ownerId   String
+  turfName  String
+  ownerName String
+  month     String   // "YYYY-MM"
+  amount    Float    // revenueModelValue at time of generation
+  paid      Boolean  @default(false)
+  paidAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@unique([turfId, month])
+  @@map("monthly_fees")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BANNER SLIDES — CMS-managed home page hero carousel slides
+// ─────────────────────────────────────────────────────────────────────────────
+
+model BannerSlide {
+  id        String   @id @default(cuid())
+  imageUrl  String
+  ctaText   String?  // optional button label, e.g. "Book Now"
+  ctaLink   String?  // optional link, e.g. "/en/book"
+  order     Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("banner_slides")
+}
+
+model CarouselSettings {
+  id         String  @id @default("singleton")
+  autoSlide  Boolean @default(true)
+  intervalMs Int     @default(3500) // ms between slides
+
+  @@map("carousel_settings")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEAMS — Player-created teams for group play and challenges
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TeamAnnouncement {
+  id        String   @id @default(cuid())
+  teamId    String
+  authorId  String
+  title     String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  author    Player   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@map("team_announcements")
+}
+
+model Team {
+  id        String   @id @default(cuid())
+  name      String   @unique          // no duplicate team names platform-wide
+  sportType SportType
+  logoUrl   String?                   // CDN URL for team logo
+  ownerId   String                    // Player who created the team
+
+  teamMmr       Int      @default(1000)  // legacy — mirrors footballMmr
+  xp            Int      @default(0)
+  level         Int      @default(1)
+
+  // Dual-sport MMR (v2)
+  footballMmr   Int      @default(1000)
+  cricketMmr    Int      @default(1000)
+
+  createdAt DateTime @default(now())
+
+  owner   Player       @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members TeamMember[]
+
+  matchesAsTeamA Match[] @relation("TeamAMatches")
+  matchesAsTeamB Match[] @relation("TeamBMatches")
+  playerStats    PlayerMatchStat[]
+
+  challengeSubscription ChallengeSubscription?
+  disputes            ChallengeDispute[]
+  announcements       TeamAnnouncement[]
+
+  isSubscribed Boolean @default(false)
+  homeAreas    City[]  @relation("TeamHomeAreas")
+  homeTurfs    Turf[]  @relation("TeamHomeTurfs")
+  
+  formation    String?
+  teamType     TeamType @default(REGULAR)
+
+  @@map("teams")
+}
+
 enum TeamType {
   REGULAR
   TOURNAMENT
 }
+
+model TeamMember {
+  id       String   @id @default(cuid())
+  teamId   String
+  playerId String
+  role     TeamRole @default(member)
+  joinedAt DateTime @default(now())
+
+  // Lineup engine mapping
+  sportRole     String?
+  isStarter     Boolean @default(false)
+  pitchPosition Int?
+
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, playerId])
+  @@map("team_members")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPETITIVE MATCHMAKING — Matches and Stats
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Match {
+  id          String      @id @default(cuid())
+  teamA_Id    String
+  teamB_Id    String
+  status      MatchStatus @default(PENDING)
+
+  // Score
+  scoreA      Int         @default(0)
+  scoreB      Int         @default(0)
+  winnerId    String?
+  mmrChangeA  Int         @default(0)
+  mmrChangeB  Int         @default(0)
+  badgeBonusApplied Boolean @default(false)  // true after OMC badge distribution
+
+  // Sport-specific scoring
+  goalsA      Int?        // Futsal
+  goalsB      Int?
+  runsA       Int?        // Cricket
+  runsB       Int?
+  wicketsA    Int?
+  wicketsB    Int?
+  oversA      Float?
+  oversB      Float?
+  // For cricket: total overs per innings agreed pre-match (7 for CRICKET_7, set by OMC for CRICKET_FULL)
+  agreedOvers Int?
+
+  // Interaction Board — Roster & Formation
+  formationA        String?
+  formationB        String?
+  rosterLockedA     Boolean @default(false)
+  rosterLockedB     Boolean @default(false)
+
+  // Interaction Board — Venue
+  selectedSlotId    String?
+  bookingIdA        String?   // Booking record for team A's share
+  bookingIdB        String?   // Booking record for team B's share
+  bookingCode       String?   // Shared 4-char booking code shown to both teams
+  venueBookedAt     DateTime?
+  matchDate         String?   // "YYYY-MM-DD"
+
+  // Interaction Board — Venue Type (BMT vs Open WBT)
+  venueType           VenueType?
+  venueConfirmedByB   Boolean   @default(false) // Team B accepted the venue type
+  // Open WBT specific fields
+  wbtTurfId         String?   // WbtTurf.id
+  wbtTurfName       String?   // cached name for display
+  wbtFrom           String?   // e.g. "18:00"
+  wbtTo             String?   // e.g. "19:00"
+  wbtPaymentA       Boolean   @default(false)
+  wbtPaymentB       Boolean   @default(false)
+  wbtCouponCode     String?
+  wbtCouponDiscount Float     @default(0) // amount discounted per team
+
+  // Match Lifecycle flags
+  matchStartedByA   Boolean @default(false)
+  matchStartedByB   Boolean @default(false)
+  matchEndedByA     Boolean @default(false)
+  matchEndedByB     Boolean @default(false)
+  scoreSubmittedByA Boolean @default(false)
+  scoreSubmittedByB Boolean @default(false)
+  submittedScoreA   Int?    // What team A said the score was
+  submittedScoreB   Int?    // What team A said the score was (opponent's)
+  submittedScoreA2  Int?    // What team B said for team A
+  submittedScoreB2  Int?    // What team B said for team B
+  agreedByA         Boolean @default(false)  // Team A agreed the score
+  agreedByB         Boolean @default(false)  // Team B agreed the score
+  resultSeenByA     Boolean @default(false)
+  resultSeenByB     Boolean @default(false)
+  finalOutcome      String? // "agreed" | "disputed"
+
+  // Scoring mode — agreed by both OMCs before match starts
+  scoringMode          ScoringMode @default(LIVE)
+  scoreModeRequestedBy String?     // teamId that proposed the mode
+  scoreModeAgreed      Boolean     @default(false)
+  proposedSingleScorerId String?   // playerId of the proposed single scorer
+
+
+  seasonId    String?
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  teamA       Team        @relation("TeamAMatches", fields: [teamA_Id], references: [id], onDelete: Restrict)
+  teamB       Team        @relation("TeamBMatches", fields: [teamB_Id], references: [id], onDelete: Restrict)
+  season      ChallengeSeason? @relation(fields: [seasonId], references: [id], onDelete: SetNull)
+  proposedSingleScorer Player? @relation("MatchProposedScorer", fields: [proposedSingleScorerId], references: [id])
+
+  playerStats      PlayerMatchStat[]
+  disputes         ChallengeDispute[]
+  rosterPicks      MatchRosterPick[]
+  venueSuggestions MatchVenueSuggestion[]
+  chatMessages     MatchChatMessage[]
+  scorers          MatchScorer[]
+  events           MatchEvent[]
+  signOffs         MatchSignOff[]
+  halfTime         MatchHalfTime?
+  cricketInnings   CricketInnings[]
+  cricketToss      CricketToss?
+
+  @@map("matches")
+}
+
+model PlayerMatchStat {
+  id          String    @id @default(cuid())
+  matchId     String
+  playerId    String
+  teamId      String
+  badge       BadgeType @default(NONE)
+
+  // Futsal stats
+  goals       Int       @default(0)
+  assists     Int       @default(0)
+
+  // Cricket stats
+  runs        Int       @default(0)
+  wickets     Int       @default(0)
+  overs       Float     @default(0)
+
+  // Calculated MMR delta for this player in this match
+  mmrChange   Int       @default(0)   // base win/loss delta
+  badgeBonus  Int       @default(0)   // badge MMR bonus (applied separately after badge distribution)
+
+  // Disciplinary
+  yellowCard  Boolean   @default(false)
+  redCard     Boolean   @default(false)
+
+  createdAt   DateTime  @default(now())
+
+  match       Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player      Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  @@unique([matchId, playerId])
+  @@map("player_match_stats")
+}
+
+model MatchRosterPick {
+  id        String  @id @default(cuid())
+  matchId   String
+  teamId    String
+  memberId  String  // TeamMember.id
+  isStarter Boolean @default(true)
+
+  match     Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, memberId])
+  @@map("match_roster_picks")
+}
+
+model MatchVenueSuggestion {
+  id       String  @id @default(cuid())
+  matchId  String
+  turfId   String
+  slotId   String
+  date     String  // "YYYY-MM-DD"
+  priority Int     // 1, 2, 3
+
+  match    Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@map("match_venue_suggestions")
+}
+
+model MatchChatMessage {
+  id        String   @id @default(cuid())
+  matchId   String
+  playerId  String
+  teamId    String
+  message   String
+  createdAt DateTime @default(now())
+
+  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player    Player   @relation("PlayerChatMessages", fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("match_chat_messages")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE SCORING SYSTEM — Scorer assignment, events, sign-offs, half time
+// ─────────────────────────────────────────────────────────────────────────────
+
+model MatchScorer {
+  id         String   @id @default(cuid())
+  matchId    String
+  teamId     String
+  playerId   String
+  assignedAt DateTime @default(now())
+
+  match      Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, teamId])
+  @@map("match_scorers")
+}
+
+model MatchEvent {
+  id               String         @id @default(cuid())
+  matchId          String
+  type             MatchEventType
+  teamId           String         // team the event belongs to
+  playerId         String?        // primary player (scorer, carded, sub off)
+  assistPlayerId   String?        // for GOAL events
+  playerOnId       String?        // for SUBSTITUTION events (player coming on)
+  minute           Int
+  status           EventStatus    @default(PENDING)
+  disputedByTeamId String?
+  resolvedAt       DateTime?
+  resolution       String?        // 'accepted' | 'corrected' | 'removed'
+  createdAt        DateTime       @default(now())
+
+  match            Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@map("match_events")
+}
+
+model MatchSignOff {
+  id          String   @id @default(cuid())
+  matchId     String
+  teamId      String
+  signedOffAt DateTime @default(now())
+
+  match       Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, teamId])
+  @@map("match_sign_offs")
+}
+
+model MatchHalfTime {
+  id          String    @id @default(cuid())
+  matchId     String    @unique
+  calledByA   Boolean   @default(false)
+  calledByB   Boolean   @default(false)
+  confirmedAt DateTime?
+
+  match       Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@map("match_halftimes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHALLENGE MARKET ECOSYSTEM — Seasons, Subscriptions, Payments, Disputes
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ChallengeSeason {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  matches   Match[]
+
+  @@map("challenge_seasons")
+}
+
+model ChallengeSubscription {
+  id              String   @id @default(cuid())
+  teamId          String   @unique
+  active          Boolean  @default(true)
+  subscribedAt    DateTime @default(now())
+  gracePeriodEnd  DateTime? 
+  
+  team            Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@map("challenge_subscriptions")
+}
+
+model ChallengePayment {
+  id            String   @id @default(cuid())
+  teamId        String
+  ownerId       String   // References Team.ownerId (Player)
+  amount        Float
+  createdAt     DateTime @default(now())
+
+  @@map("challenge_payments")
+}
+
+model ChallengeDispute {
+  id          String   @id @default(cuid())
+  matchId     String
+  teamId      String
+  reason      String
+  status      DisputeStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+
+  match       Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@map("challenge_disputes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLATFORM CONFIG — Singleton admin-controlled settings
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ChallengeMarketConfig {
+  id                  String   @id @default("singleton")
+  monthlyFee          Int      @default(500)   // BDT, deducted from owner wallet
+  updatedAt           DateTime @updatedAt
+  updatedByAdminId    String?
+
+  @@map("challenge_market_config")
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SHOP — E-commerce Layer
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ShopCarouselSlide {
+  id         String   @id @default(cuid())
+  imageUrl   String
+  ctaText    String?
+  ctaLink    String?
+  order      Int      @default(0)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  @@map("shop_carousel_slides")
+}
+
+model ShopCarouselSettings {
+  id         String   @id @default("singleton")
+  autoSlide  Boolean  @default(true)
+  intervalMs Int      @default(3500)
+  slideType  String   @default("auto")
+  updatedAt  DateTime @updatedAt
+
+  @@map("shop_carousel_settings")
+}
+
+model ShopCategory {
+  id        String         @id @default(cuid())
+  name      String
+  slug      String         @unique
+  parentId  String?
+  order     Int            @default(0)
+  imageUrl  String?
+  sizeChartUrl String?
+  parent    ShopCategory?  @relation("SubCategories", fields: [parentId], references: [id], onDelete: SetNull)
+  children  ShopCategory[] @relation("SubCategories")
+  products  ShopProduct[]
+  createdAt DateTime       @default(now())
+
+  @@map("shop_categories")
+}
+
+model ShopProduct {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  categoryId      String
+  mainImage       String
+  galleryImages   String[] @default([])
+  description     String?
+  seoTitle        String?
+  seoDescription  String?
+  productCost     Float    @default(0)
+  marketingCost   Float    @default(0)
+  status          String   @default("active")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  category  ShopCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  sizes     ShopProductSize[]
+  orderItems ShopOrderItem[]
+
+  @@map("shop_products")
+}
+
+model ShopProductSize {
+  id          String   @id @default(cuid())
+  productId   String
+  label       String
+  basePrice   Float
+  salePrice   Float?
+  quantity    Int      @default(0)
+
+  product  ShopProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("shop_product_sizes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAY WITH FRIENDS — Casual groups for cost-splitting turf bookings
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PlayGroup {
+  id        String   @id @default(cuid())
+  name      String   @default("My Group")
+  sport     String?  // free-text sport name from sports table
+  ownerId   String   // Player who created the group
+  createdAt DateTime @default(now())
+
+  members       PlayGroupMember[]
+  listings      PlayListing[]
+  chatMsgs      PlayGroupChat[]
+  splitRequests PlaySplitRequest[]
+
+  @@map("play_groups")
+}
+
+model PlayGroupMember {
+  id          String   @id @default(cuid())
+  groupId     String
+  playerId    String
+  splitAmount Float    @default(0)
+  joinedAt    DateTime @default(now())
+
+  group         PlayGroup          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  player        Player             @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  splitRequests PlaySplitRequest[]
+
+  @@unique([groupId, playerId])
+  @@map("play_group_members")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAY SPLIT REQUESTS — Owner-to-member cost allocation requests
+// ─────────────────────────────────────────────────────────────────────────────
 
 enum PlaySplitStatus {
   PENDING
@@ -1680,11 +1300,421 @@ enum PlaySplitStatus {
   REJECTED
 }
 
+model PlaySplitRequest {
+  id        String          @id @default(cuid())
+  groupId   String
+  memberId  String          // PlayGroupMember.id
+  amount    Float
+  status    PlaySplitStatus @default(PENDING)
+  createdAt DateTime        @default(now())
+
+  group  PlayGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member PlayGroupMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@map("play_split_requests")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAY LISTINGS — "Looking for Players" public posts
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PlayListing {
+  id               String   @id @default(cuid())
+  groupId          String
+  sport            String?
+  playersNeeded    Int      @default(1)
+  description      String?
+  date             String?  // "YYYY-MM-DD"
+  timeSlot         String?
+  turfId           String?  // optional — published turf reference
+  turfName         String?  // denormalised for display
+  minFootballRank  Int?     // optional min MMR
+  minCricketRank   Int?
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  group    PlayGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  requests PlayJoinRequest[]
+
+  @@map("play_listings")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAY JOIN REQUESTS — Players requesting to join via a listing
+// ─────────────────────────────────────────────────────────────────────────────
+
 enum PlayJoinStatus {
   PENDING
   ACCEPTED
   REJECTED
 }
+
+model PlayJoinRequest {
+  id        String         @id @default(cuid())
+  listingId String
+  playerId  String         // requester
+  status    PlayJoinStatus @default(PENDING)
+  createdAt DateTime       @default(now())
+
+  listing  PlayListing      @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  player   Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  chatMsgs PlayRequestChat[]
+
+  @@unique([listingId, playerId])   // one request per player per listing
+  @@map("play_join_requests")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAY GROUP CHAT — Real-time group messages (broadcast via Supabase)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PlayGroupChat {
+  id        String   @id @default(cuid())
+  groupId   String
+  playerId  String
+  message   String
+  createdAt DateTime @default(now())
+
+  group  PlayGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  player Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("play_group_chat")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAY REQUEST CHAT — DM between accepted requester and group owner
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PlayRequestChat {
+  id        String   @id @default(cuid())
+  requestId String
+  playerId  String
+  message   String
+  createdAt DateTime @default(now())
+
+  request PlayJoinRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  player  Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("play_request_chat")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SHOP ORDERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ShopOrder {
+  id              String   @id @default(cuid())
+  playerId        String?  // References Player.id if logged in, otherwise null for guests
+  customerName    String
+  customerPhone   String
+  customerEmail   String?
+  address         String   @db.Text
+  district        String
+  paymentMethod   String   // "cod" or "wallet"
+  deliveryCharge  Float
+  subtotal        Float
+  total           Float
+  status          String   @default("pending") // pending, confirmed, shipped, delivered, cancelled
+  createdAt       DateTime @default(now())
+
+  items           ShopOrderItem[]
+  player          Player?  @relation(fields: [playerId], references: [id], onDelete: SetNull)
+
+  @@map("shop_orders")
+}
+
+model ShopOrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  productId   String
+  sizeLabel   String
+  quantity    Int
+  price       Float    // price at time of purchase
+
+  order       ShopOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     ShopProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@map("shop_order_items")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CRICKET SCORING SYSTEM — Innings, Overs, Deliveries, Performances
+// ─────────────────────────────────────────────────────────────────────────────
+
+model CricketToss {
+  id            String   @id @default(cuid())
+  matchId       String   @unique
+  winnerTeamId  String?
+  electedTo     String?  // "BAT" | "BOWL"
+  
+  // Coin toss dynamics
+  calledByTeamId String? // the visiting team making the call
+  tossCall       String? // "HEADS" | "TAILS"
+  coinLandedOn   String? // "HEADS" | "TAILS"
+
+  proposedOversA Int?
+  proposedOversB Int?
+  recordedByPlayerId String? // optional until it's done or maybe not needed anymore? (We'll keep it as String? to be safe)
+  confirmedByA  Boolean  @default(false)
+  confirmedByB  Boolean  @default(false)
+  confirmedAt   DateTime?
+  createdAt     DateTime @default(now())
+
+  match         Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@map("cricket_tosses")
+}
+
+model CricketInnings {
+  id            String        @id @default(cuid())
+  matchId       String
+  inningsNumber Int           // 1 or 2
+  battingTeamId String
+  bowlingTeamId String
+  totalRuns     Int           @default(0)
+  totalWickets  Int           @default(0)
+  totalOvers    Float         @default(0)  // e.g. 6.4 = 6 overs 4 balls
+  extras        Int           @default(0)
+  wides         Int           @default(0)
+  noBalls       Int           @default(0)
+  // Batting order — JSON array of { playerId, position }
+  battingOrder  Json          @default("[]")
+  // Opening bowler playerId
+  openingBowlerId String?
+  // Current striker / non-striker (updated per delivery)
+  currentStrikerId    String?
+  currentNonStrikerId String?
+  // Current bowler
+  currentBowlerId     String?
+  currentOverNumber   Int     @default(1)
+  status        InningsStatus @default(PENDING)
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime      @default(now())
+
+  match            Match                 @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  overs            CricketOver[]
+  deliveries       CricketDelivery[]
+  battingPerfs     BattingPerformance[]
+  bowlingPerfs     BowlingPerformance[]
+  signOffs         CricketMatchSignOff[]
+
+  @@unique([matchId, inningsNumber])
+  @@map("cricket_innings")
+}
+
+model CricketOver {
+  id            String      @id @default(cuid())
+  inningsId     String
+  matchId       String
+  overNumber    Int
+  bowlerId      String
+  runs          Int         @default(0)
+  wickets       Int         @default(0)
+  wides         Int         @default(0)
+  noBalls       Int         @default(0)
+  legalBalls    Int         @default(0)  // count of legal deliveries (max 6)
+  status        OverStatus  @default(PENDING)
+  confirmedByBatting  Boolean @default(false)
+  confirmedByBowling  Boolean @default(false)
+  createdAt     DateTime    @default(now())
+
+  innings       CricketInnings   @relation(fields: [inningsId], references: [id], onDelete: Cascade)
+  deliveries    CricketDelivery[]
+
+  @@unique([inningsId, overNumber])
+  @@map("cricket_overs")
+}
+
+model CricketDelivery {
+  id                  String          @id @default(cuid())
+  inningsId           String
+  matchId             String
+  overId              String
+  overNumber          Int
+  ballNumber          Int             // legal ball within over (1-6)
+  deliverySequence    Int             // absolute delivery number including extras
+  bowlerId            String
+  strikerId           String
+  nonStrikerId        String
+  deliveryType        DeliveryType
+  runs                Int             @default(0)  // total runs from this delivery
+  strikerRuns         Int             @default(0)  // runs credited to striker
+  nonStrikerRuns      Int             @default(0)  // runs credited to non-striker
+  isWicket            Boolean         @default(false)
+  dismissalType       DismissalType?
+  dismissedPlayerId   String?
+  fielderId           String?         // caught by / run out by / stumped by
+  bowlerCredited      Boolean         @default(true)  // false for run outs not off bowler
+  isBye               Boolean         @default(false)
+  isLegBye            Boolean         @default(false)
+  isFreeHit           Boolean         @default(false)  // set by system on delivery after no-ball
+  status              DeliveryStatus  @default(PENDING)
+  submittedByPlayerId String          // bowling scorer
+  confirmedByPlayerId String?         // batting scorer
+  createdAt           DateTime        @default(now())
+
+  innings     CricketInnings   @relation(fields: [inningsId], references: [id], onDelete: Cascade)
+  over        CricketOver      @relation(fields: [overId], references: [id], onDelete: Cascade)
+  disputes    CricketDispute[]
+
+  @@map("cricket_deliveries")
+}
+
+model BattingPerformance {
+  id              String         @id @default(cuid())
+  inningsId       String
+  matchId         String
+  playerId        String
+  battingPosition Int
+  runs            Int            @default(0)
+  ballsFaced      Int            @default(0)
+  fours           Int            @default(0)
+  sixes           Int            @default(0)
+  strikeRate      Float?         // auto-calculated
+  dismissalType   DismissalType?
+  dismissedByBowlerId  String?
+  dismissedByFielderId String?
+  isOut           Boolean        @default(false)
+  notOut          Boolean        @default(true)
+  hasBatted       Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+
+  innings  CricketInnings @relation(fields: [inningsId], references: [id], onDelete: Cascade)
+  player   Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([inningsId, playerId])
+  @@map("batting_performances")
+}
+
+model BowlingPerformance {
+  id          String   @id @default(cuid())
+  inningsId   String
+  matchId     String
+  playerId    String
+  legalBalls  Int      @default(0)  // 6 per over
+  runs        Int      @default(0)
+  wickets     Int      @default(0)
+  wides       Int      @default(0)
+  noBalls     Int      @default(0)
+  economy     Float?   // auto-calculated
+  createdAt   DateTime @default(now())
+
+  innings  CricketInnings @relation(fields: [inningsId], references: [id], onDelete: Cascade)
+  player   Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([inningsId, playerId])
+  @@map("bowling_performances")
+}
+
+model CricketMatchSignOff {
+  id          String            @id @default(cuid())
+  matchId     String
+  inningsId   String?
+  teamId      String
+  type        CricketSignOffType
+  signedOffAt DateTime          @default(now())
+
+  innings CricketInnings? @relation(fields: [inningsId], references: [id], onDelete: Cascade)
+
+  @@map("cricket_match_signoffs")
+}
+
+model CricketDispute {
+  id              String    @id @default(cuid())
+  deliveryId      String
+  raisedByTeamId  String
+  reason          String?
+  resolvedAt      DateTime?
+  resolution      String?
+  createdAt       DateTime  @default(now())
+
+  delivery CricketDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  @@map("cricket_disputes")
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SPONSORS — Frontend Banner Layer
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Sponsor {
+  id         String   @id @default(cuid())
+  imageUrl   String
+  ctaText    String?
+  ctaLink    String?
+  order      Int      @default(0)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  @@map("sponsors")
+}
+
+model SponsorSettings {
+  id         String   @id @default("singleton")
+  autoSlide  Boolean  @default(true)
+  intervalMs Int      @default(3500)
+  updatedAt  DateTime @updatedAt
+
+  @@map("sponsor_settings")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REELS — Mux Video Integration
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Reel {
+  id            String   @id @default(cuid())
+  playerId      String
+  muxUploadId   String?  @unique // Temporary tracking ID
+  muxAssetId    String?  @unique // Final processed video
+  muxPlaybackId String?  // ID used for streaming
+  status        String   @default("uploading") // uploading, processing, ready, error
+  caption       String?
+  views         Int      @default(0)
+  likes         Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("reels")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OPEN WBT — External turf registry for paid match booking
+// ─────────────────────────────────────────────────────────────────────────────
+
+model WbtTurf {
+  id         String   @id @default(cuid())
+  name       String
+  divisionId String
+  cityId     String
+  createdAt  DateTime @default(now())
+
+  division   Division @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+  city       City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  @@map("wbt_turfs")
+}
+
+model WbtCoupon {
+  id            String       @id @default(cuid())
+  code          String       @unique
+  discountType  DiscountType
+  discountValue Float
+  maxUses       Int          @default(0)  // 0 = unlimited
+  usedCount     Int          @default(0)
+  expiresAt     DateTime?
+  active        Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+
+  @@map("wbt_coupons")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT ENGINE — Enums
+// ─────────────────────────────────────────────────────────────────────────────
 
 enum TournamentStatus {
   DRAFT
@@ -1770,8 +1800,8 @@ enum TAuctionRoomStatus {
 enum TOrgTxType {
   TOP_UP
   MATCH_CHARGE
-  REFUND
   TOURNAMENT_CHARGE
+  REFUND
 }
 
 enum TDisputeStatus {
@@ -1785,4 +1815,445 @@ enum TRegistrationStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ORGANIZER — External tournament organizers (invited by super admin)
+// Custom auth: bcrypt password. Completely separate from Player and Owner.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Organizer {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  phone        String   @default("")
+  password     String   // bcrypt hashed
+  isVerified   Boolean  @default(false) // set true by super admin if needed
+  joinedAt     DateTime @default(now())
+  chargePerTournament Int @default(0)
+  banStatus    BanStatus @default(none)
+  banReason    String?
+
+  wallet           OrganizerWallet?
+  tournaments      Tournament[]
+  rechargeRequests OrganizerRechargeRequest[]
+  invite           OrganizerInvite? @relation(fields: [inviteId], references: [id])
+  inviteId         String?          @unique
+
+  @@map("organizers")
+}
+
+model OrganizerWallet {
+  id           String   @id @default(cuid())
+  organizerId  String   @unique
+  balance      Float    @default(0)    // taka
+  totalToppedUp Float   @default(0)
+  totalSpent   Float    @default(0)
+  updatedAt    DateTime @updatedAt
+
+  organizer    Organizer @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  transactions OrganizerWalletTransaction[]
+
+  @@map("organizer_wallets")
+}
+
+model OrganizerWalletTransaction {
+  id           String     @id @default(cuid())
+  organizerId  String
+  type         TOrgTxType
+  amount       Float
+  matchId      String?    // set when type = MATCH_CHARGE
+  description  String?
+  createdAt    DateTime   @default(now())
+
+  wallet       OrganizerWallet @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+
+  @@map("organizer_wallet_transactions")
+}
+
+model OrganizerRechargeRequest {
+  id               String               @id @default(cuid())
+  organizerId      String
+  amount           Float
+  method           WalletRechargeMethod
+  screenshotBase64 String?              @db.Text
+  status           WalletRequestStatus  @default(pending)
+  createdAt        DateTime             @default(now())
+
+  organizer        Organizer @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+
+  @@map("organizer_recharge_requests")
+}
+
+
+model OrganizerInvite {
+  id              String           @id @default(cuid())
+  invitedBy       String           // super_admin user id (plain string — no FK to a specific table)
+  emailOrPhone    String
+  inviteToken     String           @unique @default(cuid())
+  status          TOrgInviteStatus @default(PENDING)
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  organizerUserId String?          // set when organizer account is created
+  createdAt       DateTime         @default(now())
+
+  organizer       Organizer?
+
+  @@map("organizer_invites")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT — Core tournament entity
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Tournament {
+  id                   String            @id @default(cuid())
+  operatorId           String            // Organizer.id OR super_admin string id
+  operatorType         OperatorType
+  sport                TournamentSport
+  name                 String
+  description          String?           @db.Text
+  bannerImageUrl       String?
+  logoUrl              String?           // tournament logo for public display
+  endTime              String?           // e.g. "22:00"
+
+  registrationType     TRegistrationType
+  maxParticipants      Int
+  entryFee             Int               @default(0) // app coins, 0 = free
+  registrationDeadline DateTime?
+
+  // Player-auction mode (only when registrationType = PLAYER)
+  auctionEnabled       Boolean           @default(false)
+  playerBudgetPerCaptain Int?            // app coins each captain gets to bid
+  auctionStartTime     DateTime?
+
+  // Prizes
+  prizePoolTotal       Int               @default(0) // app coins
+  prizeDistribution    Json              @default("{}") // { "1st": 50, "2nd": 30, "3rd": 20 }
+  prizeType            TPrizeType        @default(TROPHY_ONLY)
+
+  // Format
+  formatType           TournamentFormat
+  groupCount           Int?
+  teamsPerGroup        Int?
+  qualifyPerGroup      Int?
+  formatConfig         Json?             // format-specific settings object
+  formatConfigLocked   Boolean           @default(false) // locked after first match
+
+
+  // MMR
+  mmrEnabled           Boolean           @default(true)
+  mmrMultiplier        Float             @default(1.0)
+
+  // Scheduling & venue
+  venue                String?
+  startDate            DateTime?
+  endDate              DateTime?
+  startTime            String?           // e.g. "18:00"
+
+  status               TournamentStatus  @default(DRAFT)
+  // Registration gate — countdown + open/close control
+  registrationOpenAt   DateTime?         // one-time countdown target; null = not set
+  isRegistrationOpen   Boolean           @default(false) // manual toggle
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+
+  organizer            Organizer?        @relation(fields: [operatorId], references: [id], onDelete: Restrict)
+  registrations        TournamentRegistration[]
+  groups               TournamentGroup[]
+  matches              TournamentMatch[]
+  standings            TournamentStanding[]
+  auctionRoom          AuctionRoom?
+  tournamentTeams      TournamentTeam[]
+  payouts              TournamentPayout[]
+  sponsors             TournamentSponsor[]
+
+  @@map("tournaments")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT REGISTRATION — Teams or players registering for a tournament
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TournamentRegistration {
+  id            String              @id @default(cuid())
+  tournamentId  String
+  entityType    TRegistrationType   // TEAM | PLAYER
+  entityId      String              // Team.id or Player.id
+  registeredAt  DateTime            @default(now())
+  status        TRegistrationStatus @default(PENDING)
+  entryFeePaid  Boolean             @default(false)
+
+  tournament    Tournament          @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, entityId])
+  @@map("tournament_registrations")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT TEAM — Formed after player auction; captain + picked players
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TournamentTeam {
+  id           String   @id @default(cuid())
+  tournamentId String
+  captainId    String   // Player.id
+  name         String
+  players      String[] @default([]) // array of Player.id values
+  budgetSpent  Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@map("tournament_teams")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT GROUP — Groups for GROUP / GROUP_KNOCKOUT formats
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TournamentGroup {
+  id           String   @id @default(cuid())
+  tournamentId String
+  name         String   // "Group A", "Group B", etc.
+  teamIds      String[] @default([]) // Team.id array
+
+  tournament   Tournament           @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  matches      TournamentMatch[]
+  standings    TournamentStanding[]
+
+  @@map("tournament_groups")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT MATCH — Individual matches within a tournament
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TournamentMatch {
+  id            String       @id @default(cuid())
+  tournamentId  String
+  groupId       String?      // null for knockout stage matches
+  stage         TMatchStage
+  matchNumber   Int
+  teamAId       String       // Team.id
+  teamBId       String       // Team.id
+  scheduledAt   DateTime?
+  venue         String?
+
+  // Scorer
+  scorerId      String?      // User id (Organizer.id or admin id)
+  scorerType    TScorerType?
+  matchMode     String       @default("TOURNAMENT") // "TOURNAMENT" | "CASUAL"
+
+  // Status
+  status        TMatchStatus @default(SCHEDULED)
+
+  // Result
+  winnerId      String?      // Team.id
+  resultSummary Json?        // sport-specific result data (scores, wickets, etc.)
+
+  // Dispute
+  disputeStatus TDisputeStatus @default(PENDING)
+  hasDispute    Boolean        @default(false)
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  tournament    Tournament   @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  group         TournamentGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  scorerToken   TournamentScorerToken?
+  disputes      TournamentDispute[]
+
+  @@map("tournament_matches")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT SCORER TOKEN — Token-based access for external scorers
+// Token IS the authentication — no login required for the match
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TournamentScorerToken {
+  id         String    @id @default(cuid())
+  matchId    String    @unique
+  token      String    @unique @default(cuid())
+  scorerRef  String?   // email or phone used when sending the link
+  usedAt     DateTime?
+  expiresAt  DateTime?
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+
+  match      TournamentMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@map("tournament_scorer_tokens")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT STANDING — Live standings per group (or overall for LEAGUE)
+// Recomputable from scratch from TournamentMatch results at any time
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TournamentStanding {
+  id              String   @id @default(cuid())
+  tournamentId    String
+  groupId         String?  // null for overall standings
+  teamId          String   // Team.id
+
+  played          Int      @default(0)
+  won             Int      @default(0)
+  lost            Int      @default(0)
+  drawn           Int      @default(0)  // football
+  noResult        Int      @default(0)  // cricket
+  points          Int      @default(0)
+
+  // Cricket
+  nrr             Float    @default(0)  // net run rate
+
+  // Football
+  goalDifference  Int      @default(0)
+  goalsScored     Int      @default(0)
+  goalsConceded   Int      @default(0)
+
+  // Tiebreaker
+  headToHead      Json     @default("{}") // H2H record vs other teams
+
+  position        Int      @default(0)
+  qualified       Boolean  @default(false)
+
+  updatedAt       DateTime @updatedAt
+
+  tournament      Tournament      @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  group           TournamentGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  @@unique([tournamentId, groupId, teamId])
+  @@map("tournament_standings")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT DISPUTE — Team raises a dispute about a logged match event
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TournamentDispute {
+  id              String         @id @default(cuid())
+  matchId         String
+  raisedByTeamId  String         // Team.id
+  eventRef        String?        // delivery id or event id being disputed
+  reason          String         @db.Text // min 10 chars enforced at API level
+  status          TDisputeStatus @default(PENDING)
+  resolvedBy      String?        // Organizer.id or admin id
+  resolutionNote  String?        @db.Text
+  raisedAt        DateTime       @default(now())
+  resolvedAt      DateTime?
+
+  match           TournamentMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@map("tournament_disputes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AUCTION ROOM — Real-time player auction for player-based tournaments
+// Built last — schema ready now, UI/logic in Phase 8
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AuctionRoom {
+  id                     String             @id @default(cuid())
+  tournamentId           String             @unique
+  status                 TAuctionRoomStatus @default(WAITING)
+  currentPlayerId        String?            // Player.id being auctioned
+  currentBasePrice       Int?
+  currentHighestBid      Int?
+  currentHighestBidderId String?            // Player.id (captain)
+  bidTimerSeconds        Int                @default(30)
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  tournament             Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  bids                   AuctionBid[]
+
+  @@map("auction_rooms")
+}
+
+model AuctionBid {
+  id            String   @id @default(cuid())
+  auctionRoomId String
+  playerId      String   // Player.id being bid on
+  captainId     String   // Player.id placing the bid
+  amount        Int
+  timestamp     DateTime @default(now())
+
+  room          AuctionRoom @relation(fields: [auctionRoomId], references: [id], onDelete: Cascade)
+
+  @@map("auction_bids")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OTP VERIFICATION — Phone number verification for signup & reset
+// ─────────────────────────────────────────────────────────────────────────────
+
+model OtpVerification {
+  id        String   @id @default(cuid())
+  phone     String
+  otp       String
+  purpose   String   // "signup" | "reset"
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([phone, otp])
+  @@map("otp_verifications")
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// TURF SERVICE SETTING — Super admin controlled "coming soon" mode for turfs
+// Singleton: always upsert id="singleton"
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TurfServiceSetting {
+  id          String    @id @default("singleton")
+  isActive    Boolean   @default(false)
+  launchAt    DateTime? // countdown target; null = not set
+  updatedAt   DateTime  @updatedAt
+
+  @@map("turf_service_settings")
+}
+
+// ───────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT PAYOUT — BMT holds entry fees; cleared by super admin with proof
+// ───────────────────────────────────────────────────────────────────────────────
+
+model TournamentPayout {
+  id              String    @id @default(cuid())
+  tournamentId    String
+  organizerId     String?   // null if platform-run tournament
+  entityType      String    // 'TEAM' | 'PLAYER'
+  entityId        String    // Team.id or Player.id
+  entityName      String    // display name cached at registration time
+  amount          Int       // entry fee amount in coins/BDT
+  status          String    @default("HOLDING") // HOLDING | CLEARED
+  clearedAt       DateTime?
+  proofImageUrl   String?
+  note            String?
+  createdAt       DateTime  @default(now())
+
+  tournament      Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@map("tournament_payouts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOURNAMENT SPONSOR — Sponsors attached to a tournament by the organizer
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TournamentSponsor {
+  id           String    @id @default(cuid())
+  tournamentId String
+  name         String
+  logoUrl      String
+  type         String    @default("CO_SPONSOR") // MAIN | CO_SPONSOR
+  ctaUrl       String?   // optional link
+  order        Int       @default(0)
+  createdAt    DateTime  @default(now())
+
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@map("tournament_sponsors")
 }

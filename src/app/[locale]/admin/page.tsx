@@ -20,6 +20,7 @@ import OpenWbtPanel from '@/components/admin/OpenWbtPanel';
 import TournamentListTab from '@/components/admin/tournaments/TournamentListTab';
 import OrganizerListTab from '@/components/admin/tournaments/OrganizerListTab';
 import OrganizerRechargePanel from '@/components/admin/OrganizerRechargePanel';
+import OrganizerPayoutPanel from '@/components/admin/tournaments/OrganizerPayoutPanel';
 
 const PAGE_TITLES: Record<AdminPage, string> = {
   overview:         'Dashboard Overview',
@@ -40,6 +41,7 @@ const PAGE_TITLES: Record<AdminPage, string> = {
   bmtTournaments:   'BMT Tournaments',
   organizers:       'Organizers',
   orgRecharge:      'Org Wallet Recharges',
+  orgPayouts:       'Organizer Payouts',
 };
 
 export default function AdminPage() {
@@ -164,6 +166,16 @@ export default function AdminPage() {
 
           {activePage === 'orgRecharge' && (
             <section><OrganizerRechargePanel /></section>
+          )}
+
+          {activePage === 'orgPayouts' && (
+            <section className="h-full">
+              <div className="mb-5 md:mb-7">
+                <h2 className="text-lg md:text-2xl font-black">Organizer Payouts</h2>
+                <p className="text-sm md:text-base text-[var(--muted)] mt-0.5 md:mt-1">Entry fees collected from tournament registrations, held by BMT. Clear with proof to release to organizer wallets.</p>
+              </div>
+              <OrganizerPayoutPanel />
+            </section>
           )}
 
           {activePage === 'shop' && (

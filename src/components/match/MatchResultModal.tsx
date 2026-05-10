@@ -4,6 +4,8 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useMatchResult } from '@/context/MatchResultContext';
 import { getRankData } from '@/lib/rankUtils';
+import { ShareActions } from '@/components/match/ShareMatchCard';
+import type { ShareCardData } from '@/components/match/ShareMatchCard';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -16,6 +18,8 @@ function sportLabel(sportType: string): string {
   if (sportType === 'FOOTBALL_FULL') return 'Football';
   return sportType;
 }
+
+export { sportLabel, sportEmoji };
 
 function sportEmoji(sportType: string): string {
   if (sportType?.includes('CRICKET')) return '🏏';
@@ -44,7 +48,7 @@ export default function MatchResultModal() {
   const [phase,     setPhase]     = useState<'hidden'|'stamp'|'stats'|'mmr'>('hidden');
   const [animMMR,   setAnimMMR]   = useState(0);
   const [animWidth, setAnimWidth] = useState(0);
-  const [countdown, setCountdown] = useState(15);
+  const [countdown, setCountdown] = useState(45);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -89,11 +93,11 @@ export default function MatchResultModal() {
 
   // Countdown auto-dismiss (only starts when fully visible = phase mmr)
   useEffect(() => {
-    if (!result || phase !== 'mmr') { setCountdown(15); return; }
-    setCountdown(15);
+    if (!result || phase !== 'mmr') { setCountdown(45); return; }
+    setCountdown(45);
     countdownRef.current = setInterval(() => {
       setCountdown(prev => {
-        if (prev <= 1) { handleDismiss(); return 15; }
+        if (prev <= 1) { handleDismiss(); return 45; }
         return prev - 1;
       });
     }, 1000);
@@ -230,6 +234,29 @@ export default function MatchResultModal() {
           </div>
         </div>
 
+        {/* ── Share buttons (Download + Native Share) ───────────────────────────── */}
+        <div className="relative z-10 w-full max-w-xs"
+          style={{ animation: phase === 'stats' || phase === 'mmr' ? 'bmt-slide-up 0.45s cubic-bezier(0.34,1.56,0.64,1) 0.15s both' : 'none', opacity: phase === 'stamp' ? 0 : 1 }}>
+          <ShareActions
+            outcomeColor={outcomeColor}
+            data={{
+              outcome      : outcome,
+              sportType    : sportType,
+              sportLabel   : sportLabel(sportType),
+              sportEmoji   : sportEmoji(sportType),
+              myTeamName   : myTeamName,
+              oppTeamName  : oppTeamName,
+              myScore      : myScore,
+              oppScore     : oppScore,
+              myWickets    : myWickets,
+              oppWickets   : oppWickets,
+              myOvers      : myOvers,
+              oppOvers     : oppOvers,
+              victoryString: victoryString,
+            } satisfies ShareCardData}
+          />
+        </div>
+
         {/* ── Phase 3: MMR + Rank Badge ─────────────────────────────────────────── */}
         <div className="relative z-10 w-full max-w-xs"
           style={{ animation: phase === 'mmr' ? 'bmt-slide-up 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards' : 'none', opacity: phase === 'mmr' ? 1 : 0 }}>
@@ -292,7 +319,7 @@ export default function MatchResultModal() {
           {/* Countdown bar */}
           <div className="w-full h-0.5 rounded-full bg-white/10 overflow-hidden">
             <div className="h-full bg-white/30 rounded-full transition-all duration-1000 ease-linear"
-              style={{ width: `${(countdown / 15) * 100}%` }} />
+              style={{ width: `${(countdown / 45) * 100}%` }} />
           </div>
 
           <button
@@ -303,7 +330,7 @@ export default function MatchResultModal() {
               border: `1.5px solid ${outcomeColor}40`,
               color: outcomeColor,
             }}>
-            Got it →
+            Sign Off →
           </button>
         </div>
       </div>

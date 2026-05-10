@@ -130,7 +130,7 @@ export default function FormatConfigPanel({ formatType, teams, config, onChange 
           <div>
             <label className={lbl}>Bracket Size <span className="normal-case text-neutral-600">(auto)</span></label>
             <div className="p-3 bg-neutral-950 border border-white/5 rounded-xl text-sm font-black text-accent">
-              {config.bracketSize ?? nextPow2(teams)} teams &nbsp;·&nbsp; {config.byes ?? (nextPow2(teams) - teams)} byes
+              {config.bracketSize ?? nextPow2(teams)}-slot bracket &nbsp;·&nbsp; {config.byes ?? (nextPow2(teams) - teams)} byes
             </div>
           </div>
           <div>
@@ -160,7 +160,7 @@ export default function FormatConfigPanel({ formatType, teams, config, onChange 
           <div>
             <label className={lbl}>Bracket Size <span className="normal-case text-neutral-600">(auto)</span></label>
             <div className="p-3 bg-neutral-950 border border-white/5 rounded-xl text-sm font-black text-accent">
-              {config.bracketSize ?? nextPow2(teams)} teams &nbsp;·&nbsp; {config.byes ?? (nextPow2(teams) - teams)} byes
+              {config.bracketSize ?? nextPow2(teams)}-slot bracket &nbsp;·&nbsp; {config.byes ?? (nextPow2(teams) - teams)} byes
             </div>
           </div>
           <div>
@@ -204,7 +204,7 @@ export default function FormatConfigPanel({ formatType, teams, config, onChange 
             <div key={k}>
               <label className={lbl}>Pts — {l}</label>
               <input type="number" min={0} max={99} value={config[k] ?? (k === 'pointsWin' ? 3 : k === 'pointsDraw' ? 1 : 0)}
-                onChange={e => set(k, parseInt(e.target.value) || 0)} className={num} />
+                onChange={e => set(k, e.target.value === '' ? '' : Number(e.target.value))} onFocus={e => e.target.select()} className={num} />
             </div>
           ))}
         </div>
@@ -223,7 +223,7 @@ export default function FormatConfigPanel({ formatType, teams, config, onChange 
           <div>
             <label className={lbl}>Number of Groups</label>
             <input type="number" min={2} max={32} value={config.numberOfGroups ?? Math.max(2, Math.floor(teams / 4))}
-              onChange={e => set('numberOfGroups', parseInt(e.target.value) || 2)} className={num} />
+              onChange={e => set('numberOfGroups', e.target.value === '' ? '' : Number(e.target.value))} onFocus={e => e.target.select()} className={num} />
           </div>
           <div>
             <label className={lbl}>Teams/Group <span className="normal-case text-neutral-600">(auto)</span></label>
@@ -234,7 +234,7 @@ export default function FormatConfigPanel({ formatType, teams, config, onChange 
           <div>
             <label className={lbl}>Advance/Group</label>
             <input type="number" min={1} value={config.teamsAdvancePerGroup ?? 2}
-              onChange={e => set('teamsAdvancePerGroup', parseInt(e.target.value) || 1)} className={num} />
+              onChange={e => set('teamsAdvancePerGroup', e.target.value === '' ? '' : Number(e.target.value))} onFocus={e => e.target.select()} className={num} />
           </div>
         </div>
         <div>
@@ -262,7 +262,7 @@ export default function FormatConfigPanel({ formatType, teams, config, onChange 
           <div>
             <label className={lbl}>Number of Rounds</label>
             <input type="number" min={1} value={config.numberOfRounds ?? Math.ceil(Math.log2(Math.max(teams, 2)))}
-              onChange={e => set('numberOfRounds', parseInt(e.target.value) || 1)} className={num} />
+              onChange={e => set('numberOfRounds', e.target.value === '' ? '' : Number(e.target.value))} onFocus={e => e.target.select()} className={num} />
             <p className="text-[10px] text-neutral-500 mt-1">Recommended: {Math.ceil(Math.log2(Math.max(teams, 2)))} (⌈log₂ {teams}⌉)</p>
           </div>
           <div>
@@ -276,7 +276,7 @@ export default function FormatConfigPanel({ formatType, teams, config, onChange 
         <div>
           <label className={lbl}>Teams Advancing to Playoff</label>
           <input type="number" min={0} value={config.teamsAdvanceToPlayoff ?? Math.floor(teams / 4)}
-            onChange={e => set('teamsAdvanceToPlayoff', parseInt(e.target.value) || 0)} className={num} />
+            onChange={e => set('teamsAdvanceToPlayoff', e.target.value === '' ? '' : Number(e.target.value))} onFocus={e => e.target.select()} className={num} />
           <p className="text-[10px] text-neutral-500 mt-1">Set 0 to use Swiss standings as final result (no playoff)</p>
         </div>
         <Toggle checked={config.rematches ?? false} onChange={v => set('rematches', v)} label="Allow Rematches" sub="Allow same pair to play again if necessary" />

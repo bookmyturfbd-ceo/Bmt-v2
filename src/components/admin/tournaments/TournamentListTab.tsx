@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { useState, useEffect } from 'react';
 import { Plus, Trophy, Calendar, Users, Loader2 } from 'lucide-react';
 import CreateTournamentWizard from './CreateTournamentWizard';
@@ -12,7 +12,7 @@ export default function TournamentListTab() {
 
   const loadTournaments = async () => {
     try {
-      const res = await fetch('/api/tournaments');
+      const res = await fetch('/api/tournaments?operatorType=PLATFORM');
       const data = await res.json();
       if (data.success) {
         setTournaments(data.data);

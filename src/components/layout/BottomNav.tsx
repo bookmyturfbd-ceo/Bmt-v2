@@ -94,13 +94,7 @@ export default function BottomNav() {
 
         </div>
 
-        {/* Made in Bangladesh strip */}
-        <div className="pb-[env(safe-area-inset-bottom)] flex items-center justify-center gap-1 pb-0.5">
-          <span className="text-[9px] font-semibold tracking-widest uppercase text-neutral-600 dark:text-neutral-700 select-none">
-            Proudly Made in Bangladesh
-          </span>
-          <span className="text-[9px] animate-pulse text-red-500/60">♥</span>
-        </div>
+
       </nav>
     </>
   );

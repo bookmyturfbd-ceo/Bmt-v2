@@ -28,34 +28,43 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="fixed top-0 w-full z-50 glass-light dark:glass px-4 py-3 flex items-center justify-between transition-colors duration-300">
-      <div className="font-bold text-xl tracking-tighter cursor-pointer flex items-center gap-2">
-        <span className="text-accent">BMT</span>
+    <>
+      {/* ── Made in Bangladesh — sticky top strip ── */}
+      <div className="bmt-origin-banner">
+        <span className="bmt-origin-text">🇧🇩 Proudly Made in Bangladesh</span>
+        <span className="bmt-origin-heart">♥</span>
       </div>
 
-      <div className="flex items-center gap-4 text-sm font-medium">
-        <div className="hidden md:flex gap-6 mr-4 cursor-pointer">
-          <span className="hover:text-accent transition-colors">{t('dashboard')}</span>
-          <span className="hover:text-accent transition-colors">{t('login')}</span>
+      {/* ── Main Navbar (sits below the 22px strip) ── */}
+      <nav className="fixed top-[22px] w-full z-50 glass-light dark:glass px-4 py-3 flex items-center justify-between transition-colors duration-300">
+        <div className="font-bold text-xl tracking-tighter cursor-pointer flex items-center gap-2">
+          <span className="text-accent">BMT</span>
         </div>
 
-        <button 
-          onClick={toggleTheme} 
-          className="p-2 rounded-full hover:bg-neutral-200/20 dark:hover:bg-neutral-800/50 transition-colors"
-          aria-label={t('toggleTheme')}
-        >
-          {mounted && theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-        </button>
+        <div className="flex items-center gap-4 text-sm font-medium">
+          <div className="hidden md:flex gap-6 mr-4 cursor-pointer">
+            <span className="hover:text-accent transition-colors">{t('dashboard')}</span>
+            <span className="hover:text-accent transition-colors">{t('login')}</span>
+          </div>
 
-        <button 
-          onClick={toggleLanguage}
-          className="p-2 rounded-full hover:bg-neutral-200/20 dark:hover:bg-neutral-800/50 transition-colors flex items-center gap-2"
-          aria-label={t('toggleLanguage')}
-        >
-          <Globe size={20} />
-          <span className="hidden sm:inline">{locale === 'en' ? 'BN' : 'EN'}</span>
-        </button>
-      </div>
-    </nav>
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-full hover:bg-neutral-200/20 dark:hover:bg-neutral-800/50 transition-colors"
+            aria-label={t('toggleTheme')}
+          >
+            {mounted && theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+
+          <button
+            onClick={toggleLanguage}
+            className="p-2 rounded-full hover:bg-neutral-200/20 dark:hover:bg-neutral-800/50 transition-colors flex items-center gap-2"
+            aria-label={t('toggleLanguage')}
+          >
+            <Globe size={20} />
+            <span className="hidden sm:inline">{locale === 'en' ? 'BN' : 'EN'}</span>
+          </button>
+        </div>
+      </nav>
+    </>
   );
 }

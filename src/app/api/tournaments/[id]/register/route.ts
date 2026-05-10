@@ -105,7 +105,7 @@ export async function POST(
         });
       }
 
-      return await tx.tournamentRegistration.create({
+      const reg = await tx.tournamentRegistration.create({
         data: {
           tournamentId: id,
           entityType,
@@ -114,6 +114,32 @@ export async function POST(
           entryFeePaid: tournament.entryFee === 0 || !!ownerIdToCharge
         }
       });
+
+      // Create payout holding record if there's an entry fee
+      if (tournament.entryFee > 0) {
+        let entityName = entityId;
+        if (entityType === 'TEAM') {
+          const team = await tx.team.findUnique({ where: { id: entityId }, select: { name: true } });
+          entityName = team?.name ?? entityId;
+        } else {
+          const player = await tx.player.findUnique({ where: { id: entityId }, select: { fullName: true } });
+          entityName = player?.fullName ?? entityId;
+        }
+        const organizerId = tournament.operatorType === 'ORGANIZER' ? tournament.operatorId : null;
+        await tx.tournamentPayout.create({
+          data: {
+            tournamentId: id,
+            organizerId,
+            entityType,
+            entityId,
+            entityName,
+            amount: tournament.entryFee,
+            status: 'HOLDING',
+          }
+        });
+      }
+
+      return reg;
     });
 
     return NextResponse.json({ success: true, data: registration });

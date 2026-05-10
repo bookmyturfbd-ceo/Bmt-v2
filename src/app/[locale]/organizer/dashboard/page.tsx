@@ -5,9 +5,148 @@ import {
   Loader2, ShieldCheck, LogOut, Wallet, Trophy, Plus,
   Calendar, Users, Menu, X, CheckCircle2, Clock,
   ChevronRight, Zap, History, RefreshCw, Upload, ChevronLeft,
-  Trash2, Lock, Unlock, AlertTriangle
+  Trash2, Lock, Unlock, AlertTriangle, Banknote, Eye
 } from 'lucide-react';
 import CreateTournamentWizard from '@/components/admin/tournaments/CreateTournamentWizard';
+
+// ── Finance panel — organizer view of BMT-held entry fees ────────────────────
+function OrgFinancePanel() {
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [viewProof, setViewProof] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/organizers/me/payouts')
+      .then(r => r.json())
+      .then(d => { if (d.success) setData(d.data); })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggle = (id: string) => setExpanded(prev => {
+    const s = new Set(prev);
+    s.has(id) ? s.delete(id) : s.add(id);
+    return s;
+  });
+
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin text-accent" /></div>;
+
+  const totalHolding = data.reduce((s, d) => s + d.totalHolding, 0);
+  const totalCleared = data.reduce((s, d) => s + d.totalCleared, 0);
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Summary stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div className="p-4 rounded-2xl bg-yellow-500/10 border border-yellow-500/20">
+          <p className="text-[10px] font-black uppercase tracking-widest text-yellow-400/60">BMT Holding</p>
+          <p className="text-2xl font-black text-yellow-400 mt-1">৳{totalHolding.toLocaleString()}</p>
+          <p className="text-[10px] text-neutral-500 mt-0.5">Pending release from BMT</p>
+        </div>
+        <div className="p-4 rounded-2xl bg-accent/10 border border-accent/20">
+          <p className="text-[10px] font-black uppercase tracking-widest text-accent/60">Total Earned</p>
+          <p className="text-2xl font-black text-accent mt-1">৳{(totalHolding + totalCleared).toLocaleString()}</p>
+          <p className="text-[10px] text-neutral-500 mt-0.5">From all tournament registrations</p>
+        </div>
+        <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20">
+          <p className="text-[10px] font-black uppercase tracking-widest text-blue-400/60">Cleared</p>
+          <p className="text-2xl font-black text-blue-400 mt-1">৳{totalCleared.toLocaleString()}</p>
+          <p className="text-[10px] text-neutral-500 mt-0.5">Transferred to your wallet</p>
+        </div>
+      </div>
+
+      {data.length === 0 ? (
+        <div className="py-20 text-center flex flex-col items-center gap-3 border border-dashed border-white/10 rounded-2xl">
+          <Banknote size={48} className="text-neutral-800" />
+          <p className="text-neutral-500 font-bold">No tournament payouts yet.</p>
+          <p className="text-xs text-neutral-600">Entry fees from registrations will appear here.</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {data.map((group: any) => {
+            const t = group.tournament;
+            const isOpen = expanded.has(t.id);
+            return (
+              <div key={t.id} className="bg-black/40 border border-white/5 rounded-2xl overflow-hidden">
+                <button
+                  onClick={() => toggle(t.id)}
+                  className="w-full flex items-center gap-4 px-5 py-4 hover:bg-white/[0.02] transition-colors text-left"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center shrink-0">
+                    <Trophy size={16} className="text-yellow-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-black text-white truncate">{t.name}</p>
+                    <p className="text-xs text-neutral-500">{group.payouts.length} registrations · ৳{t.entryFee} entry fee</p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    {group.totalHolding > 0 && (
+                      <span className="text-[10px] font-black text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full">
+                        🟡 ৳{group.totalHolding.toLocaleString()} holding
+                      </span>
+                    )}
+                    {group.totalCleared > 0 && (
+                      <span className="text-[10px] font-black text-accent bg-accent/10 border border-accent/20 px-2 py-0.5 rounded-full">
+                        ✅ ৳{group.totalCleared.toLocaleString()} cleared
+                      </span>
+                    )}
+                    {isOpen ? <ChevronRight size={15} className="text-neutral-400 rotate-90 transition-transform" /> : <ChevronRight size={15} className="text-neutral-400 transition-transform" />}
+                  </div>
+                </button>
+
+                {isOpen && (
+                  <div className="border-t border-white/5 px-5 py-3 flex flex-col gap-2.5 bg-black/20">
+                    <div className="grid grid-cols-4 gap-2 pb-2 border-b border-white/5">
+                      {['Team / Player', 'Type', 'Amount', 'Status'].map(h => (
+                        <p key={h} className="text-[9px] font-black uppercase tracking-widest text-neutral-500">{h}</p>
+                      ))}
+                    </div>
+                    {group.payouts.map((p: any) => (
+                      <div key={p.id} className="grid grid-cols-4 gap-2 items-center py-1">
+                        <p className="text-sm font-bold text-white truncate">{p.entityName}</p>
+                        <p className="text-[10px] font-bold text-neutral-400 uppercase">{p.entityType}</p>
+                        <p className="text-sm font-black text-white">৳{p.amount.toLocaleString()}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                            p.status === 'HOLDING'
+                              ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400'
+                              : 'bg-accent/10 border-accent/20 text-accent'
+                          }`}>
+                            {p.status === 'HOLDING' ? '🟡 Holding' : '✅ Cleared'}
+                          </span>
+                          {p.status === 'CLEARED' && p.proofImageUrl && (
+                            <button onClick={() => setViewProof(p.proofImageUrl)} className="text-[9px] text-blue-400 font-bold flex items-center gap-0.5 hover:text-blue-300">
+                              <Eye size={9} /> Proof
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {group.totalCleared > 0 && (
+                      <p className="text-[10px] text-accent/60 font-bold border-t border-white/5 pt-2.5 mt-1">
+                        ✅ This tournament has been cleared. ৳{group.totalCleared.toLocaleString()} has been added to your wallet by BMT.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {viewProof && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4" onClick={() => setViewProof(null)}>
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md" />
+          <div className="relative max-w-2xl w-full z-10">
+            <img src={viewProof} alt="Proof" className="w-full rounded-2xl border border-white/10 shadow-2xl" />
+            <button onClick={() => setViewProof(null)} className="absolute top-3 right-3 w-9 h-9 bg-black/60 rounded-xl flex items-center justify-center border border-white/10"><X size={16} /></button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Wallet panel — full recharge flow ───────────────────────────────────────
 const METHODS = [
@@ -479,9 +618,10 @@ function TournamentCard({
 
 // ── Sidebar nav items ─────────────────────────────────────────────────────────
 const NAV = [
-  { id: 'active', label: 'Active',    icon: Trophy  },
-  { id: 'done',   label: 'Completed', icon: CheckCircle2 },
-  { id: 'wallet', label: 'Wallet',    icon: Wallet  },
+  { id: 'active',  label: 'Active',    icon: Trophy    },
+  { id: 'done',    label: 'Completed', icon: CheckCircle2 },
+  { id: 'wallet',  label: 'Wallet',    icon: Wallet    },
+  { id: 'finance', label: 'Finance',   icon: Banknote  },
 ] as const;
 type NavId = typeof NAV[number]['id'];
 
@@ -501,9 +641,9 @@ export default function OrganizerDashboard() {
       .then(r => r.json())
       .then(d => {
         if (d.success) setOrganizer(d.data);
-        else router.push('/organizer/login');
+        else router.push(`/${locale}/organizer/login`);
       })
-      .catch(() => router.push('/organizer/login'))
+      .catch(() => router.push(`/${locale}/organizer/login`))
       .finally(() => setLoading(false));
   }, [router]);
 
@@ -514,7 +654,7 @@ export default function OrganizerDashboard() {
 
   const handleLogout = () => {
     document.cookie = 'org_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-    router.push('/organizer/login');
+    router.push(`/${locale}/organizer/login`);
   };
 
   const handleDeleted = (id: string) =>
@@ -661,11 +801,14 @@ export default function OrganizerDashboard() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-2xl font-black uppercase tracking-wider">
-                {activeNav === 'active' ? 'Active Tournaments' : activeNav === 'done' ? 'Completed Tournaments' : 'Wallet'}
+                {activeNav === 'active'  ? 'Active Tournaments'    :
+                 activeNav === 'done'    ? 'Completed Tournaments' :
+                 activeNav === 'finance' ? 'Finance' :              'Wallet'}
               </h2>
               <p className="text-xs text-neutral-400 font-bold mt-0.5">
-                {activeNav === 'active' ? 'Manage and score your live events' :
-                 activeNav === 'done'   ? 'Past events you have hosted' :
+                {activeNav === 'active'  ? 'Manage and score your live events' :
+                 activeNav === 'done'    ? 'Past events you have hosted' :
+                 activeNav === 'finance' ? 'Entry fee holdings & payouts from your tournaments' :
                  'Your balance and transaction history'}
               </p>
             </div>
@@ -681,6 +824,9 @@ export default function OrganizerDashboard() {
 
           {/* Wallet view */}
           {activeNav === 'wallet' && <OrgWalletPanel organizer={organizer} />}
+
+          {/* Finance view */}
+          {activeNav === 'finance' && <OrgFinancePanel />}
 
           {/* Tournament grids */}
           {(activeNav === 'active' || activeNav === 'done') && (

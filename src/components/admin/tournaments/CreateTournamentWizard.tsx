@@ -49,7 +49,7 @@ const inputCls = 'w-full bg-neutral-900 border border-white/10 rounded-xl p-3 fo
 const labelCls = 'block text-[10px] font-black uppercase tracking-widest text-neutral-400 mb-2';
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
-function StepBar({ step }: { step: number }) {
+function StepBar({ step, onStepClick }: { step: number; onStepClick?: (s: number) => void }) {
   const steps = ['Basic Info', 'Format', 'Review'];
   return (
     <div className="flex items-center gap-0 mb-8">
@@ -57,9 +57,13 @@ function StepBar({ step }: { step: number }) {
         const idx = i + 1;
         const done = step > idx;
         const active = step === idx;
+        const clickable = (done || active) && onStepClick;
         return (
           <div key={s} className="flex items-center flex-1 last:flex-none">
-            <div className={`flex items-center gap-2 shrink-0`}>
+            <div 
+              onClick={() => clickable ? onStepClick(idx) : undefined}
+              className={`flex items-center gap-2 shrink-0 ${clickable ? 'cursor-pointer hover:opacity-80' : ''}`}
+            >
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all ${
                 done ? 'bg-accent text-black' : active ? 'bg-white text-black' : 'bg-neutral-800 text-neutral-500'
               }`}>
@@ -81,20 +85,26 @@ function StepBar({ step }: { step: number }) {
 export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganizer = false, organizerId }: Props) {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
-  const [turfs, setTurfs] = useState<any[]>([]);
+  const [wbtTurfs, setWbtTurfs] = useState<any[]>([]);
   const [organizers, setOrganizers] = useState<any[]>([]);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [publishCheck, setPublishCheck] = useState<any>(null);
   const [publishLoading, setPublishLoading] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [venueModalOpen, setVenueModalOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  const [form, setForm] = useState({
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [step]);
+
+  const [form, setForm] = useState<any>({
     name: '',
     bannerImageUrl: '',
     sport: 'FOOTBALL',
     sportVariant: 'FUTSAL_5',
-    venueId: '',
+    venueIds: [] as string[],
     maxParticipants: 16,
     prizePoolTotal: 0,
     entryFee: 0,
@@ -113,7 +123,7 @@ export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganize
 
   // Load turfs + organizers (admin only)
   useEffect(() => {
-    fetch('/api/admin/wbt/turfs').then(r => r.json()).then(d => setTurfs(d.turfs || []));
+    fetch('/api/admin/wbt/turfs').then(r => r.json()).then(d => setWbtTurfs(d.turfs || []));
     if (!isOrganizer) {
       fetch('/api/organizers').then(r => r.json()).then(d => { if (d.success) setOrganizers(d.data); });
     }
@@ -168,8 +178,9 @@ export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganize
   };
 
   const venueLabel = () => {
-    const t = turfs.find(t => t.id === form.venueId);
-    return t ? `${t.name} — ${t.city.name}, ${t.division.name}` : '';
+    if (form.venueIds.length === 0) return '';
+    const selected = wbtTurfs.filter(t => form.venueIds.includes(t.id));
+    return selected.map(t => `${t.name} — ${t.city?.name || 'Other'}, ${t.division?.name || 'Other'}`).join(' | ');
   };
 
   const handlePublish = async () => {
@@ -227,6 +238,13 @@ export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganize
     }
   };
 
+  const groupedTurfs = wbtTurfs.reduce((acc, t) => {
+    const area = t.city?.name || 'Other';
+    if (!acc[area]) acc[area] = [];
+    acc[area].push(t);
+    return acc;
+  }, {} as Record<string, any[]>);
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
@@ -243,9 +261,9 @@ export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganize
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pr-1">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto pr-1">
         <div className="max-w-2xl py-4">
-          <StepBar step={step} />
+          <StepBar step={step} onStepClick={setStep} />
 
           {/* ── STEP 1: Basic Info ─────────────────────────────────────────── */}
           {step === 1 && (
@@ -374,12 +392,15 @@ export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganize
               {/* Venue */}
               <div>
                 <label className={labelCls}>Venue</label>
-                <select value={form.venueId} onChange={e => set('venueId', e.target.value)} className={inputCls}>
-                  <option value="">Select venue (optional)</option>
-                  {turfs.map(t => (
-                    <option key={t.id} value={t.id}>{t.name} — {t.city.name}, {t.division.name}</option>
-                  ))}
-                </select>
+                <div 
+                  onClick={() => setVenueModalOpen(true)}
+                  className="w-full bg-neutral-900 border border-white/10 rounded-xl p-3 font-bold text-white cursor-pointer hover:border-accent transition-colors flex items-center justify-between"
+                >
+                  <span className={form.venueIds.length > 0 ? "text-white" : "text-neutral-600"}>
+                    {form.venueIds.length > 0 ? `${form.venueIds.length} venues selected` : "Select venues (optional)..."}
+                  </span>
+                  <ChevronRight size={18} className="text-neutral-500" />
+                </div>
               </div>
 
               {/* Total Teams */}
@@ -403,7 +424,8 @@ export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganize
                   type="number"
                   min={2}
                   value={form.maxParticipants}
-                  onChange={e => set('maxParticipants', parseInt(e.target.value) || 0)}
+                  onChange={e => set('maxParticipants', e.target.value === '' ? '' : Number(e.target.value))}
+                  onFocus={e => e.target.select()}
                   className={inputCls}
                   placeholder="Or enter custom number"
                 />
@@ -415,14 +437,14 @@ export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganize
                   <label className={labelCls}>Prize Money (৳)</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 font-black">৳</span>
-                    <input type="number" min={0} value={form.prizePoolTotal} onChange={e => set('prizePoolTotal', parseInt(e.target.value) || 0)} className={inputCls + ' pl-7'} placeholder="0" />
+                    <input type="number" min={0} value={form.prizePoolTotal} onChange={e => set('prizePoolTotal', e.target.value === '' ? '' : Number(e.target.value))} onFocus={e => e.target.select()} className={inputCls + ' pl-7'} placeholder="0" />
                   </div>
                 </div>
                 <div>
                   <label className={labelCls}>Entry Fee (৳)</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 font-black">৳</span>
-                    <input type="number" min={0} value={form.entryFee} onChange={e => set('entryFee', parseInt(e.target.value) || 0)} className={inputCls + ' pl-7'} placeholder="0" />
+                    <input type="number" min={0} value={form.entryFee} onChange={e => set('entryFee', e.target.value === '' ? '' : Number(e.target.value))} onFocus={e => e.target.select()} className={inputCls + ' pl-7'} placeholder="0" />
                   </div>
                 </div>
               </div>
@@ -522,12 +544,20 @@ export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganize
                 </label>
               )}
 
-              <button
-                onClick={() => setStep(3)}
-                className="mt-4 bg-white text-black font-black uppercase tracking-wider px-6 py-3 rounded-xl flex items-center gap-2 hover:bg-accent transition-colors"
-              >
-                Review & Publish <ChevronRight size={18} />
-              </button>
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={() => setStep(1)}
+                  className="bg-neutral-900 text-white font-black uppercase tracking-wider px-6 py-3 rounded-xl flex items-center justify-center hover:bg-neutral-800 transition-colors border border-white/10"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => setStep(3)}
+                  className="flex-1 bg-white text-black font-black uppercase tracking-wider px-6 py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-accent transition-colors"
+                >
+                  Review & Publish <ChevronRight size={18} />
+                </button>
+              </div>
             </div>
           )}
 
@@ -590,17 +620,81 @@ export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganize
                 </div>
               ) : null}
 
-              <button
-                disabled={publishDisabled || saving}
-                onClick={triggerPublish}
-                className="w-full bg-accent text-black font-black uppercase tracking-widest py-4 rounded-xl flex items-center justify-center gap-2 hover:bg-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {saving ? <Loader2 size={18} className="animate-spin" /> : <><Trophy size={18} /> Create Tournament</>}
-              </button>
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={() => setStep(2)}
+                  className="bg-neutral-900 text-white font-black uppercase tracking-wider px-6 py-3 rounded-xl flex items-center justify-center hover:bg-neutral-800 transition-colors border border-white/10"
+                >
+                  Back
+                </button>
+                <button
+                  disabled={publishDisabled || saving}
+                  onClick={triggerPublish}
+                  className="flex-1 bg-accent text-black font-black uppercase tracking-widest py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {saving ? <Loader2 size={18} className="animate-spin" /> : <><Trophy size={18} /> Create Tournament</>}
+                </button>
+              </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* ── Venue Selection Modal ──────────────────────────────────────────────── */}
+      {venueModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-neutral-900 border border-white/10 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b border-white/10">
+              <h3 className="text-lg font-black uppercase tracking-wider text-white">Select Venues</h3>
+              <button onClick={() => setVenueModalOpen(false)} className="text-neutral-500 hover:text-white transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5 overflow-y-auto flex-1 space-y-6">
+              {Object.entries(groupedTurfs).map(([area, turfsArray]) => (
+                <div key={area}>
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-accent mb-3">{area}</h4>
+                  <div className="space-y-2">
+                    {(turfsArray as any[]).map(t => {
+                      const isSelected = form.venueIds.includes(t.id);
+                      return (
+                        <div 
+                          key={t.id} 
+                          onClick={() => {
+                            setForm(f => ({
+                              ...f,
+                              venueIds: isSelected 
+                                ? f.venueIds.filter(id => id !== t.id)
+                                : [...f.venueIds, t.id]
+                            }));
+                          }}
+                          className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all ${isSelected ? 'border-accent bg-accent/10' : 'border-white/5 bg-black hover:border-white/20'}`}
+                        >
+                          <div>
+                            <p className="text-base font-black text-white">{t.name}</p>
+                            {t.division?.name && <p className="text-xs text-neutral-500 font-bold mt-0.5">{t.division.name}</p>}
+                          </div>
+                          <div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${isSelected ? 'bg-accent border-accent text-black' : 'border-white/20 bg-transparent'}`}>
+                            {isSelected && <Check size={14} strokeWidth={4} />}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              {wbtTurfs.length === 0 && (
+                <div className="text-center py-8 text-neutral-500 font-bold">No venues available.</div>
+              )}
+            </div>
+            <div className="p-5 border-t border-white/10 bg-black/50 rounded-b-2xl">
+              <button onClick={() => setVenueModalOpen(false)} className="w-full bg-white text-black font-black uppercase tracking-wider py-3.5 rounded-xl hover:bg-accent transition-colors">
+                Done ({form.venueIds.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Confirm dialog ────────────────────────────────────────────────────── */}
       {confirmOpen && (

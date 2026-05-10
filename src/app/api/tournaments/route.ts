@@ -4,13 +4,14 @@ import prisma from '@/lib/prisma';
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const operatorId = searchParams.get('operatorId');
-    
+    const operatorId   = searchParams.get('operatorId');
+    const operatorType = searchParams.get('operatorType');
+
     // Build where clause
     const where: any = {};
-    if (operatorId) {
-      where.operatorId = operatorId;
-    }
+    if (operatorId)   where.operatorId   = operatorId;
+    if (operatorType) where.operatorType = operatorType;
+
 
     const tournaments = await prisma.tournament.findMany({
       where,

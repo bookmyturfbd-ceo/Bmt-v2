@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/routing';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import Navbar from '@/components/layout/Navbar';
+import MadeInBangladesh from '@/components/layout/MadeInBangladesh';
 import BottomNav from '@/components/layout/BottomNav';
 import CartDrawer from '@/components/shop/CartDrawer';
 import Signature from '@/components/layout/Signature';
@@ -105,6 +106,7 @@ export default async function LocaleLayout({
           <NextIntlClientProvider messages={messages}>
             <MatchResultProvider>
               <MatchResultModal />
+              <MadeInBangladesh />
               <main className="flex-1 flex flex-col relative pb-16">
                 {children}
                 <Signature />

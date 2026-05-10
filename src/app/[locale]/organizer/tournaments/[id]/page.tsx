@@ -1,9 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useParams, useRouter, usePathname } from 'next/navigation';
-import { Loader2, ArrowLeft, Users, Trophy, Play, GitMerge, Link as LinkIcon, AlertCircle, Calendar, Gavel, ChevronDown, ChevronUp, Shield } from 'lucide-react';
+import { Loader2, ArrowLeft, Users, Trophy, Play, GitMerge, Link as LinkIcon, AlertCircle, Calendar, Gavel, ChevronDown, ChevronUp, Shield, Star } from 'lucide-react';
 import dynamic from 'next/dynamic';
 const AuctionOrganizerPanel = dynamic(() => import('@/components/admin/tournaments/AuctionOrganizerPanel'), { ssr: false });
+import TournamentSponsorsTab from '@/components/admin/tournaments/TournamentSponsorsTab';
 
 export default function OrganizerTournamentDetails() {
   const params = useParams();
@@ -16,7 +17,7 @@ export default function OrganizerTournamentDetails() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'matches' | 'auction' | 'registrations'>('registrations');
+  const [activeTab, setActiveTab] = useState<'matches' | 'auction' | 'registrations' | 'sponsors'>('registrations');
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
 
   const loadData = async () => {
@@ -225,6 +226,16 @@ export default function OrganizerTournamentDetails() {
             >
               <Calendar size={14} /> Match Schedule
             </button>
+            <button
+              onClick={() => setActiveTab('sponsors')}
+              className={`flex-1 min-w-[120px] py-3.5 text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                activeTab === 'sponsors'
+                  ? 'text-yellow-400 border-b-2 border-yellow-400'
+                  : 'text-neutral-500 hover:text-white'
+              }`}
+            >
+              <Star size={14} /> Sponsors
+            </button>
             {tournament.auctionEnabled && (
               <button
                 onClick={() => setActiveTab('auction')}
@@ -242,6 +253,8 @@ export default function OrganizerTournamentDetails() {
           <div className="flex-1 p-6 overflow-y-auto">
             {activeTab === 'auction' && tournament.auctionEnabled ? (
               <AuctionOrganizerPanel tournamentId={String(tournamentId)} />
+            ) : activeTab === 'sponsors' ? (
+              <TournamentSponsorsTab tournamentId={String(tournamentId)} />
             ) : activeTab === 'registrations' ? (
               <>
                 <h2 className="text-xl font-black uppercase tracking-wider mb-6">Registered Teams</h2>

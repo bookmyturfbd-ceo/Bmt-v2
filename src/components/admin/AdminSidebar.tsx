@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { LayoutDashboard, Building2, UserCircle2, Settings, ChevronLeft, ChevronRight, Zap, Menu, X, Banknote, ChevronDown, ChevronUp, Users, Wallet, KeyRound, Monitor, Trophy, Swords, ShoppingBag, PackageCheck, BarChart3, Globe2 } from 'lucide-react';
 
-export type AdminPage = 'overview' | 'platformSettings' | 'manageTurfs' | 'managePros' | 'payouts' | 'walletRecharge' | 'players' | 'frontend' | 'competitiveTeams' | 'challengeMarket' | 'openWbt' | 'shop' | 'shopOrders' | 'shopIncome' | 'tournaments' | 'bmtTournaments' | 'organizers' | 'orgRecharge';
+export type AdminPage = 'overview' | 'platformSettings' | 'manageTurfs' | 'managePros' | 'payouts' | 'walletRecharge' | 'players' | 'frontend' | 'competitiveTeams' | 'challengeMarket' | 'openWbt' | 'shop' | 'shopOrders' | 'shopIncome' | 'tournaments' | 'bmtTournaments' | 'organizers' | 'orgRecharge' | 'orgPayouts';
 
 interface NavGroup {
   label: string;
@@ -55,9 +55,10 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Tournament Engine',
     icon: Trophy,
     children: [
-      { key: 'bmtTournaments', icon: Trophy,       label: 'BMT Tournaments'       },
-      { key: 'organizers',     icon: UserCircle2,   label: 'Organizers'             },
-      { key: 'orgRecharge',    icon: Wallet,        label: 'Org Wallet Recharges'  },
+      { key: 'bmtTournaments', icon: Trophy,      label: 'BMT Tournaments'    },
+      { key: 'organizers',     icon: UserCircle2, label: 'Organizers'         },
+      { key: 'orgRecharge',   icon: Wallet,      label: 'Org Wallet Recharges' },
+      { key: 'orgPayouts',    icon: Banknote,    label: 'Organizer Payouts'  },
     ],
   },
 ];
