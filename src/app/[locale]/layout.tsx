@@ -1,0 +1,120 @@
+import { NextIntlClientProvider } from 'next-intl';
+import { getMessages } from 'next-intl/server';
+import { notFound } from 'next/navigation';
+import { routing } from '@/i18n/routing';
+import { ThemeProvider } from '@/components/providers/ThemeProvider';
+import Navbar from '@/components/layout/Navbar';
+import BottomNav from '@/components/layout/BottomNav';
+import CartDrawer from '@/components/shop/CartDrawer';
+import Signature from '@/components/layout/Signature';
+import NextTopLoader from 'nextjs-toploader';
+import SplashScreen from '@/components/layout/SplashScreen';
+import { MatchResultProvider } from '@/context/MatchResultContext';
+import MatchResultModal from '@/components/match/MatchResultModal';
+import '../globals.css';
+import { Metadata } from 'next';
+import Script from 'next/script';
+
+export const metadata: Metadata = {
+  title: {
+    template: '%s | Book My Turf BD',
+    default: 'Book My Turf BD - Premier Sports Venue Booking',
+  },
+  description: 'Book the best futsal and cricket turfs in Bangladesh. Organize matches, challenge teams, and keep live scores on Book My Turf BD.',
+  keywords: ['Turf Booking', 'Futsal', 'Cricket', 'Bangladesh', 'Sports Venue', 'Book My Turf BD'],
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'BMT',
+  },
+  icons: {
+    icon: '/favicon.png',
+    shortcut: '/favicon.png',
+    apple: '/favicon.png',
+  },
+  openGraph: {
+    title: 'Book My Turf BD - Premier Sports Venue Booking',
+    description: 'Book the best futsal and cricket turfs in Bangladesh. Organize matches, challenge teams, and keep live scores.',
+    url: 'https://bookmyturfbd.com',
+    siteName: 'Book My Turf BD',
+    images: [
+      {
+        url: '/bmt-logo.png',
+        width: 800,
+        height: 600,
+        alt: 'Book My Turf BD Logo',
+      },
+    ],
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Book My Turf BD - Premier Sports Venue Booking',
+    description: 'Book the best futsal and cricket turfs in Bangladesh.',
+    images: ['/bmt-logo.png'],
+  },
+};
+
+export default async function LocaleLayout({
+  children,
+  params
+}: {
+  children: React.ReactNode;
+  params: Promise<{locale: string}>;
+}) {
+  const resolvedParams = await params;
+  const { locale } = resolvedParams;
+  
+  if (!routing.locales.includes(locale as any)) {
+    notFound();
+  }
+
+  const messages = await getMessages();
+
+  return (
+    <html lang={locale} className="dark antialiased" suppressHydrationWarning>
+      <body className="antialiased min-h-screen flex flex-col bg-background text-foreground">
+        {/* Google Tag (gtag.js) */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-782RVX0TV4"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+
+            gtag('config', 'G-782RVX0TV4');
+          `}
+        </Script>
+        <Script id="register-sw" strategy="afterInteractive">
+          {`
+            if ('serviceWorker' in navigator) {
+              window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js').catch(function() {});
+              });
+            }
+          `}
+        </Script>
+        <NextTopLoader color="#00FF41" height={3} showSpinner={false} />
+        <SplashScreen />
+        <ThemeProvider>
+          <NextIntlClientProvider messages={messages}>
+            <MatchResultProvider>
+              <MatchResultModal />
+              <main className="flex-1 flex flex-col relative pb-16">
+                {children}
+                <Signature />
+                <BottomNav />
+                <CartDrawer />
+              </main>
+            </MatchResultProvider>
+          </NextIntlClientProvider>
+        </ThemeProvider>
+      </body>
+    </html>
+  );
+}

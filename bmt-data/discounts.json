@@ -1,0 +1,26 @@
+[
+  {
+    "turfId": "mnsvvesps9mr",
+    "groundId": "mntloe898y38",
+    "reason": "Test",
+    "discountPct": 20,
+    "validFrom": "2026-04-11",
+    "validTo": "2026-04-12",
+    "sport": "all",
+    "timeOfDay": [
+      "Afternoon"
+    ],
+    "days": [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday"
+    ],
+    "active": true,
+    "id": "mnub3puugxbw",
+    "createdAt": "2026-04-11T12:23:58.374Z"
+  }
+]

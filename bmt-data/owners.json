@@ -1,0 +1,13 @@
+[
+  {
+    "id": "mnsvjl8foydp",
+    "name": "Test Owner",
+    "email": "v1@bmt.com",
+    "phone": "",
+    "role": "Turf Owner",
+    "joinedAt": "2026-04-10",
+    "password": "12345",
+    "walletBalance": 2700,
+    "pendingBmtCut": 300
+  }
+]

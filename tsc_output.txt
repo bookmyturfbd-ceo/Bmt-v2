@@ -1,0 +1,101 @@
+src/app/[locale]/interact/page.tsx(673,74): error TS2339: Property 'text' does not exist on type '{ label: string; color: string; glow: string; min: number; next: number; icon: string; }'.
+src/app/[locale]/matches/[matchId]/live/page.tsx(433,63): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/[locale]/matches/[matchId]/live/page.tsx(434,70): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/[locale]/matches/[matchId]/live/page.tsx(437,47): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/[locale]/matches/[matchId]/live/page.tsx(530,27): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/[locale]/matches/[matchId]/live/page.tsx(531,38): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/[locale]/page.tsx(63,20): error TS2322: Type '{ sportIds: string[]; sports: ({ sport: { id: string; name: string; createdAt: Date; category: string; }; } & { turfId: string; sportId: string; })[]; grounds: ({ slots: { id: string; status: SlotStatus; ... 7 more ...; price: number; }[]; } & { ...; })[]; ... 15 more ...; revenueModelValue: number | null; }[]' is not assignable to type 'Turf[]'.
+  Type '{ sportIds: string[]; sports: ({ sport: { id: string; name: string; createdAt: Date; category: string; }; } & { turfId: string; sportId: string; })[]; grounds: ({ slots: { id: string; status: $Enums.SlotStatus; ... 7 more ...; price: number; }[]; } & { ...; })[]; ... 15 more ...; revenueModelValue: number | null; }' is not assignable to type 'Turf'.
+    Types of property 'area' are incompatible.
+      Type 'string | null' is not assignable to type 'string | undefined'.
+        Type 'null' is not assignable to type 'string | undefined'.
+src/app/[locale]/page.tsx(64,51): error TS2322: Type '{ sportIds: string[]; sports: ({ sport: { id: string; name: string; createdAt: Date; category: string; }; } & { turfId: string; sportId: string; })[]; grounds: ({ slots: { id: string; status: SlotStatus; ... 7 more ...; price: number; }[]; } & { ...; })[]; ... 15 more ...; revenueModelValue: number | null; }[]' is not assignable to type 'Turf[]'.
+  Type '{ sportIds: string[]; sports: ({ sport: { id: string; name: string; createdAt: Date; category: string; }; } & { turfId: string; sportId: string; })[]; grounds: ({ slots: { id: string; status: $Enums.SlotStatus; ... 7 more ...; price: number; }[]; } & { ...; })[]; ... 15 more ...; revenueModelValue: number | null; }' is not assignable to type 'Turf'.
+    Types of property 'area' are incompatible.
+      Type 'string | null' is not assignable to type 'string | undefined'.
+        Type 'null' is not assignable to type 'string | undefined'.
+src/app/[locale]/profile/page.tsx(367,77): error TS2304: Cannot find name 'Swords'.
+src/app/[locale]/teams/[id]/page.tsx(832,179): error TS2339: Property 'id' does not exist on type 'never'.
+src/app/[locale]/teams/[id]/page.tsx(832,198): error TS2339: Property 'name' does not exist on type 'never'.
+src/app/[locale]/turf/[id]/page.tsx(67,20): error TS2339: Property 'rules' does not exist on type '{ city: { id: string; name: string; createdAt: Date; divisionId: string; }; sports: ({ sport: { id: string; name: string; createdAt: Date; category: string; }; } & { turfId: string; sportId: string; })[]; amenities: ({ ...; } & { ...; })[]; grounds: ({ ...; } & { ...; })[]; } & { ...; }'.
+src/app/[locale]/turf/[id]/page.tsx(84,15): error TS2322: Type 'string | null' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+src/app/api/bmt/[entity]/[id]/route.ts(2,37): error TS2307: Cannot find module '@/lib/serverStore' or its corresponding type declarations.
+src/app/api/bmt/[entity]/[id]/route.ts(11,66): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/app/api/bmt/[entity]/[id]/route.ts(20,63): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/app/api/bmt/[entity]/route.ts(2,42): error TS2307: Cannot find module '@/lib/serverStore' or its corresponding type declarations.
+src/app/api/bmt/cities/[id]/route.ts(9,115): error TS2322: Type '{ name: string; }' is not assignable to type 'CityWhereUniqueInput'.
+  Type '{ name: string; }' is not assignable to type '{ id: string; name_divisionId: CityNameDivisionIdCompoundUniqueInput; } & { id?: string | undefined; name_divisionId?: CityNameDivisionIdCompoundUniqueInput | undefined; ... 8 more ...; homeTeams?: TeamListRelationFilter | undefined; }'.
+    Type '{ name: string; }' is missing the following properties from type '{ id: string; name_divisionId: CityNameDivisionIdCompoundUniqueInput; }': id, name_divisionId
+src/app/api/bmt/cities/[id]/route.ts(22,53): error TS2322: Type '{ name: string; }' is not assignable to type 'CityWhereUniqueInput'.
+  Type '{ name: string; }' is not assignable to type '{ id: string; name_divisionId: CityNameDivisionIdCompoundUniqueInput; } & { id?: string | undefined; name_divisionId?: CityNameDivisionIdCompoundUniqueInput | undefined; ... 8 more ...; homeTeams?: TeamListRelationFilter | undefined; }'.
+    Type '{ name: string; }' is missing the following properties from type '{ id: string; name_divisionId: CityNameDivisionIdCompoundUniqueInput; }': id, name_divisionId
+src/app/api/bmt/cities/[id]/route.ts(33,53): error TS2322: Type '{ name: string; }' is not assignable to type 'CityWhereUniqueInput'.
+  Type '{ name: string; }' is not assignable to type '{ id: string; name_divisionId: CityNameDivisionIdCompoundUniqueInput; } & { id?: string | undefined; name_divisionId?: CityNameDivisionIdCompoundUniqueInput | undefined; ... 8 more ...; homeTeams?: TeamListRelationFilter | undefined; }'.
+    Type '{ name: string; }' is missing the following properties from type '{ id: string; name_divisionId: CityNameDivisionIdCompoundUniqueInput; }': id, name_divisionId
+src/components/admin/DisbursementsPanel.tsx(50,48): error TS2367: This comparison appears to be unintentional because the types 'string' and 'Slot | undefined' have no overlap.
+src/components/admin/ManageOwnersTurfsPanel.tsx(476,33): error TS2344: Type 'Owner' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'Owner'.
+src/components/admin/ManageOwnersTurfsPanel.tsx(477,33): error TS2344: Type 'Turf' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'Turf'.
+src/components/admin/ManageOwnersTurfsPanel.tsx(478,33): error TS2344: Type 'Sport' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'Sport'.
+src/components/admin/ManageOwnersTurfsPanel.tsx(479,33): error TS2344: Type 'City' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'City'.
+src/components/admin/PayoutsLedgerPanel.tsx(49,16): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'SetStateAction<string>'.
+  Type 'null' is not assignable to type 'SetStateAction<string>'.
+src/components/admin/PayoutsLedgerPanel.tsx(247,32): error TS2344: Type 'Owner' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'Owner'.
+src/components/admin/PayoutsLedgerPanel.tsx(248,32): error TS2344: Type 'Turf' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'Turf'.
+src/components/admin/PayoutsLedgerPanel.tsx(249,32): error TS2344: Type 'Payout' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'Payout'.
+src/components/admin/PayoutsLedgerPanel.tsx(250,33): error TS2344: Type 'Booking' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'Booking'.
+src/components/admin/PlatformSettingsPanel.tsx(101,34): error TS2344: Type 'Division' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'Division'.
+src/components/admin/PlatformSettingsPanel.tsx(102,34): error TS2344: Type 'City' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'City'.
+src/components/admin/PlatformSettingsPanel.tsx(103,34): error TS2344: Type 'Sport' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'Sport'.
+src/components/admin/PlatformSettingsPanel.tsx(104,34): error TS2344: Type 'Amenity' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'Amenity'.
+src/components/owner/CreateTurfModal.tsx(25,34): error TS2344: Type 'Division' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'Division'.
+src/components/owner/CreateTurfModal.tsx(26,34): error TS2344: Type 'City' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'City'.
+src/components/owner/CreateTurfModal.tsx(27,34): error TS2344: Type 'Amenity' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'Amenity'.
+src/components/owner/CreateTurfModal.tsx(60,9): error TS2322: Type 'string | null' is not assignable to type 'string'.
+  Type 'null' is not assignable to type 'string'.
+src/components/owner/CreateTurfModal.tsx(64,9): error TS2322: Type '(string | null)[]' is not assignable to type 'string[]'.
+  Type 'string | null' is not assignable to type 'string'.
+    Type 'null' is not assignable to type 'string'.
+src/components/owner/EditTurfModal.tsx(19,64): error TS2304: Cannot find name 'EditTurfModalProps'.
+src/components/owner/EditTurfModal.tsx(20,34): error TS2344: Type 'Division' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'Division'.
+src/components/owner/EditTurfModal.tsx(21,34): error TS2344: Type 'City' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'City'.
+src/components/owner/EditTurfModal.tsx(22,34): error TS2344: Type 'Amenity' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'Amenity'.
+src/components/owner/FinancePanel.tsx(385,17): error TS2551: Property 'revenueModel' does not exist on type 'Turf'. Did you mean 'revenueModelType'?
+src/components/owner/FinancePanel.tsx(386,51): error TS2551: Property 'revenueModel' does not exist on type 'Turf'. Did you mean 'revenueModelType'?
+src/components/owner/MyTurfsPanel.tsx(34,35): error TS2344: Type 'Turf' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'Turf'.
+src/components/owner/MyTurfsPanel.tsx(35,35): error TS2344: Type 'Sport' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'Sport'.
+src/components/owner/MyTurfsPanel.tsx(36,35): error TS2344: Type 'City' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'City'.
+src/components/owner/MyTurfsPanel.tsx(37,35): error TS2344: Type 'Slot' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'Slot'.
+src/components/owner/MyTurfsPanel.tsx(38,37): error TS2344: Type 'Ground' does not satisfy the constraint 'BmtEntity'.
+  Index signature for type 'string' is missing in type 'Ground'.
+src/components/owner/SlotManagerPanel.tsx(195,94): error TS2339: Property 'sports' does not exist on type 'Slot'.
+src/components/owner/SlotManagerPanel.tsx(357,78): error TS2339: Property 'id' does not exist on type '{ slotId: string; date: string; }'.
+src/components/turf/TurfBookingClient.tsx(217,105): error TS2304: Cannot find name 'discount'.
+src/components/turf/TurfBookingClient.tsx(218,42): error TS2304: Cannot find name 'setDiscount'.
+src/components/turf/TurfBookingClient.tsx(357,9): error TS2719: Type 'Slot[]' is not assignable to type 'Slot[]'. Two different types with this name exist, but they are unrelated.
+  Type 'Slot' is not assignable to type 'Slot'. Two different types with this name exist, but they are unrelated.
+    Types of property 'status' are incompatible.
+      Type 'string | undefined' is not assignable to type '"available" | "walkin" | "maintenance" | "booked" | undefined'.
+        Type 'string' is not assignable to type '"available" | "walkin" | "maintenance" | "booked" | undefined'.

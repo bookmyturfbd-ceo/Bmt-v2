@@ -1,0 +1,69 @@
+[
+  {
+    "turfId": "mnsvvesps9mr",
+    "slotId": "mntlvi2jt865",
+    "date": "2026-04-11",
+    "playerId": "mnu3m6kqok22",
+    "playerName": "Test Player 1",
+    "price": 3000,
+    "paidViaWallet": false,
+    "createdAt": "2026-04-11T09:57:34.441Z",
+    "id": "mnu5vfur76g9"
+  },
+  {
+    "id": "mnu6nphege75",
+    "bmtCut": 300,
+    "ownerShare": 2700,
+    "turfId": "mnsvvesps9mr",
+    "slotId": "mntlvi4iehhl",
+    "date": "2026-04-11",
+    "playerId": "mnu3m6kqok22",
+    "playerName": "Test Player 1",
+    "price": 3000,
+    "paidViaWallet": false,
+    "createdAt": "2026-04-11T10:19:33.469Z"
+  },
+  {
+    "id": "mnu7tl48ti0s",
+    "bmtCut": 300,
+    "ownerShare": 2700,
+    "turfId": "mnsvvesps9mr",
+    "slotId": "mntlvi5pk3v8",
+    "date": "2026-04-11",
+    "playerId": "mnu3m6kqok22",
+    "playerName": "Test Player 1",
+    "price": 3000,
+    "paidViaWallet": true,
+    "createdAt": "2026-04-11T10:52:07.428Z"
+  },
+  {
+    "id": "mnub8yewag4f",
+    "bmtCut": 240,
+    "ownerShare": 2160,
+    "turfId": "mnsvvesps9mr",
+    "slotId": "mntlvi66lrod",
+    "date": "2026-04-11",
+    "playerId": "mnu3m6kqok22",
+    "playerName": "Test Player 1",
+    "price": 2400,
+    "originalPrice": 3000,
+    "slotDiscount": 600,
+    "slotDiscountReason": "Test",
+    "paidViaWallet": true,
+    "createdAt": "2026-04-11T12:28:03.379Z"
+  },
+  {
+    "id": "mnv8ozwghogi",
+    "bmtCut": 300,
+    "ownerShare": 2700,
+    "turfId": "mnsvvesps9mr",
+    "slotId": "mntlvi01479g",
+    "date": "2026-04-12",
+    "playerId": "mnu3m6kqok22",
+    "playerName": "Test Player 1",
+    "price": 3000,
+    "originalPrice": 3000,
+    "paidViaWallet": true,
+    "createdAt": "2026-04-12T04:04:18.161Z"
+  }
+]

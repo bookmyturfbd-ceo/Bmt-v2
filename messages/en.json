@@ -1,0 +1,218 @@
+{
+  "Navigation": {
+    "dashboard": "Dashboard",
+    "login": "Login",
+    "toggleTheme": "Toggle Theme",
+    "toggleLanguage": "Change to Bangla"
+  },
+  "Auth": {
+    "login": {
+      "title": "Welcome Back",
+      "subtitle": "Sign in to continue your game",
+      "emailLabel": "Email or Phone Number",
+      "emailPlaceholder": "you@example.com or 017XXXXXXXX",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "Enter your password",
+      "forgotPassword": "Forgot password?",
+      "submit": "Login",
+      "newPlayer": "New player?",
+      "createAccount": "Create an account"
+    },
+    "register": {
+      "title": "Join the Game",
+      "subtitle": "Create your free player account",
+      "fullNameLabel": "Full Name",
+      "fullNamePlaceholder": "Your full name",
+      "emailLabel": "Email Address",
+      "emailPlaceholder": "you@example.com",
+      "phoneLabel": "Phone Number",
+      "phonePlaceholder": "017XXXXXXXX",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "Min. 8 characters",
+      "confirmPasswordLabel": "Confirm Password",
+      "confirmPasswordPlaceholder": "Re-enter your password",
+      "submit": "Sign Up",
+      "alreadyHaveAccount": "Already have an account?",
+      "loginLink": "Login",
+      "ownerCta": "Are you a Turf Owner or Pro?",
+      "ownerCtaLink": "Contact us for an invite"
+    },
+    "inviteSetup": {
+      "bannerPrefix": "Welcome! Complete your",
+      "bannerSuffix": "Profile",
+      "fullNameLabel": "Full Name",
+      "fullNamePlaceholder": "Your full name",
+      "emailLabel": "Email Address (from invite)",
+      "passwordLabel": "Create Password",
+      "passwordPlaceholder": "Min. 8 characters",
+      "confirmPasswordLabel": "Confirm Password",
+      "confirmPasswordPlaceholder": "Re-enter your password",
+      "submit": "Complete Setup",
+      "securedBy": "Secured invite by Book My Turf"
+    },
+    "validation": {
+      "emailInvalid": "Please enter a valid email address",
+      "phoneInvalid": "Please enter a valid BD phone number",
+      "passwordTooShort": "Password must be at least 8 characters",
+      "passwordMismatch": "Passwords do not match",
+      "fieldRequired": "This field is required"
+    }
+  },
+  "Login": {
+    "title": "Welcome to Book My Turf",
+    "emailLabel": "Email Address",
+    "passwordLabel": "Password",
+    "submit": "Sign In",
+    "forgotPassword": "Forgot Password?"
+  },
+  "Home": {
+    "location": "Dhaka, Bangladesh",
+    "appTitle": "Book My Turf",
+    "profileAlt": "Your Profile",
+    "heroBanner": "BOOK YOUR GAME",
+    "searchPlaceholder": "Search turfs, sports, areas...",
+    "sportsTitle": "Sports",
+    "sportsAvailable": "6 AVAILABLE",
+    "turfsTitle": "Available Turfs",
+    "viewAll": "View All",
+    "sports": {
+      "futsal5": "5-a-side Futsal",
+      "futsal6": "6-a-side Futsal",
+      "cricket7": "7-a-side Cricket",
+      "badminton": "Badminton",
+      "billiard": "Billiard",
+      "swimming": "Swimming"
+    },
+    "badges": {
+      "popular": "POPULAR",
+      "hot": "HOT",
+      "new": "NEW"
+    },
+    "nav": {
+      "home": "Home",
+      "book": "Book",
+      "shop": "Shop",
+      "tourney": "Tourney",
+      "interact": "Interact"
+    }
+  },
+  "Dashboard": {
+    "title": "Your Turf Dashboard",
+    "activeBookings": "Active Bookings",
+    "totalMatches": "Total Matches",
+    "upcoming": "Upcoming",
+    "bookNow": "Book a Turf Now"
+  },
+  "Book": {
+    "toggle": {
+      "turf": "Turf",
+      "pros": "Pros",
+      "history": "History"
+    },
+    "search": {
+      "date": "Date",
+      "time": "Time",
+      "locationPlaceholder": "Search location..."
+    },
+    "sports": {
+      "all": "All",
+      "football": "Football",
+      "badminton": "Badminton",
+      "cricket": "Cricket"
+    },
+    "turfCard": {
+      "startsFrom": "Starts from",
+      "currency": "BDT"
+    }
+  },
+  "TurfDetails": {
+    "topBadge": "Top 10",
+    "openMap": "Open in Map",
+    "amenities": "Amenities",
+    "dateSelection": "Select a reservation date",
+    "timeSelection": "Select a time slot",
+    "booked": "BOOKED",
+    "location": "Location",
+    "reviews": "Reviews",
+    "writeComment": "Write a comment...",
+    "submit": "Submit",
+    "bookNow": "Book now",
+    "perHour": "/ hr"
+  },
+  "Admin": {
+    "sidebar": {
+      "overview": "Dashboard Overview",
+      "manageTurfs": "Manage Turfs",
+      "managePros": "Manage Pros",
+      "generateInvites": "Generate Invites",
+      "collapse": "Collapse",
+      "expand": "Expand"
+    },
+    "header": {
+      "searchPlaceholder": "Search...",
+      "adminLabel": "Super Admin"
+    },
+    "stats": {
+      "totalPlayers": "Total Players",
+      "activeTurfs": "Active Turfs",
+      "todayRevenue": "Today's Revenue",
+      "pendingInvites": "Pending Invites"
+    },
+    "invite": {
+      "cardTitle": "Create Onboarding Invite",
+      "cardSubtitle": "Generate a one-time invite link for a new Turf Owner or Coach.",
+      "contactLabel": "Phone Number or Email",
+      "contactPlaceholder": "017XXXXXXXX or owner@turf.com",
+      "roleLabel": "Assign Role",
+      "rolePlaceholder": "Select a role...",
+      "roleTurfOwner": "Turf Owner",
+      "roleCoach": "Coach / Pro",
+      "generateBtn": "Generate Invite Link",
+      "successLabel": "Invite Link Generated",
+      "copyBtn": "Copy",
+      "copiedBtn": "Copied!",
+      "newInviteBtn": "Generate Another"
+    }
+  },
+  "Owner": {
+    "sidebar": {
+      "overview": "Overview",
+      "schedule": "Schedule",
+      "myTurfs": "My Turfs",
+      "finance": "Finance",
+      "settings": "Settings"
+    },
+    "header": {
+      "notifications": "Notifications",
+      "profile": "Owner Profile"
+    },
+    "stats": {
+      "todayBookings": "Today's Bookings",
+      "todayBookingsValue": "12 Matches",
+      "revenueToday": "Revenue Today",
+      "revenueTodayValue": "৳ 14,500",
+      "utilization": "Utilization Rate",
+      "utilizationValue": "75% Booked"
+    },
+    "schedule": {
+      "title": "Today's Schedule",
+      "paid": "Paid",
+      "due": "Due",
+      "viewDetails": "View Details",
+      "promoteSlot": "Promote / Discount",
+      "emptySlot": "Available"
+    },
+    "slot": {
+      "modalTitle": "Create Custom Slot",
+      "daysLabel": "Repeat on Days",
+      "gameTypeLabel": "Game Type",
+      "startTimeLabel": "Start Time",
+      "endTimeLabel": "End Time",
+      "priceLabel": "Price (BDT)",
+      "pricePlaceholder": "e.g. 1200",
+      "addSlot": "Add Slot",
+      "cancel": "Cancel",
+      "createSlot": "Create Custom Slot"
+    }
+  }
+}

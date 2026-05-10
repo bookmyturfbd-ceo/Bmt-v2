@@ -1,0 +1,52 @@
+[
+  {
+    "id": "mnuchg0fzjdk",
+    "createdAt": "2026-04-11T13:02:38.415Z",
+    "ownerId": "mnsvjl8foydp",
+    "month": "2026-04",
+    "type": "cost",
+    "category": "staff",
+    "description": "Manager",
+    "amount": 20000
+  },
+  {
+    "id": "mnuchv35hm8j",
+    "createdAt": "2026-04-11T13:02:57.953Z",
+    "ownerId": "mnsvjl8foydp",
+    "month": "2026-04",
+    "type": "cost",
+    "category": "staff",
+    "description": "Boy",
+    "amount": 10000
+  },
+  {
+    "id": "mnuci7edd9ye",
+    "createdAt": "2026-04-11T13:03:13.909Z",
+    "ownerId": "mnsvjl8foydp",
+    "month": "2026-04",
+    "type": "cost",
+    "category": "facility",
+    "description": "Electricity",
+    "amount": 20000
+  },
+  {
+    "id": "mnucipws9hcr",
+    "createdAt": "2026-04-11T13:03:37.900Z",
+    "ownerId": "mnsvjl8foydp",
+    "month": "2026-04",
+    "type": "cost",
+    "category": "other",
+    "description": "misc",
+    "amount": 10000
+  },
+  {
+    "id": "mnucj9q06dp2",
+    "createdAt": "2026-04-11T13:04:03.576Z",
+    "ownerId": "mnsvjl8foydp",
+    "month": "2026-04",
+    "type": "income",
+    "category": "walk-in",
+    "description": "Walk-in",
+    "amount": 70000
+  }
+]
