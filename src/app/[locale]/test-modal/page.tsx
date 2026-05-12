@@ -86,7 +86,7 @@ const CARDS: Array<ShareCardData & { id: string }> = [
 
 // ─── Canvas preview — renders once and shows as <img> ────────────────────────
 
-function CanvasPreviewCard({ data }: { data: ShareCardData }) {
+function CanvasPreviewCard({ data }: { data: ShareCardData & { id: string } }) {
   const [imgSrc, setImgSrc]  = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
