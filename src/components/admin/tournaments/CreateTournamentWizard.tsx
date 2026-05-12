@@ -661,10 +661,10 @@ export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganize
                         <div 
                           key={t.id} 
                           onClick={() => {
-                            setForm(f => ({
+                            setForm((f: any) => ({
                               ...f,
                               venueIds: isSelected 
-                                ? f.venueIds.filter(id => id !== t.id)
+                                ? f.venueIds.filter((id: string) => id !== t.id)
                                 : [...f.venueIds, t.id]
                             }));
                           }}
