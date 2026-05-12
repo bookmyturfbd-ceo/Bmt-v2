@@ -150,7 +150,7 @@ export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganize
     });
   }, [step, isOrganizer]);
 
-  const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
   // Re-initialise format config when format or team count changes
   const prevFormat = useRef(form.formatType);
