@@ -374,6 +374,7 @@ model Owner {
   email         String   @unique
   phone         String   @default("")
   contactPerson String?
+  isCoach       Boolean  @default(false)
   // bcrypt hashed password — set by admin or via invite flow
   password      String
 
@@ -420,6 +421,10 @@ model Turf {
   divisionId String
   cityId     String
   area       String?
+
+  // Coach profiles (treated as specialized turfs)
+  isCoachProfile Boolean @default(false)
+  coachType      String?
 
   // Map coordinates
   lat        Float?
