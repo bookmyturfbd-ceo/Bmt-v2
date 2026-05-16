@@ -13,8 +13,16 @@ import SplashScreen from '@/components/layout/SplashScreen';
 import { MatchResultProvider } from '@/context/MatchResultContext';
 import MatchResultModal from '@/components/match/MatchResultModal';
 import '../globals.css';
-import { Metadata } from 'next';
+import { Metadata, Viewport } from 'next';
 import Script from 'next/script';
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: '#00ff41',
+};
 
 export const metadata: Metadata = {
   title: {
@@ -28,11 +36,12 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: 'black-translucent',
     title: 'BMT',
+    startupImage: '/favicon.png',
   },
   icons: {
     icon: '/favicon.png',
     shortcut: '/favicon.png',
-    apple: '/favicon.png',
+    apple: [{ url: '/favicon.png', sizes: '1024x1024' }],
   },
   openGraph: {
     title: 'Book My Turf BD - Premier Sports Venue Booking',
