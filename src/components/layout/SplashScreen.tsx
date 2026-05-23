@@ -23,7 +23,13 @@ export default function SplashScreen() {
 
   useEffect(() => {
     setMounted(true);
-    const hasPlayed = sessionStorage.getItem('bmt_splash_played');
+    let hasPlayed = null;
+    try {
+      hasPlayed = sessionStorage.getItem('bmt_splash_played');
+    } catch (e) {
+      console.warn('sessionStorage is disabled or insecure:', e);
+    }
+
     if (hasPlayed) {
       setShow(false);
       // Still check for pending result even if splash was skipped
@@ -39,7 +45,11 @@ export default function SplashScreen() {
     // Remove from DOM at 1200ms, then check for pending result
     const removeTimer = setTimeout(() => {
       setShow(false);
-      sessionStorage.setItem('bmt_splash_played', 'true');
+      try {
+        sessionStorage.setItem('bmt_splash_played', 'true');
+      } catch (e) {
+        console.warn('sessionStorage is disabled or insecure:', e);
+      }
       checkPendingResult();
     }, 1200);
 

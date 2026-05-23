@@ -27,13 +27,18 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'Match is already finished' }, { status: 400 });
     }
 
+    // Determine target resultSummary. If it is empty or falsy, use the live-scored resultSummary.
+    const targetSummary = (resultSummary && Object.keys(resultSummary).length > 0) 
+      ? { ...(match.resultSummary as Record<string, any> || {}), ...resultSummary } 
+      : match.resultSummary;
+
     // 1. Mark match as completed
     const updatedMatch = await prisma.tournamentMatch.update({
       where: { id },
       data: { 
         status: 'COMPLETED',
         winnerId: winnerId || null,
-        resultSummary: resultSummary || match.resultSummary
+        resultSummary: targetSummary
       }
     });
 

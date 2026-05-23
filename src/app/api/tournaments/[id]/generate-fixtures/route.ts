@@ -38,6 +38,13 @@ export async function POST(
       teamIds = teams.map(t => t.id);
     }
 
+    if (tournament.formatType === 'GROUP_KNOCKOUT' && teamIds.length % 2 !== 0) {
+      return NextResponse.json({
+        success: false,
+        error: `Group-based tournaments require an even number of approved teams to draw balanced groups. Please approve/register one more team or reject one.`
+      }, { status: 400 });
+    }
+
     if (teamIds.length < 2) {
       return NextResponse.json({ success: false, error: 'Not enough teams to generate fixtures' }, { status: 400 });
     }

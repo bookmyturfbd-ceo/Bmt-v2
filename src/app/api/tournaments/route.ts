@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { checkAndAutoOpenList } from '@/lib/tournament/auto-open';
 
 export async function GET(request: Request) {
   try {
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
     if (operatorType) where.operatorType = operatorType;
 
 
-    const tournaments = await prisma.tournament.findMany({
+    let tournaments = await prisma.tournament.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       include: {
@@ -22,6 +23,8 @@ export async function GET(request: Request) {
         }
       }
     });
+
+    tournaments = await checkAndAutoOpenList(tournaments);
 
     return NextResponse.json({ success: true, data: tournaments });
   } catch (error: any) {
@@ -59,6 +62,7 @@ export async function POST(request: Request) {
       startDate,
       endDate,
       startTime,
+      prizeDistribution,
     } = body;
 
     // Validate required fields
@@ -81,6 +85,7 @@ export async function POST(request: Request) {
       playerBudgetPerCaptain: playerBudgetPerCaptain ? parseInt(playerBudgetPerCaptain) : null,
       prizePoolTotal: prizePoolTotal ? parseInt(prizePoolTotal) : 0,
       prizeType: prizeType || 'TROPHY_ONLY',
+      prizeDistribution: prizeDistribution ?? {},
       formatType,
       groupCount: groupCount ? parseInt(groupCount) : null,
       teamsPerGroup: teamsPerGroup ? parseInt(teamsPerGroup) : null,

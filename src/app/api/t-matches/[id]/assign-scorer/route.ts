@@ -43,12 +43,16 @@ export async function POST(
       });
     }
 
+    const requestUrl = new URL(request.url);
+    const origin = requestUrl.origin;
+    const dynamicUrl = `${origin}/en/score/${result.token}`;
+
     return NextResponse.json({ 
       success: true, 
       message: 'Scorer token generated',
       data: {
         token: result.token,
-        url: result.url
+        url: dynamicUrl
       }
     });
   } catch (error: any) {

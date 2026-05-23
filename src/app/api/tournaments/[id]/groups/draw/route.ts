@@ -41,10 +41,28 @@ export async function POST(
       teamIds = teams.map(t => t.id);
     }
 
-    const groupCount = tournament.groupCount || 2;
-    if (teamIds.length < groupCount) {
+    if (teamIds.length % 2 !== 0) {
+      return NextResponse.json({
+        success: false,
+        error: "Group-based tournaments require an even number of approved teams to draw balanced groups. Please approve/register one more team or reject one."
+      }, { status: 400 });
+    }
+
+    if (teamIds.length < 2) {
       return NextResponse.json({ success: false, error: 'Not enough teams to fill groups' }, { status: 400 });
     }
+
+    // Determine group count adaptively
+    let groupCount = tournament.groupCount;
+    if (!groupCount) {
+      if (tournament.teamsPerGroup) {
+        groupCount = Math.max(1, Math.ceil(teamIds.length / tournament.teamsPerGroup));
+      } else {
+        groupCount = 2; // Default fallback
+      }
+    }
+    // Cap group count at number of teams
+    groupCount = Math.min(groupCount, teamIds.length);
 
     // Shuffle teams
     for (let i = teamIds.length - 1; i > 0; i--) {
@@ -52,8 +70,11 @@ export async function POST(
       [teamIds[i], teamIds[j]] = [teamIds[j], teamIds[i]];
     }
 
-    // Delete existing groups if any
+    // Delete existing groups and standings
     await prisma.tournamentGroup.deleteMany({
+      where: { tournamentId: id }
+    });
+    await prisma.tournamentStanding.deleteMany({
       where: { tournamentId: id }
     });
 
@@ -65,21 +86,47 @@ export async function POST(
       newGroups.push(await prisma.tournamentGroup.create({
         data: {
           tournamentId: id,
-          name: `Group \${alphabet[i]}`,
+          name: `Group ${alphabet[i] || i + 1}`,
           teamIds: []
         }
       }));
     }
 
-    // Distribute teams evenly
+    // Distribute teams evenly and create standings
+    const assignedTeamsMap: Record<string, string[]> = {};
+    for (let i = 0; i < groupCount; i++) {
+      assignedTeamsMap[newGroups[i].id] = [];
+    }
+
     for (let i = 0; i < teamIds.length; i++) {
       const groupIndex = i % groupCount;
+      const gid = newGroups[groupIndex].id;
+      assignedTeamsMap[gid].push(teamIds[i]);
+    }
+
+    // Update group teamIds and insert standings
+    for (const [gid, tIds] of Object.entries(assignedTeamsMap)) {
       await prisma.tournamentGroup.update({
-        where: { id: newGroups[groupIndex].id },
-        data: {
-          teamIds: { push: teamIds[i] }
-        }
+        where: { id: gid },
+        data: { teamIds: tIds }
       });
+
+      for (let idx = 0; idx < tIds.length; idx++) {
+        await prisma.tournamentStanding.create({
+          data: {
+            tournamentId: id,
+            groupId: gid,
+            teamId: tIds[idx],
+            position: idx + 1,
+            played: 0,
+            won: 0,
+            lost: 0,
+            drawn: 0,
+            noResult: 0,
+            points: 0
+          }
+        });
+      }
     }
 
     const finalGroups = await prisma.tournamentGroup.findMany({ where: { tournamentId: id } });

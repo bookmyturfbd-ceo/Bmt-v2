@@ -19,7 +19,10 @@ export async function POST(
 
     const updated = await prisma.tournament.update({
       where: { id },
-      data: { status: 'REGISTRATION_OPEN' }
+      data: { 
+        status: 'REGISTRATION_OPEN',
+        isRegistrationOpen: true
+      }
     });
 
     return NextResponse.json({ success: true, data: updated });

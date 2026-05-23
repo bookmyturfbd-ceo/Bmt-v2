@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import crypto from 'crypto';
 import { cookies } from 'next/headers';
+import { checkAndAutoOpen } from '@/lib/tournament/auto-open';
 
 function verifyToken(token: string): any | null {
   try {
@@ -29,7 +30,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const tournament = await prisma.tournament.findUnique({
+    let tournament = await prisma.tournament.findUnique({
       where: { id },
       include: {
         groups: true,
@@ -47,9 +48,12 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Tournament not found' }, { status: 404 });
     }
 
+    // Auto-open if countdown elapsed
+    const activeTournament = await checkAndAutoOpen(tournament);
+
     // Enrich registrations with actual team/player data
-    const teamIds = tournament.registrations.filter(r => r.entityType === 'TEAM').map(r => r.entityId);
-    const playerIds = tournament.registrations.filter(r => r.entityType === 'PLAYER').map(r => r.entityId);
+    const teamIds = activeTournament.registrations.filter((r: any) => r.entityType === 'TEAM').map((r: any) => r.entityId);
+    const playerIds = activeTournament.registrations.filter((r: any) => r.entityType === 'PLAYER').map((r: any) => r.entityId);
 
     const [teams, players] = await Promise.all([
       teamIds.length > 0 ? prisma.team.findMany({
@@ -71,13 +75,13 @@ export async function GET(
     const teamMap = new Map(teams.map(t => [t.id, t]));
     const playerMap = new Map(players.map(p => [p.id, p]));
 
-    const enrichedRegistrations = tournament.registrations.map(r => ({
+    const enrichedRegistrations = activeTournament.registrations.map((r: any) => ({
       ...r,
       team: r.entityType === 'TEAM' ? teamMap.get(r.entityId) : null,
       player: r.entityType === 'PLAYER' ? playerMap.get(r.entityId) : null,
     }));
 
-    const data = { ...tournament, registrations: enrichedRegistrations };
+    const data = { ...activeTournament, registrations: enrichedRegistrations };
 
     return NextResponse.json({ success: true, data });
   } catch (error: any) {

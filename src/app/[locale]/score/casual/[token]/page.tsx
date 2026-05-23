@@ -3,10 +3,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import CricketScorer from './components/CricketScorer';
-import FootballScorer from './components/FootballScorer';
+import CasualFootballScorer from './components/CasualFootballScorer';
 
-export default function ScorerTokenPage() {
+export default function CasualScorerTokenPage() {
   const { token } = useParams();
   const router = useRouter();
   
@@ -19,7 +18,7 @@ export default function ScorerTokenPage() {
 
     async function fetchMatch() {
       try {
-        const res = await fetch(`/api/score/${token}`);
+        const res = await fetch(`/api/score/casual/${token}`);
         const data = await res.json();
 
         if (!data.success) {
@@ -70,10 +69,10 @@ export default function ScorerTokenPage() {
       <div className="bg-neutral-900 border-b border-white/5 p-4 flex justify-between items-center sticky top-0 z-50">
         <div>
           <h1 className="font-black uppercase tracking-wider text-sm text-[#00ff41]">
-            {match.tournament.name}
+            Casual Match Scoring
           </h1>
           <p className="text-xs text-neutral-400 font-bold">
-            Match #{match.matchNumber} • {match.stage}
+            Ranked Match • Futsal / Football
           </p>
         </div>
         <div className="text-right">
@@ -83,12 +82,8 @@ export default function ScorerTokenPage() {
         </div>
       </div>
 
-      {/* Render appropriate scorer interface */}
-      {match.tournament.sport === 'CRICKET' ? (
-        <CricketScorer match={match} />
-      ) : (
-        <FootballScorer match={match} />
-      )}
+      {/* Render casual scorer panel */}
+      <CasualFootballScorer match={match} token={token as string} />
     </div>
   );
 }

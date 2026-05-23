@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import crypto from 'crypto';
 import { cookies } from 'next/headers';
+import { checkAndAutoOpenList } from '@/lib/tournament/auto-open';
 
 function verifyToken(token: string): any | null {
   try {
@@ -46,6 +47,7 @@ export async function GET() {
         tournaments: {
           orderBy: { createdAt: 'desc' },
           include: {
+            groups: true,
             _count: { select: { registrations: true, matches: true } }
           }
         }
@@ -57,6 +59,9 @@ export async function GET() {
     }
 
     const { password: _, ...safeOrg } = organizer;
+    if (safeOrg.tournaments) {
+      safeOrg.tournaments = await checkAndAutoOpenList(safeOrg.tournaments);
+    }
     return NextResponse.json({ success: true, data: safeOrg });
   } catch (error: any) {
     console.error('Organizer auth error:', error);

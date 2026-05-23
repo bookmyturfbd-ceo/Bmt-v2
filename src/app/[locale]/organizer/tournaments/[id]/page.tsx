@@ -1,10 +1,11 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter, usePathname } from 'next/navigation';
 import { Loader2, ArrowLeft, Users, Trophy, Play, GitMerge, Link as LinkIcon, AlertCircle, Calendar, Gavel, ChevronDown, ChevronUp, Shield, Star } from 'lucide-react';
 import dynamic from 'next/dynamic';
 const AuctionOrganizerPanel = dynamic(() => import('@/components/admin/tournaments/AuctionOrganizerPanel'), { ssr: false });
 import TournamentSponsorsTab from '@/components/admin/tournaments/TournamentSponsorsTab';
+import { getSupabaseClient } from '@/lib/supabaseRealtime';
 
 export default function OrganizerTournamentDetails() {
   const params = useParams();
@@ -14,20 +15,58 @@ export default function OrganizerTournamentDetails() {
 
   const [tournament, setTournament] = useState<any>(null);
   const [matches, setMatches] = useState<any[]>([]);
+  const [standings, setStandings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'matches' | 'auction' | 'registrations' | 'sponsors'>('registrations');
+  const [activeTab, setActiveTab] = useState<'matches' | 'auction' | 'registrations' | 'sponsors' | 'standings'>('registrations');
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
 
-  const loadData = async () => {
+  // Build team name and logo map
+  const teamNameMap: Record<string, string> = {};
+  const teamLogoMap: Record<string, string> = {};
+  if (tournament && tournament.registrations) {
+    tournament.registrations.forEach((r: any) => {
+      const isTeam = r.entityType === 'TEAM';
+      const entity = isTeam ? r.team : r.player;
+      if (entity) {
+        teamNameMap[r.entityId] = entity.name || entity.fullName || '';
+        if (entity.logoUrl || entity.avatarUrl) {
+          teamLogoMap[r.entityId] = entity.logoUrl || entity.avatarUrl;
+        }
+      }
+    });
+  }
+
+  // Build group name lookup
+  const groupNames: Record<string, string> = {};
+  if (tournament && tournament.groups) {
+    tournament.groups.forEach((g: any) => { groupNames[g.id] = g.name; });
+  }
+
+  const getScore = (m: any, side: 'A' | 'B') => {
+    if (!m.resultSummary) return null;
+    const rs = m.resultSummary as any;
+    if (tournament?.sport === 'FOOTBALL') {
+      return side === 'A' ? rs.goalsA ?? 0 : rs.goalsB ?? 0;
+    }
+    if (tournament?.sport === 'CRICKET') {
+      return side === 'A' ? rs.runsA ?? 0 : rs.runsB ?? 0;
+    }
+    return null;
+  };
+
+  const loadData = useCallback(async (isInitial = false) => {
+    if (isInitial) setLoading(true);
     try {
-      const [tRes, mRes] = await Promise.all([
+      const [tRes, mRes, sRes] = await Promise.all([
         fetch(`/api/tournaments/${tournamentId}`),
-        fetch(`/api/tournaments/${tournamentId}/matches`)
+        fetch(`/api/tournaments/${tournamentId}/matches`),
+        fetch(`/api/tournaments/${tournamentId}/standings`)
       ]);
       const tData = await tRes.json();
       const mData = await mRes.json();
+      const sData = await sRes.json();
       
       if (tData.success) {
         setTournament(tData.data);
@@ -38,19 +77,56 @@ export default function OrganizerTournamentDetails() {
       if (mData.success) {
         setMatches(mData.data);
       }
+
+      if (sData.success) {
+        setStandings(sData.data || []);
+      }
     } catch (e: any) {
       console.error(e);
       setFetchError(e.message || 'Network error fetching tournament');
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
-  };
+  }, [tournamentId]);
 
   useEffect(() => {
     if (tournamentId) {
-      loadData();
+      loadData(true);
     }
-  }, [tournamentId]);
+  }, [tournamentId, loadData]);
+
+  useEffect(() => {
+    if (!tournamentId) return;
+    const supabase = getSupabaseClient();
+    
+    const ch = supabase.channel(`org-tournament-details:${tournamentId}`);
+    ch
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tournament_matches' },
+        (payload: any) => {
+          const rec = payload.new || payload.old;
+          if (rec && (rec.tournamentId === tournamentId || rec.tournament_id === tournamentId)) {
+            loadData();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tournament_standings' },
+        (payload: any) => {
+          const rec = payload.new || payload.old;
+          if (rec && (rec.tournamentId === tournamentId || rec.tournament_id === tournamentId)) {
+            loadData();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [tournamentId, loadData]);
 
   const handleAction = async (endpoint: string) => {
     if (!tournamentId) return;
@@ -60,6 +136,30 @@ export default function OrganizerTournamentDetails() {
       await loadData();
     } catch (e) {
       console.error(e);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleFillTournament = async () => {
+    if (!tournamentId) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/dev/fill-tournament', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tournamentId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message || 'Tournament registrations successfully filled!');
+        await loadData();
+      } else {
+        alert('Failed to fill registrations: ' + data.error);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Network error trying to fill tournament.');
     } finally {
       setActionLoading(false);
     }
@@ -190,7 +290,7 @@ export default function OrganizerTournamentDetails() {
               )}
               {tournament.status === 'SCHEDULED' && (
                 <button onClick={() => handleAction('activate')} disabled={actionLoading} className="w-full bg-[#00ff41] text-black font-black uppercase tracking-wider px-4 py-3 rounded-xl text-sm hover:bg-[#00cc33] transition-colors flex items-center justify-center gap-2">
-                  <Play size={16} fill="currentColor" /> Activate
+                  <Play size={16} fill="currentColor" /> Start Tournament
                 </button>
               )}
               {tournament.status === 'ACTIVE' && (
@@ -200,6 +300,29 @@ export default function OrganizerTournamentDetails() {
               )}
             </div>
           </div>
+
+          {process.env.NODE_ENV !== 'production' && (
+            <div className="bg-purple-950/20 border border-purple-500/30 rounded-2xl p-6 relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+              <h2 className="text-xl font-black uppercase tracking-wider mb-4 text-purple-400 flex items-center gap-2">
+                <span>🧪 Dev Sandbox</span>
+              </h2>
+              <p className="text-xs font-semibold text-neutral-400 mb-4 leading-relaxed">
+                Use this to fill registrations with mock teams/players to capacity and test matches or bracket engine in development mode.
+              </p>
+              <button
+                onClick={handleFillTournament}
+                disabled={actionLoading || tournament._count.registrations >= tournament.maxParticipants}
+                className="w-full bg-purple-600 hover:bg-purple-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-black uppercase tracking-wider px-4 py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-purple-950/50 hover:shadow-purple-500/20 border border-purple-400/20 cursor-pointer"
+              >
+                {actionLoading ? (
+                  <Loader2 className="animate-spin w-4 h-4" />
+                ) : (
+                  "Fill Tournament"
+                )}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Right Column: Matches / Auction */}
@@ -248,6 +371,16 @@ export default function OrganizerTournamentDetails() {
                 <Gavel size={14} /> Auction Room
               </button>
             )}
+            <button
+              onClick={() => setActiveTab('standings')}
+              className={`flex-1 min-w-[120px] py-3.5 text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                activeTab === 'standings'
+                  ? 'text-yellow-400 border-b-2 border-yellow-400'
+                  : 'text-neutral-500 hover:text-white'
+              }`}
+            >
+              <Trophy size={14} /> Standings
+            </button>
           </div>
 
           <div className="flex-1 p-6 overflow-y-auto">
@@ -255,6 +388,8 @@ export default function OrganizerTournamentDetails() {
               <AuctionOrganizerPanel tournamentId={String(tournamentId)} />
             ) : activeTab === 'sponsors' ? (
               <TournamentSponsorsTab tournamentId={String(tournamentId)} />
+            ) : activeTab === 'standings' ? (
+              <StandingsTab standings={standings} tournament={tournament} teamNameMap={teamNameMap} />
             ) : activeTab === 'registrations' ? (
               <>
                 <h2 className="text-xl font-black uppercase tracking-wider mb-6">Registered Teams</h2>
@@ -347,9 +482,10 @@ export default function OrganizerTournamentDetails() {
                   </div>
                 )}
               </>
-            ) : (
+            ) : activeTab === 'matches' ? (
               <>
                 <h2 className="text-xl font-black uppercase tracking-wider mb-6">Match Schedule</h2>
+
                 {matches.length === 0 ? (
                   <div className="py-20 text-center flex flex-col items-center">
                     <Calendar size={48} className="text-neutral-800 mb-4" />
@@ -357,47 +493,192 @@ export default function OrganizerTournamentDetails() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {matches.map(m => (
-                      <div key={m.id} className="bg-black/50 border border-white/5 hover:border-white/10 transition-colors rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div>
-                          <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-2">
-                            Match {m.matchNumber} • {m.stage}
+                    {matches.map(m => {
+                      const scoreA = getScore(m, 'A');
+                      const scoreB = getScore(m, 'B');
+                      const hasScore = m.status === 'LIVE' || m.status === 'COMPLETED';
+                      return (
+                        <div key={m.id} className="bg-black/50 border border-white/5 hover:border-white/10 transition-colors rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div>
+                            <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-2">
+                              Match {m.matchNumber}{m.groupId && groupNames[m.groupId] && ` • ${groupNames[m.groupId]}`}{m.stage !== 'GROUP' && ` • ${m.stage}`}
+                            </div>
+                            <div className="font-bold text-lg flex items-center gap-2 flex-wrap">
+                              <span className="text-white">{teamNameMap[m.teamAId] || m.teamAId}</span>
+                              {hasScore && (
+                                <span className="bg-neutral-900 border border-white/10 px-2.5 py-0.5 rounded-lg text-sm font-black text-[#00ff41] font-mono mx-1">
+                                  {scoreA} - {scoreB}
+                                </span>
+                              )}
+                              <span className="text-neutral-500 text-sm font-medium">vs</span>
+                              <span className="text-white">{teamNameMap[m.teamBId] || m.teamBId}</span>
+                            </div>
                           </div>
-                          <div className="font-bold text-lg">
-                            {m.teamAId} <span className="text-accent text-sm mx-3">vs</span> {m.teamBId}
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-3">
-                          <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg ${
-                            m.status === 'COMPLETED' ? 'bg-[#00ff41]/20 text-[#00ff41]' :
-                            m.status === 'LIVE' ? 'bg-red-500/20 text-red-500' :
-                            m.status === 'SCORER_ASSIGNED' ? 'bg-blue-500/20 text-blue-400' :
-                            'bg-neutral-800 text-neutral-400'
-                          }`}>
-                            {m.status.replace('_', ' ')}
-                          </span>
                           
-                          {['SCHEDULED', 'SCORER_ASSIGNED'].includes(m.status) && tournament.status === 'ACTIVE' && (
-                            <button 
-                              onClick={() => handleGenerateScorerToken(m.id)}
-                              className="p-2 bg-neutral-800 text-neutral-300 hover:text-accent hover:bg-neutral-700 rounded-lg transition-colors"
-                              title="Copy Scorer Link"
-                            >
-                              <LinkIcon size={18} />
-                            </button>
-                          )}
+                          <div className="flex items-center gap-3">
+                            <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg ${
+                              m.status === 'COMPLETED' ? 'bg-[#00ff41]/20 text-[#00ff41]' :
+                              m.status === 'LIVE' ? 'bg-red-500/20 text-red-500' :
+                              m.status === 'SCORER_ASSIGNED' ? 'bg-blue-500/20 text-blue-400' :
+                              'bg-neutral-800 text-neutral-400'
+                            }`}>
+                              {m.status.replace('_', ' ')}
+                            </span>
+                            
+                            {['SCHEDULED', 'SCORER_ASSIGNED'].includes(m.status) && tournament.status === 'ACTIVE' && (
+                              <button 
+                                onClick={() => handleGenerateScorerToken(m.id)}
+                                className="p-2 bg-neutral-800 text-neutral-300 hover:text-accent hover:bg-neutral-700 rounded-lg transition-colors"
+                                title="Copy Scorer Link"
+                              >
+                                <LinkIcon size={18} />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </>
-            )}
+            ) : null}
           </div>
         </div>
 
       </main>
+    </div>
+  );
+}
+
+function StandingsTab({
+  standings,
+  tournament,
+  teamNameMap,
+}: {
+  standings: any[];
+  tournament: any;
+  teamNameMap: Record<string, string>;
+}) {
+  if (!standings || standings.length === 0) {
+    return (
+      <div className="py-20 flex flex-col items-center text-center">
+        <Trophy size={48} className="text-neutral-800 mb-4" />
+        <p className="text-neutral-500 font-bold">No standings yet.</p>
+        <p className="text-neutral-600 text-xs mt-1">Matches still in progress.</p>
+      </div>
+    );
+  }
+
+  // Build group name lookup from tournament.groups
+  const groupNames: Record<string, string> = {};
+  if (tournament && tournament.groups) {
+    tournament.groups.forEach((g: any) => { groupNames[g.id] = g.name; });
+  }
+
+  // Group standings by groupId (null → 'overall')
+  const grouped: Record<string, any[]> = {};
+  standings.forEach((s: any) => {
+    const key = s.groupId || 'overall';
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(s);
+  });
+
+  const isCricket = tournament.sport === 'CRICKET';
+  const isFootball = tournament.sport === 'FOOTBALL';
+
+  return (
+    <div className="flex flex-col gap-5">
+      {Object.entries(grouped).map(([groupId, rows]) => {
+        const sorted = [...rows].sort((a, b) => a.position - b.position);
+        const label = groupId === 'overall'
+          ? 'Overall Standings'
+          : groupNames[groupId] || 'Group';
+
+        return (
+          <div key={groupId} className="bg-neutral-900 border border-white/5 rounded-2xl overflow-hidden shadow-lg">
+
+            {/* Group header */}
+            <div className="px-4 py-3 bg-yellow-500/10 border-b border-yellow-500/20 flex items-center justify-between">
+              <h3 className="font-black uppercase tracking-widest text-sm text-yellow-400">{label}</h3>
+              <span className="text-[10px] font-bold text-neutral-500">{sorted.length} teams</span>
+            </div>
+
+            {/* Column headers */}
+            <div className="grid grid-cols-[2rem_1fr_auto] gap-0 px-4 py-2 border-b border-white/5 bg-black/20">
+              <span className="text-[9px] font-black uppercase tracking-widest text-neutral-600">#</span>
+              <span className="text-[9px] font-black uppercase tracking-widest text-neutral-600">Team</span>
+              <div className="flex items-center gap-3 text-[9px] font-black uppercase tracking-widest text-neutral-600">
+                <span className="w-5 text-center" title="Played">P</span>
+                <span className="w-5 text-center" title="Won">W</span>
+                <span className="w-5 text-center" title="Lost">L</span>
+                {isFootball && <span className="w-5 text-center" title="Drawn">D</span>}
+                {isCricket  && <span className="w-5 text-center" title="No Result">NR</span>}
+                {isFootball && <span className="w-6 text-center" title="Goal Difference">GD</span>}
+                {isCricket  && <span className="w-8 text-center" title="Net Run Rate">NRR</span>}
+                <span className="w-7 text-center text-white" title="Points">Pts</span>
+              </div>
+            </div>
+
+            {/* Rows */}
+            <div className="divide-y divide-white/5">
+              {sorted.map((s: any, idx: number) => {
+                const teamName = teamNameMap[s.teamId] || s.teamId.slice(0, 12) + '…';
+                const isTop = idx < 2;
+                const nrr = s.nrr >= 0 ? `+${s.nrr.toFixed(3)}` : s.nrr.toFixed(3);
+                const gd = s.goalDifference >= 0 ? `+${s.goalDifference}` : String(s.goalDifference);
+
+                return (
+                  <div key={s.id} className={`grid grid-cols-[2rem_1fr_auto] gap-0 items-center px-4 py-3 ${
+                    isTop ? 'bg-yellow-500/[0.03]' : ''
+                  }`}>
+                    {/* Position */}
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+                      idx === 0 ? 'bg-yellow-500/25 text-yellow-400' :
+                      idx === 1 ? 'bg-neutral-400/20 text-neutral-300' :
+                      idx === 2 ? 'bg-amber-700/20 text-amber-600' :
+                      'bg-white/5 text-neutral-500'
+                    }`}>
+                      {s.position}
+                    </span>
+
+                    {/* Team name + qualified badge */}
+                    <div className="flex items-center gap-2 min-w-0 pl-2">
+                      <span className="text-sm font-bold text-white truncate">{teamName}</span>
+                      {s.qualified && (
+                        <span className="shrink-0 text-[8px] font-black uppercase tracking-widest text-[#00ff41] bg-[#00ff41]/10 px-1.5 py-0.5 rounded-full">
+                          Q
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Stats */}
+                    <div className="flex items-center gap-3 text-xs font-black shrink-0">
+                      <span className="w-5 text-center text-neutral-400">{s.played}</span>
+                      <span className="w-5 text-center text-[#00ff41]">{s.won}</span>
+                      <span className="w-5 text-center text-red-400">{s.lost}</span>
+                      {isFootball && <span className="w-5 text-center text-neutral-400">{s.drawn}</span>}
+                      {isCricket  && <span className="w-5 text-center text-neutral-400">{s.noResult}</span>}
+                      {isFootball && (
+                        <span className={`w-6 text-center text-xs font-bold ${
+                          s.goalDifference > 0 ? 'text-[#00ff41]' :
+                          s.goalDifference < 0 ? 'text-red-400' : 'text-neutral-500'
+                        }`}>{gd}</span>
+                      )}
+                      {isCricket && (
+                        <span className={`w-8 text-center text-xs font-bold ${
+                          s.nrr > 0 ? 'text-[#00ff41]' :
+                          s.nrr < 0 ? 'text-red-400' : 'text-neutral-500'
+                        }`}>{nrr}</span>
+                      )}
+                      <span className="w-7 text-center text-white font-black">{s.points}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -29,14 +29,23 @@ export async function POST(req: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(newPassword.trim(), 10);
 
-    // Look up user with normalized phone AND also try the +880 variant for
-    // accounts created before the normalizer was added.
+    // Look up user with normalized phone AND also try the +880 variant and local format
+    // for accounts created before the normalizer was added.
     const plusVariant = '+' + phone; // e.g. +8801XXXXXXXXX
+    const localVariant = (phone.startsWith('8801') && phone.length === 13)
+      ? phone.slice(2)
+      : null;
     let updated = false;
 
     // ── Player ──────────────────────────────────────────────────────────────
     const player = await prisma.player.findFirst({
-      where: { OR: [{ phone }, { phone: plusVariant }] },
+      where: {
+        OR: [
+          { phone },
+          { phone: plusVariant },
+          ...(localVariant ? [{ phone: localVariant }] : []),
+        ],
+      },
     });
     if (player) {
       await prisma.player.update({
@@ -52,7 +61,13 @@ export async function POST(req: NextRequest) {
 
     // ── Owner ────────────────────────────────────────────────────────────────
     const owner = await prisma.owner.findFirst({
-      where: { OR: [{ phone }, { phone: plusVariant }] },
+      where: {
+        OR: [
+          { phone },
+          { phone: plusVariant },
+          ...(localVariant ? [{ phone: localVariant }] : []),
+        ],
+      },
     });
     if (owner) {
       await prisma.owner.update({
@@ -64,7 +79,13 @@ export async function POST(req: NextRequest) {
 
     // ── Organizer ────────────────────────────────────────────────────────────
     const organizer = await prisma.organizer.findFirst({
-      where: { OR: [{ phone }, { phone: plusVariant }] },
+      where: {
+        OR: [
+          { phone },
+          { phone: plusVariant },
+          ...(localVariant ? [{ phone: localVariant }] : []),
+        ],
+      },
     });
     if (organizer) {
       await prisma.organizer.update({

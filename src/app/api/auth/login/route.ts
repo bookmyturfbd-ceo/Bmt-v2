@@ -20,9 +20,14 @@ export async function POST(request: NextRequest) {
 
   const cred = credential.trim().toLowerCase();
   const pw   = password.trim();
-  // If the credential looks like a phone number, also try the normalized form
-  const isPhone = /^[+0-9]{9,15}$/.test(credential.trim());
-  const normalizedPhone = isPhone ? normalizePhone(credential.trim()) : null;
+  
+  // Robustly handle phone credentials: strip spaces, hyphens, and parentheses to check if it's a phone number
+  const cleanCred = credential.trim().replace(/\s+|-|\(|\)/g, '');
+  const isPhone = /^[+]?[0-9]{9,15}$/.test(cleanCred);
+  const normalizedPhone = isPhone ? normalizePhone(cleanCred) : null;
+  const localVariant = (normalizedPhone && normalizedPhone.startsWith('8801') && normalizedPhone.length === 13)
+    ? normalizedPhone.slice(2)
+    : null;
 
   // Cookie lifetime: 30 days if "remember me", otherwise 1 day
   const maxAge = rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60;
@@ -49,7 +54,12 @@ export async function POST(request: NextRequest) {
       OR: [
         { email: { equals: cred, mode: 'insensitive' } },
         { phone: cred },
-        ...(normalizedPhone ? [{ phone: normalizedPhone }, { phone: '+' + normalizedPhone }] : []),
+        { phone: cleanCred },
+        ...(normalizedPhone ? [
+          { phone: normalizedPhone },
+          { phone: '+' + normalizedPhone },
+          ...(localVariant ? [{ phone: localVariant }] : []),
+        ] : []),
       ]
     },
   });
@@ -90,7 +100,12 @@ export async function POST(request: NextRequest) {
       OR: [
         { email: { equals: cred, mode: 'insensitive' } },
         { phone: cred },
-        ...(normalizedPhone ? [{ phone: normalizedPhone }, { phone: '+' + normalizedPhone }] : []),
+        { phone: cleanCred },
+        ...(normalizedPhone ? [
+          { phone: normalizedPhone },
+          { phone: '+' + normalizedPhone },
+          ...(localVariant ? [{ phone: localVariant }] : []),
+        ] : []),
       ]
     },
   });
@@ -115,9 +130,10 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({ ok: true, redirect: '/en/organizer/dashboard' });
     
     // Set the secure JWT for the organizer portal
+    const isHttps = request.url.startsWith('https:');
     response.cookies.set('org_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      httpOnly: isHttps,
+      secure: isHttps,
       sameSite: 'lax',
       path: '/',
       maxAge,
@@ -137,7 +153,12 @@ export async function POST(request: NextRequest) {
       OR: [
         { email: { equals: cred, mode: 'insensitive' } },
         { phone: cred },
-        ...(normalizedPhone ? [{ phone: normalizedPhone }, { phone: '+' + normalizedPhone }] : []),
+        { phone: cleanCred },
+        ...(normalizedPhone ? [
+          { phone: normalizedPhone },
+          { phone: '+' + normalizedPhone },
+          ...(localVariant ? [{ phone: localVariant }] : []),
+        ] : []),
       ]
     },
   });

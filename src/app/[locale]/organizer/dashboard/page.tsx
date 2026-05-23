@@ -5,7 +5,8 @@ import {
   Loader2, ShieldCheck, LogOut, Wallet, Trophy, Plus,
   Calendar, Users, Menu, X, CheckCircle2, Clock,
   ChevronRight, Zap, History, RefreshCw, Upload, ChevronLeft,
-  Trash2, Lock, Unlock, AlertTriangle, Banknote, Eye
+  Trash2, Lock, Unlock, AlertTriangle, Banknote, Eye,
+  Play, GitMerge
 } from 'lucide-react';
 import CreateTournamentWizard from '@/components/admin/tournaments/CreateTournamentWizard';
 
@@ -446,15 +447,17 @@ function TournamentCard({
     DRAFT:             { label: 'Draft',     cls: 'bg-neutral-800 text-neutral-400' },
     COMPLETED:         { label: 'Done',      cls: 'bg-purple-500/20 text-purple-400' },
     CANCELLED:         { label: 'Cancelled', cls: 'bg-red-500/20 text-red-400' },
+    DRAFTING:          { label: 'Drafting',  cls: 'bg-amber-500/20 text-amber-400' },
+    SCHEDULED:         { label: 'Scheduled', cls: 'bg-pink-500/20 text-pink-400' },
   };
   const s = statusMap[t.status] ?? { label: t.status.replace(/_/g, ' '), cls: 'bg-neutral-800 text-neutral-400' };
 
-  const [deleting,     setDeleting]     = useState(false);
-  const [confirm,      setConfirm]      = useState(false);
-  const [savingOpen,   setSavingOpen]   = useState(false);
+  const [deleting,      setDeleting]     = useState(false);
+  const [confirm,       setConfirm]      = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [showCountdown, setShowCountdown] = useState(false);
-  const [cdInput,      setCdInput]      = useState('');
-  const [settingCd,    setSettingCd]    = useState(false);
+  const [cdInput,       setCdInput]      = useState('');
+  const [settingCd,     setSettingCd]    = useState(false);
 
   const countdownLabel = useCountdown(
     t.registrationOpenAt && new Date(t.registrationOpenAt).getTime() > Date.now()
@@ -462,37 +465,56 @@ function TournamentCard({
       : null
   );
 
-  const isOpen = t.isRegistrationOpen ||
-    (t.registrationOpenAt && new Date(t.registrationOpenAt).getTime() <= Date.now());
   const hasCountdown = !!t.registrationOpenAt;
   const countdownActive = hasCountdown && new Date(t.registrationOpenAt).getTime() > Date.now();
-  const hasPaidTeams = (t._count?.registrations ?? 0) > 0 && t.registrations?.some?.((r: any) => r.entryFeePaid);
   const canDelete = (t._count?.registrations ?? 0) === 0;
 
-  const callSettings = async (body: object) => {
-    const res = await fetch(`/api/tournaments/${t.id}/settings`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const d = await res.json();
-    if (d.success) onSettingsChanged(d.data);
-    else alert(d.error);
-  };
-
-  const handleToggleOpen = async () => {
-    setSavingOpen(true);
-    await callSettings({ action: isOpen ? 'close' : 'open' });
-    setSavingOpen(false);
+  const handleCardAction = async (endpoint: string) => {
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/tournaments/${t.id}/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const d = await res.json();
+      if (d.success) {
+        if (d.data) onSettingsChanged(d.data);
+        window.location.reload();
+      } else {
+        alert(d.error || `Action failed: ${endpoint}`);
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert('Network error executing action.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleSetCountdown = async () => {
     if (!cdInput) return;
     setSettingCd(true);
-    await callSettings({ action: 'setCountdown', registrationOpenAt: cdInput });
-    setSettingCd(false);
-    setShowCountdown(false);
-    setCdInput('');
+    try {
+      const res = await fetch(`/api/tournaments/${t.id}/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'setCountdown', registrationOpenAt: cdInput }),
+      });
+      const d = await res.json();
+      if (d.success) {
+        onSettingsChanged(d.data);
+        window.location.reload();
+      } else {
+        alert(d.error);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to set countdown');
+    } finally {
+      setSettingCd(false);
+      setShowCountdown(false);
+      setCdInput('');
+    }
   };
 
   const handleDelete = async () => {
@@ -504,11 +526,11 @@ function TournamentCard({
   };
 
   return (
-    <div className="bg-black border border-white/5 rounded-2xl overflow-hidden hover:border-accent/20 transition-all">
+    <div className="bg-black border border-white/5 rounded-2xl overflow-hidden hover:border-accent/20 transition-all flex flex-col justify-between">
       {/* Main card */}
       <div
         onClick={onClick}
-        className="p-5 cursor-pointer group"
+        className="p-5 cursor-pointer group flex-1"
       >
         <div className="flex justify-between items-start mb-3">
           <div className="flex items-center gap-3">
@@ -531,87 +553,154 @@ function TournamentCard({
       </div>
 
       {/* Controls bar */}
-      <div className="border-t border-white/5 px-4 py-3 flex items-center gap-2 flex-wrap bg-zinc-950">
-        {/* Open/Close toggle */}
-        <button
-          onClick={handleToggleOpen}
-          disabled={savingOpen || (countdownActive)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
-            isOpen
-              ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25'
-              : 'bg-neutral-800 border border-white/5 text-neutral-400 hover:text-white'
-          } disabled:opacity-40`}
-        >
-          {savingOpen ? <Loader2 size={11} className="animate-spin" /> : isOpen ? <Unlock size={11} /> : <Lock size={11} />}
-          {isOpen ? 'Open' : 'Closed'}
-        </button>
+      <div className="border-t border-white/5 px-4 py-3 flex flex-col gap-2.5 bg-zinc-950">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Dynamic contextual buttons based on tournament status */}
+          {t.status === 'DRAFT' && (
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleCardAction('open-registration'); }}
+                disabled={actionLoading || countdownActive}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all bg-accent text-black hover:brightness-110 disabled:opacity-40"
+              >
+                {actionLoading ? <Loader2 size={11} className="animate-spin" /> : <Unlock size={11} />}
+                Open Registration
+              </button>
 
-        {/* Countdown info / setter */}
-        {countdownActive ? (
-          <span className="flex items-center gap-1.5 text-xs font-black text-amber-400 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-            <Clock size={11} /> {countdownLabel}
-          </span>
-        ) : !hasCountdown ? (
-          <button
-            onClick={() => setShowCountdown(v => !v)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider bg-neutral-800 border border-white/5 text-neutral-400 hover:text-white transition-all"
-          >
-            <Clock size={11} /> Set Countdown
-          </button>
-        ) : (
-          <span className="text-xs text-neutral-500 font-bold px-3">⏳ Countdown elapsed</span>
-        )}
+              {!hasCountdown && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowCountdown(v => !v); }}
+                  disabled={actionLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider bg-neutral-800 border border-white/5 text-neutral-400 hover:text-white transition-all"
+                >
+                  <Clock size={11} /> Set Countdown
+                </button>
+              )}
 
-        {/* Delete */}
-        {canDelete && !confirm && (
-          <button
-            onClick={() => setConfirm(true)}
-            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black text-red-500 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all"
-          >
-            <Trash2 size={11} /> Delete
-          </button>
-        )}
-        {confirm && (
-          <div className="ml-auto flex items-center gap-2">
-            <span className="text-[10px] text-red-400 font-bold">Are you sure?</span>
+              {countdownActive && (
+                <span className="flex items-center gap-1.5 text-xs font-black text-amber-400 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                  <Clock size={11} /> {countdownLabel}
+                </span>
+              )}
+            </>
+          )}
+
+          {t.status === 'REGISTRATION_OPEN' && (
             <button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="px-3 py-1.5 rounded-lg text-xs font-black bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30 transition-all disabled:opacity-50"
+              onClick={(e) => { e.stopPropagation(); handleCardAction('close-registration'); }}
+              disabled={actionLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all bg-white text-black hover:bg-neutral-200 disabled:opacity-40"
             >
-              {deleting ? <Loader2 size={10} className="animate-spin" /> : 'Yes, Delete'}
+              {actionLoading ? <Loader2 size={11} className="animate-spin" /> : <Lock size={11} />}
+              Close Registration
             </button>
+          )}
+
+          {t.status === 'DRAFTING' && (
+            <>
+              {t.formatType === 'GROUP_KNOCKOUT' && (!t.groups || t.groups.length === 0) ? (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleCardAction('groups/draw'); }}
+                  disabled={actionLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40"
+                >
+                  {actionLoading ? <Loader2 size={11} className="animate-spin" /> : <Users size={11} />}
+                  Draw Groups
+                </button>
+              ) : (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleCardAction('generate-fixtures'); }}
+                  disabled={actionLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-40"
+                >
+                  {actionLoading ? <Loader2 size={11} className="animate-spin" /> : <GitMerge size={11} />}
+                  Generate Fixtures
+                </button>
+              )}
+            </>
+          )}
+
+          {t.status === 'SCHEDULED' && (
             <button
-              onClick={() => setConfirm(false)}
-              className="px-3 py-1.5 rounded-lg text-xs font-black bg-neutral-800 text-neutral-400 hover:text-white transition-all"
+              onClick={(e) => { e.stopPropagation(); handleCardAction('activate'); }}
+              disabled={actionLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all bg-[#00ff41] text-black hover:bg-[#00cc33] shadow-[0_0_10px_rgba(0,255,65,0.2)] hover:shadow-[0_0_15px_rgba(0,255,65,0.4)] disabled:opacity-40"
             >
-              Cancel
+              {actionLoading ? <Loader2 size={11} className="animate-spin" /> : <Play size={11} fill="currentColor" />}
+              Start Tournament
+            </button>
+          )}
+
+          {t.status === 'ACTIVE' && (
+            <span className="flex items-center gap-1.5 text-xs font-black text-[#00ff41] bg-[#00ff41]/10 border border-[#00ff41]/20 px-3 py-1.5 rounded-lg">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00ff41] animate-pulse" /> Live
+            </span>
+          )}
+
+          {t.status === 'COMPLETED' && (
+            <span className="flex items-center gap-1.5 text-xs font-black text-purple-400 bg-purple-500/10 border border-purple-500/20 px-3 py-1.5 rounded-lg">
+              🏆 Completed
+            </span>
+          )}
+
+          {t.status === 'CANCELLED' && (
+            <span className="flex items-center gap-1.5 text-xs font-black text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-1.5 rounded-lg">
+              ❌ Cancelled
+            </span>
+          )}
+
+          {/* Delete button (positioned to the right) */}
+          {canDelete && !confirm && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setConfirm(true); }}
+              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black text-red-500 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all"
+            >
+              <Trash2 size={11} /> Delete
+            </button>
+          )}
+
+          {confirm && (
+            <div className="ml-auto flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+              <span className="text-[10px] text-red-400 font-bold">Are you sure?</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+                disabled={deleting}
+                className="px-2.5 py-1.5 rounded-lg text-[11px] font-black bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30 transition-all disabled:opacity-50"
+              >
+                {deleting ? <Loader2 size={10} className="animate-spin" /> : 'Delete'}
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setConfirm(false); }}
+                className="px-2.5 py-1.5 rounded-lg text-[11px] font-black bg-neutral-800 text-neutral-400 hover:text-white transition-all"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Countdown setter */}
+        {showCountdown && (
+          <div className="border-t border-white/5 pt-2.5 bg-zinc-950 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="datetime-local"
+              value={cdInput}
+              onChange={e => setCdInput(e.target.value)}
+              className="flex-1 bg-neutral-900 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-accent/50"
+            />
+            <button
+              onClick={handleSetCountdown}
+              disabled={!cdInput || settingCd}
+              className="px-3 py-2 rounded-xl bg-accent text-black font-black text-xs uppercase tracking-wider hover:brightness-110 transition-all disabled:opacity-40 shrink-0"
+            >
+              {settingCd ? <Loader2 size={12} className="animate-spin" /> : 'Set'}
+            </button>
+            <button onClick={() => setShowCountdown(false)} className="px-1 py-2">
+              <X size={14} className="text-neutral-500" />
             </button>
           </div>
         )}
       </div>
-
-      {/* Countdown setter */}
-      {showCountdown && (
-        <div className="border-t border-white/5 px-4 py-3 bg-zinc-950 flex items-center gap-2">
-          <input
-            type="datetime-local"
-            value={cdInput}
-            onChange={e => setCdInput(e.target.value)}
-            className="flex-1 bg-neutral-900 border border-white/10 rounded-xl px-3 py-2 text-sm font-bold text-white focus:outline-none focus:border-accent/50"
-          />
-          <button
-            onClick={handleSetCountdown}
-            disabled={!cdInput || settingCd}
-            className="px-4 py-2 rounded-xl bg-accent text-black font-black text-xs uppercase tracking-wider hover:brightness-110 transition-all disabled:opacity-40"
-          >
-            {settingCd ? <Loader2 size={12} className="animate-spin" /> : 'Set'}
-          </button>
-          <button onClick={() => setShowCountdown(false)} className="px-2 py-2">
-            <X size={14} className="text-neutral-500" />
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -641,9 +730,9 @@ export default function OrganizerDashboard() {
       .then(r => r.json())
       .then(d => {
         if (d.success) setOrganizer(d.data);
-        else router.push(`/${locale}/organizer/login`);
+        else router.push(`/${locale}/login`);
       })
-      .catch(() => router.push(`/${locale}/organizer/login`))
+      .catch(() => router.push(`/${locale}/login`))
       .finally(() => setLoading(false));
   }, [router]);
 
@@ -654,7 +743,7 @@ export default function OrganizerDashboard() {
 
   const handleLogout = () => {
     document.cookie = 'org_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-    router.push(`/${locale}/organizer/login`);
+    router.push(`/${locale}/login`);
   };
 
   const handleDeleted = (id: string) =>

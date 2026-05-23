@@ -384,6 +384,23 @@ export default function LiveScoringPage() {
   const [scoreB, setScoreB]     = useState(0);
   const [halfTime, setHalfTime] = useState<any>(null);
 
+  // Derive score reactively from events array to prevent double counting
+  useEffect(() => {
+    const match = state?.match;
+    if (!match) return;
+    const goals = events.filter(e => ['GOAL', 'PENALTY_SCORED', 'OWN_GOAL'].includes(e.type) && e.status === 'CONFIRMED');
+    let sA = 0, sB = 0;
+    goals.forEach(e => {
+      if (e.type === 'OWN_GOAL') {
+        if (e.teamId === match.teamA_Id) sB++; else sA++;
+      } else {
+        if (e.teamId === match.teamA_Id) sA++; else sB++;
+      }
+    });
+    setScoreA(sA);
+    setScoreB(sB);
+  }, [events, state?.match?.teamA_Id, state?.match?.teamB_Id]);
+
   const [timerSecs, setTimerSecs]       = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
   const timerRef = useRef<any>(null);
@@ -476,15 +493,12 @@ export default function LiveScoringPage() {
     setLoading(false);
 
     if (d.match?.status === 'LIVE') {
-      const lsKey = `matchTimerStart_${matchId}`;
-      let startMs = Number(sessionStorage.getItem(lsKey));
+      const startMs = new Date(d.match.updatedAt).getTime();
       const now = Date.now();
-      if (!startMs) {
-        startMs = now;
-        sessionStorage.setItem(lsKey, String(startMs));
-      }
+      const isHalfTimeConfirmed = d.halfTime?.calledByA && d.halfTime?.calledByB;
+
       setTimerSecs(prev => {
-        if (prev > 0) return prev;
+        if (isHalfTimeConfirmed) return 2700; // Freeze at 45 minutes
         let elapsed = Math.floor((now - startMs) / 1000);
         if (d.events?.length > 0) {
           const maxMin = Math.max(...d.events.map((e: any) => e.minute));
@@ -492,7 +506,7 @@ export default function LiveScoringPage() {
         }
         return Math.max(0, elapsed);
       });
-      setTimerRunning(true);
+      setTimerRunning(!isHalfTimeConfirmed);
       // Show mode gate only if: OMC, no mode agreed, and no pending proposal from anyone
       if (d.isOMC && !d.scoreModeAgreed && !d.scoreModeRequestedBy) {
         setShowModeGate(true);
@@ -620,6 +634,16 @@ export default function LiveScoringPage() {
     const onDismissPath = isOMCState 
         ? `/${locale}/matches/${matchId}/stats` 
         : `/${locale}/arena?tab=history`;
+
+    // Prevent second rank popup in Interaction Hub
+    try {
+      const stored = localStorage.getItem('bmt_shown_results');
+      const shownIds = stored ? JSON.parse(stored) : [];
+      if (!shownIds.includes(m.id)) {
+        shownIds.push(m.id);
+        localStorage.setItem('bmt_shown_results', JSON.stringify(shownIds));
+      }
+    } catch {}
 
     showMatchResult({
       outcome,
@@ -932,6 +956,7 @@ export default function LiveScoringPage() {
               const isDisputed = ev.status === 'DISPUTED';
               const isConfirmed = ev.status === 'CONFIRMED';
               const canAct     = !isMyTeam && (isOMC || isScorer) && isPending;
+              const canDispute = !isMyTeam && (isOMC || isScorer) && isConfirmed;
 
               return (
                 <div key={ev.id}
@@ -985,15 +1010,11 @@ export default function LiveScoringPage() {
                     )}
                   </div>
 
-                  {/* Agree / Dispute — only for opponent events */}
-                  {canAct && (
+                  {/* Dispute — only for opponent confirmed events */}
+                  {canDispute && (
                     <div className="flex gap-2 max-w-[78%] w-full">
-                      <button onClick={() => handleEventAction(ev.id, 'confirm')}
-                        className="flex-1 py-1.5 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 font-black text-xs flex items-center justify-center gap-1">
-                        <CheckCircle size={11} /> Agree
-                      </button>
                       <button onClick={() => handleEventAction(ev.id, 'dispute')}
-                        className="flex-1 py-1.5 rounded-xl bg-orange-500/10 border border-orange-500/30 text-orange-400 font-black text-xs flex items-center justify-center gap-1">
+                        className="flex-1 py-1.5 rounded-xl bg-orange-500/10 border border-orange-500/30 text-orange-400 font-black text-xs flex items-center justify-center gap-1 active:scale-95 transition-all">
                         <Flag size={11} /> Dispute
                       </button>
                     </div>
@@ -1137,11 +1158,34 @@ export default function LiveScoringPage() {
         </div>
       )}
 
-      {/* ── Single Scorer Notice (for non-scorers) ── */}
-      {match.status === 'LIVE' && scoringMode === 'LIVE_SINGLE' && !isSingleScorer && (
+      {/* ── Single Scorer Scorer Link Banner for OMCs ── */}
+      {match.status === 'LIVE' && scoringMode === 'LIVE_SINGLE' && isOMC && (
+        <div className="fixed bottom-0 left-0 right-0 z-[110] bg-[#0d0e14]/98 backdrop-blur-md border-t border-[#1e2028] px-4 py-5 flex flex-col items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse shadow-[0_0_8px_#a78bfa]" />
+            <p className="text-xs font-black text-purple-400 uppercase tracking-widest">Single Scorer Mode Active</p>
+          </div>
+          <p className="text-xs text-neutral-400 text-center max-w-xs mb-1">
+            Copy the secure token link and share it with the scorer. They can score the match without logging in!
+          </p>
+          <button
+            onClick={() => {
+              const scorerUrl = `${window.location.origin}/${locale}/score/casual/${state.scorerToken}`;
+              navigator.clipboard.writeText(scorerUrl);
+              setMsg('📋 Scorer link copied to clipboard!');
+            }}
+            className="w-full max-w-xs py-3.5 rounded-2xl bg-purple-600 hover:bg-purple-500 active:scale-[0.98] text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(168,85,247,0.3)] border border-purple-500/35"
+          >
+            🔗 Copy Scorer Link
+          </button>
+        </div>
+      )}
+
+      {/* ── Single Scorer Notice (for non-OMCs, non-scorers) ── */}
+      {match.status === 'LIVE' && scoringMode === 'LIVE_SINGLE' && !isOMC && (
         <div className="fixed bottom-0 left-0 right-0 z-[100] bg-[#0d0e14]/95 backdrop-blur-md border-t border-[#1e2028] px-4 py-6 text-center">
-          <p className="text-sm font-bold text-neutral-400">
-            {state?.scorers?.[0]?.player?.fullName || 'Assigned Scorer'} is scoring for you.
+          <p className="text-sm font-bold text-[#a78bfa] animate-pulse">
+            ⏳ Single Scorer is scoring for both teams.
           </p>
         </div>
       )}
@@ -1157,7 +1201,10 @@ export default function LiveScoringPage() {
           currentMinute={currentMinute}
           rosterPicks={match.rosterPicks || []}
           onClose={() => setSheetType(null)}
-          onSubmit={ev => setEvents(prev => [...prev, ev])}
+          onSubmit={ev => setEvents(prev => {
+            if (prev.some(e => e.id === ev.id)) return prev;
+            return [...prev, ev];
+          })}
         />
       )}
 
@@ -1274,10 +1321,10 @@ export default function LiveScoringPage() {
                     <p className="text-white font-black text-base mb-1">Individual Scoring</p>
                     <p className="text-neutral-400 text-xs">Both teams individually score for themselves on their own phones.</p>
                   </button>
-                  <button onClick={() => { setShowModeGate(false); setShowScorerSearch(true); }} disabled={modeGateLoading}
+                  <button onClick={() => handleProposeMode('LIVE_SINGLE')} disabled={modeGateLoading}
                     className="w-full p-5 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-left active:scale-[0.98] transition-all disabled:opacity-50">
                     <p className="text-purple-400 font-black text-base mb-1">Single Scorer</p>
-                    <p className="text-neutral-400 text-xs">Invite one person from either team (or search) to officially score for BOTH teams.</p>
+                    <p className="text-neutral-400 text-xs">Instantly generate a secure, login-free scoring link to share with anyone to score for both teams.</p>
                   </button>
                 </div>
               </>

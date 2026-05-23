@@ -6,37 +6,39 @@ import {
   CreditCard, Target, X, Check, ChevronRight 
 } from 'lucide-react';
 
-export default function FootballScorer({ match }: { match: any }) {
+export default function CasualFootballScorer({ match, token }: { match: any; token: string }) {
   const [loading, setLoading] = useState(false);
-  const [goalsA, setGoalsA] = useState(match.resultSummary?.goalsA || 0);
-  const [goalsB, setGoalsB] = useState(match.resultSummary?.goalsB || 0);
-  const [events, setEvents] = useState<any[]>(match.resultSummary?.events || []);
+  const [goalsA, setGoalsA] = useState(match.goalsA || 0);
+  const [goalsB, setGoalsB] = useState(match.goalsB || 0);
+  const [events, setEvents] = useState<any[]>(match.events || []);
 
   // Event sheet state
   const [sheetType, setSheetType] = useState<'GOAL' | 'CARD' | null>(null);
   const [step, setStep] = useState(0);
-  const [selectedTeamId, setSelectedTeamId] = useState<string>(match.teamAId);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>(match.teamA_Id);
   const [scorerPlayerId, setScorerPlayerId] = useState<string | null>(null);
   const [assistPlayerId, setAssistPlayerId] = useState<string | null>(null);
   const [cardType, setCardType] = useState<'YELLOW' | 'RED'>('YELLOW');
   const [minute, setMinute] = useState(1);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Helpers to resolve team details from registrations
+  // Helpers to resolve team details
   const getTeamName = (teamId: string) => {
-    const reg = match.tournament.registrations.find((r: any) => r.entityId === teamId);
-    return reg?.team?.name || teamId;
+    if (teamId === match.teamA_Id) return match.teamA.name;
+    if (teamId === match.teamB_Id) return match.teamB.name;
+    return teamId;
   };
 
   const getTeamLogo = (teamId: string) => {
-    const reg = match.tournament.registrations.find((r: any) => r.entityId === teamId);
-    return reg?.team?.logoUrl || null;
+    if (teamId === match.teamA_Id) return match.teamA.logoUrl;
+    if (teamId === match.teamB_Id) return match.teamB.logoUrl;
+    return null;
   };
 
   const getRoster = (teamId: string) => {
-    const reg = match.tournament.registrations.find((r: any) => r.entityId === teamId);
-    if (!reg || !reg.team || !reg.team.members) return [];
-    return reg.team.members.map((m: any) => ({
+    const team = teamId === match.teamA_Id ? match.teamA : match.teamB;
+    if (!team || !team.members) return [];
+    return team.members.map((m: any) => ({
       id: m.player.id,
       fullName: m.player.fullName,
       avatarUrl: m.player.avatarUrl,
@@ -73,29 +75,33 @@ export default function FootballScorer({ match }: { match: any }) {
     setErrorMsg('');
 
     const eventData: any = {
-      type: sheetType === 'GOAL' ? 'goal' : 'card',
+      type: sheetType === 'GOAL' ? 'GOAL' : (cardType === 'YELLOW' ? 'YELLOW_CARD' : 'RED_CARD'),
       teamId: selectedTeamId,
       scorerPlayerId,
-      minute
+      minute,
+      token // Pass token for signed authentication
     };
 
-    if (sheetType === 'GOAL') {
-      if (assistPlayerId) eventData.assistPlayerId = assistPlayerId;
-    } else {
-      eventData.cardType = cardType;
+    if (sheetType === 'GOAL' && assistPlayerId) {
+      eventData.assistPlayerId = assistPlayerId;
     }
 
     try {
-      const res = await fetch(`/api/t-matches/${match.id}/events`, {
+      const res = await fetch(`/api/matches/${match.id}/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(eventData)
       });
       const data = await res.json();
-      if (data.success && data.data?.resultSummary) {
-        setGoalsA(data.data.resultSummary.goalsA || 0);
-        setGoalsB(data.data.resultSummary.goalsB || 0);
-        setEvents(data.data.resultSummary.events || []);
+      if (res.ok && data.event) {
+        // Re-fetch match state to guarantee score/timeline synchronization
+        const freshRes = await fetch(`/api/score/casual/${token}`);
+        const freshData = await freshRes.json();
+        if (freshData.success) {
+          setGoalsA(freshData.data.goalsA || 0);
+          setGoalsB(freshData.data.goalsB || 0);
+          setEvents(freshData.data.events || []);
+        }
         setSheetType(null);
       } else {
         setErrorMsg(data.error || 'Failed to log event');
@@ -108,22 +114,27 @@ export default function FootballScorer({ match }: { match: any }) {
     }
   };
 
-  // Undo / Delete a match event
+  // Delete/Resolve a match event
   const handleDeleteEvent = async (eventId: string) => {
     if (!confirm('Are you sure you want to delete this event?')) return;
     
     setLoading(true);
     try {
-      const res = await fetch(`/api/t-matches/${match.id}/events`, {
-        method: 'POST',
+      // For casual matches, we PATCH to action: 'resolve', resolution: 'remove'
+      const res = await fetch(`/api/matches/${match.id}/events/${eventId}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete', eventId })
+        body: JSON.stringify({ action: 'resolve', resolution: 'remove' })
       });
-      const data = await res.json();
-      if (data.success && data.data?.resultSummary) {
-        setGoalsA(data.data.resultSummary.goalsA || 0);
-        setGoalsB(data.data.resultSummary.goalsB || 0);
-        setEvents(data.data.resultSummary.events || []);
+      if (res.ok) {
+        // Re-fetch match state to guarantee score/timeline synchronization
+        const freshRes = await fetch(`/api/score/casual/${token}`);
+        const freshData = await freshRes.json();
+        if (freshData.success) {
+          setGoalsA(freshData.data.goalsA || 0);
+          setGoalsB(freshData.data.goalsB || 0);
+          setEvents(freshData.data.events || []);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -137,18 +148,19 @@ export default function FootballScorer({ match }: { match: any }) {
     
     setLoading(true);
     try {
-      const winnerId = goalsA > goalsB ? match.teamAId : goalsB > goalsA ? match.teamBId : null;
-      await fetch(`/api/t-matches/${match.id}/complete`, {
+      const res = await fetch(`/api/score/casual/${token}/complete`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          winnerId, 
-          resultSummary: { ...match.resultSummary, goalsA, goalsB, events } 
-        })
+        headers: { 'Content-Type': 'application/json' }
       });
-      window.location.reload();
+      const data = await res.json();
+      if (data.success) {
+        window.location.reload();
+      } else {
+        alert(data.error || 'Failed to finalize match');
+      }
     } catch (e) {
       console.error(e);
+    } finally {
       setLoading(false);
     }
   };
@@ -164,21 +176,21 @@ export default function FootballScorer({ match }: { match: any }) {
         <div className="absolute top-0 inset-x-0 h-[3px] bg-gradient-to-r from-red-500 via-yellow-400 to-[#00ff41]" />
         
         <h2 className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-6 flex items-center justify-center gap-1.5">
-          <Clock size={11} className="text-[#00ff41] animate-pulse" /> Futsal Scoreboard
+          <Clock size={11} className="text-[#00ff41] animate-pulse" /> Casual Scoreboard
         </h2>
 
         <div className="flex items-center justify-between gap-4">
           {/* Team A Info */}
           <div className="flex-1 min-w-0 flex flex-col items-center">
             <div className="w-14 h-14 rounded-2xl bg-neutral-800 border border-white/5 flex items-center justify-center overflow-hidden mb-3">
-              {getTeamLogo(match.teamAId) ? (
-                <img src={getTeamLogo(match.teamAId)!} className="w-full h-full object-cover" alt="" />
+              {getTeamLogo(match.teamA_Id) ? (
+                <img src={getTeamLogo(match.teamA_Id)!} className="w-full h-full object-cover" alt="" />
               ) : (
-                <span className="text-lg font-black text-white/40">{getTeamName(match.teamAId)[0]}</span>
+                <span className="text-lg font-black text-white/40">{getTeamName(match.teamA_Id)[0]}</span>
               )}
             </div>
             <span className="text-xs font-black text-white truncate max-w-full block">
-              {getTeamName(match.teamAId)}
+              {getTeamName(match.teamA_Id)}
             </span>
             <p className="text-5xl font-black text-[#00ff41] mt-3 font-mono tracking-tighter filter drop-shadow-[0_0_10px_rgba(0,255,65,0.2)]">
               {goalsA}
@@ -192,14 +204,14 @@ export default function FootballScorer({ match }: { match: any }) {
           {/* Team B Info */}
           <div className="flex-1 min-w-0 flex flex-col items-center">
             <div className="w-14 h-14 rounded-2xl bg-neutral-800 border border-white/5 flex items-center justify-center overflow-hidden mb-3">
-              {getTeamLogo(match.teamBId) ? (
-                <img src={getTeamLogo(match.teamBId)!} className="w-full h-full object-cover" alt="" />
+              {getTeamLogo(match.teamB_Id) ? (
+                <img src={getTeamLogo(match.teamB_Id)!} className="w-full h-full object-cover" alt="" />
               ) : (
-                <span className="text-lg font-black text-white/40">{getTeamName(match.teamBId)[0]}</span>
+                <span className="text-lg font-black text-white/40">{getTeamName(match.teamB_Id)[0]}</span>
               )}
             </div>
             <span className="text-xs font-black text-white truncate max-w-full block">
-              {getTeamName(match.teamBId)}
+              {getTeamName(match.teamB_Id)}
             </span>
             <p className="text-5xl font-black text-[#00ff41] mt-3 font-mono tracking-tighter filter drop-shadow-[0_0_10px_rgba(0,255,65,0.2)]">
               {goalsB}
@@ -211,12 +223,12 @@ export default function FootballScorer({ match }: { match: any }) {
       {/* Grid Controllers: Team A Scorer Actions */}
       <div className="flex flex-col gap-3">
         <h3 className="text-[10px] font-black uppercase tracking-wider text-neutral-500">
-          Score controls: {getTeamName(match.teamAId)}
+          Score controls: {getTeamName(match.teamA_Id)}
         </h3>
         <div className="grid grid-cols-2 gap-3">
           <button 
             disabled={loading}
-            onClick={() => openSheet('GOAL', match.teamAId)}
+            onClick={() => openSheet('GOAL', match.teamA_Id)}
             className="bg-neutral-900 border border-white/10 hover:border-emerald-500/50 p-4 rounded-2xl font-black text-xs uppercase tracking-wider text-white hover:bg-emerald-500/[0.02] active:scale-95 transition-all shadow-md flex items-center justify-center gap-2"
           >
             <Target size={14} className="text-emerald-500" />
@@ -224,7 +236,7 @@ export default function FootballScorer({ match }: { match: any }) {
           </button>
           <button 
             disabled={loading}
-            onClick={() => openSheet('CARD', match.teamAId)}
+            onClick={() => openSheet('CARD', match.teamA_Id)}
             className="bg-neutral-900 border border-white/10 hover:border-yellow-500/50 p-4 rounded-2xl font-black text-xs uppercase tracking-wider text-white hover:bg-yellow-500/[0.02] active:scale-95 transition-all shadow-md flex items-center justify-center gap-2"
           >
             <CreditCard size={14} className="text-yellow-500" />
@@ -236,12 +248,12 @@ export default function FootballScorer({ match }: { match: any }) {
       {/* Grid Controllers: Team B Scorer Actions */}
       <div className="flex flex-col gap-3">
         <h3 className="text-[10px] font-black uppercase tracking-wider text-neutral-500">
-          Score controls: {getTeamName(match.teamBId)}
+          Score controls: {getTeamName(match.teamB_Id)}
         </h3>
         <div className="grid grid-cols-2 gap-3">
           <button 
             disabled={loading}
-            onClick={() => openSheet('GOAL', match.teamBId)}
+            onClick={() => openSheet('GOAL', match.teamB_Id)}
             className="bg-neutral-900 border border-white/10 hover:border-emerald-500/50 p-4 rounded-2xl font-black text-xs uppercase tracking-wider text-white hover:bg-emerald-500/[0.02] active:scale-95 transition-all shadow-md flex items-center justify-center gap-2"
           >
             <Target size={14} className="text-emerald-500" />
@@ -249,7 +261,7 @@ export default function FootballScorer({ match }: { match: any }) {
           </button>
           <button 
             disabled={loading}
-            onClick={() => openSheet('CARD', match.teamBId)}
+            onClick={() => openSheet('CARD', match.teamB_Id)}
             className="bg-neutral-900 border border-white/10 hover:border-yellow-500/50 p-4 rounded-2xl font-black text-xs uppercase tracking-wider text-white hover:bg-yellow-500/[0.02] active:scale-95 transition-all shadow-md flex items-center justify-center gap-2"
           >
             <CreditCard size={14} className="text-yellow-500" />
@@ -270,20 +282,20 @@ export default function FootballScorer({ match }: { match: any }) {
           </p>
         ) : (
           <div className="flex flex-col gap-3 max-h-60 overflow-y-auto pr-1">
-            {events.map((e: any) => {
-              const isGoal = e.type === 'goal';
+            {events.filter((e: any) => e.status !== 'REMOVED').map((e: any) => {
+              const isGoal = e.type === 'GOAL';
               return (
                 <div key={e.id} className="bg-neutral-950/80 border border-white/5 p-3 rounded-xl flex items-center justify-between gap-3 text-xs">
                   <div className="flex items-center gap-3">
                     <span className="text-base shrink-0">
-                      {isGoal ? '⚽' : e.cardType === 'YELLOW' ? '🟨' : '🟥'}
+                      {isGoal ? '⚽' : e.type === 'YELLOW_CARD' ? '🟨' : '🟥'}
                     </span>
                     <div>
                       <p className="font-black text-white">
-                        {isGoal ? 'Goal' : `${e.cardType === 'YELLOW' ? 'Yellow' : 'Red'} Card`} • {e.minute}&apos;
+                        {isGoal ? 'Goal' : `${e.type === 'YELLOW_CARD' ? 'Yellow' : 'Red'} Card`} • {e.minute}&apos;
                       </p>
                       <p className="text-[10px] text-neutral-400 font-medium">
-                        {getPlayerName(e.teamId, e.scorerPlayerId)} ({getTeamName(e.teamId)})
+                        {getPlayerName(e.teamId, e.playerId)} ({getTeamName(e.teamId)})
                         {isGoal && e.assistPlayerId && ` • Assist: ${getPlayerName(e.teamId, e.assistPlayerId)}`}
                       </p>
                     </div>

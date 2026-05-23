@@ -116,10 +116,44 @@ export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganize
     auctionEnabled: false,
     operatorType: isOrganizer ? 'ORGANIZER' : 'PLATFORM',
     operatorId: organizerId || 'super_admin',
+    prizeDistribution: {},
   });
   const [formatConfig, setFormatConfig] = useState<Record<string, any>>(
     () => defaultConfig('KNOCKOUT', 16)
   );
+
+  const [winnerPrize, setWinnerPrize] = useState<number | ''>('');
+  const [runnerUpPrize, setRunnerUpPrize] = useState<number | ''>('');
+  const [secondRunnerUpPrize, setSecondRunnerUpPrize] = useState<number | ''>('');
+
+  useEffect(() => {
+    const w = Number(winnerPrize) || 0;
+    const r = Number(runnerUpPrize) || 0;
+    const t = Number(secondRunnerUpPrize) || 0;
+    const total = w + r + t;
+    
+    let dist: Record<string, number> = {};
+    if (total > 0) {
+      const pct1 = Math.round((w / total) * 100);
+      const pct2 = r > 0 ? Math.round((r / total) * 100) : 0;
+      const pct3 = t > 0 ? Math.round((t / total) * 100) : 0;
+      const sum = pct1 + pct2 + pct3;
+      const adjPct1 = pct1 + (100 - sum);
+      
+      dist['1st'] = adjPct1;
+      if (r > 0) dist['2nd'] = pct2;
+      if (t > 0) dist['3rd'] = pct3;
+      dist['1st_amount'] = w;
+      if (r > 0) dist['2nd_amount'] = r;
+      if (t > 0) dist['3rd_amount'] = t;
+    }
+    
+    setForm((f: any) => ({
+      ...f,
+      prizePoolTotal: total,
+      prizeDistribution: dist,
+    }));
+  }, [winnerPrize, runnerUpPrize, secondRunnerUpPrize]);
 
   // Load turfs + organizers (admin only)
   useEffect(() => {
@@ -431,21 +465,88 @@ export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganize
                 />
               </div>
 
-              {/* Prize + Entry Fee */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={labelCls}>Prize Money (৳)</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 font-black">৳</span>
-                    <input type="number" min={0} value={form.prizePoolTotal} onChange={e => set('prizePoolTotal', e.target.value === '' ? '' : Number(e.target.value))} onFocus={e => e.target.select()} className={inputCls + ' pl-7'} placeholder="0" />
+              {/* Prize Allocation Breakdown Card */}
+              <div className="bg-neutral-900/60 border border-white/5 rounded-2xl p-5 space-y-4">
+                <p className="text-[10px] font-black uppercase tracking-widest text-accent flex items-center gap-1">
+                  <Trophy size={12} /> Prize Pool Breakdown
+                </p>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Winner Prize Money */}
+                  <div>
+                    <label className={labelCls}>Winner (1st) <span className="text-red-400">*</span></label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 font-black">৳</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={winnerPrize}
+                        onChange={e => setWinnerPrize(e.target.value === '' ? '' : Number(e.target.value))}
+                        onFocus={e => e.target.select()}
+                        className={inputCls + ' pl-7'}
+                        placeholder="e.g. 10000"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Runners Up Prize Money */}
+                  <div>
+                    <label className={labelCls}>Runners Up (2nd)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 font-black">৳</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={runnerUpPrize}
+                        onChange={e => setRunnerUpPrize(e.target.value === '' ? '' : Number(e.target.value))}
+                        onFocus={e => e.target.select()}
+                        className={inputCls + ' pl-7'}
+                        placeholder="Optional"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 2nd Runners Up Prize Money */}
+                  <div>
+                    <label className={labelCls}>2nd Runners Up (3rd)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 font-black">৳</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={secondRunnerUpPrize}
+                        onChange={e => setSecondRunnerUpPrize(e.target.value === '' ? '' : Number(e.target.value))}
+                        onFocus={e => e.target.select()}
+                        className={inputCls + ' pl-7'}
+                        placeholder="Optional"
+                      />
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <label className={labelCls}>Entry Fee (৳)</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 font-black">৳</span>
-                    <input type="number" min={0} value={form.entryFee} onChange={e => set('entryFee', e.target.value === '' ? '' : Number(e.target.value))} onFocus={e => e.target.select()} className={inputCls + ' pl-7'} placeholder="0" />
+
+                {/* Calculated Prize Pool Summary badge */}
+                {form.prizePoolTotal > 0 && (
+                  <div className="flex items-center justify-between bg-accent/5 border border-accent/20 px-4 py-2.5 rounded-xl mt-2 animate-fadeIn">
+                    <span className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Total Prize Pool:</span>
+                    <span className="text-sm font-black text-accent">৳{form.prizePoolTotal.toLocaleString()}</span>
                   </div>
+                )}
+              </div>
+
+              {/* Entry Fee */}
+              <div>
+                <label className={labelCls}>Entry Fee (৳)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 font-black">৳</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={form.entryFee}
+                    onChange={e => set('entryFee', e.target.value === '' ? '' : Number(e.target.value))}
+                    onFocus={e => e.target.select()}
+                    className={inputCls + ' pl-7'}
+                    placeholder="0"
+                  />
                 </div>
               </div>
 

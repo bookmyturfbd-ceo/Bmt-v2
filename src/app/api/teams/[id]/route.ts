@@ -25,7 +25,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const team = await prisma.team.findUnique({
     where: { id },
     include: {
-      owner: { select: { id: true, fullName: true, avatarUrl: true } },
+      owner: { select: { id: true, fullName: true, avatarUrl: true, walletBalance: true } },
       homeAreas: { select: { id: true, name: true, division: { select: { name: true } } } },
       homeTurfs: { select: { id: true, name: true, area: true } },
       members: {

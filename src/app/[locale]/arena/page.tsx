@@ -161,7 +161,7 @@ export default function ArenaPage() {
                         <div>
                           <p className="text-sm font-black text-white truncate max-w-[160px]">{t.name}</p>
                           <p className="text-[10px] text-yellow-400/50 font-bold uppercase">
-                            {variantLabel} · {t.entryFee > 0 ? `৳${t.entryFee.toLocaleString()} entry` : 'Free'}
+                            {variantLabel} · {t.entryFee > 0 ? `BDT ${t.entryFee.toLocaleString()} entry` : 'Free'}
                           </p>
                         </div>
                       </div>

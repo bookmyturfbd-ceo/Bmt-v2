@@ -61,7 +61,61 @@ export async function GET(_req: NextRequest, { params }: { params: Params }) {
       if (standings.length > 0) peakTournamentFinish = standings[0].position;
     }
 
-    return NextResponse.json({ ...player, peakTournamentFinish });
+    // Query completed tournament matches for this player's teams
+    const tourneyMatches = await prisma.tournamentMatch.findMany({
+      where: {
+        status: 'COMPLETED',
+        OR: [
+          { teamAId: { in: teamIds } },
+          { teamBId: { in: teamIds } }
+        ]
+      },
+      include: {
+        tournament: {
+          select: { sport: true }
+        }
+      }
+    });
+
+    const tournamentStats: any[] = [];
+    for (const m of tourneyMatches) {
+      const myTeamId = teamIds.find(tid => tid === m.teamAId || tid === m.teamBId);
+      if (!myTeamId) continue;
+      
+      const events = (m.resultSummary as any)?.events || [];
+      const goalsCount = events.filter((e: any) => e.type === 'goal' && e.scorerPlayerId === id && e.teamId === myTeamId).length;
+      const assistsCount = events.filter((e: any) => e.type === 'goal' && e.assistPlayerId === id && e.teamId === myTeamId).length;
+      const hasYellowCard = events.some((e: any) => e.type === 'card' && e.cardType === 'YELLOW' && e.scorerPlayerId === id);
+      const hasRedCard = events.some((e: any) => e.type === 'card' && e.cardType === 'RED' && e.scorerPlayerId === id);
+
+      if (goalsCount > 0 || assistsCount > 0 || hasYellowCard || hasRedCard) {
+        tournamentStats.push({
+          id: `tourney-stat-${m.id}`,
+          matchId: m.id,
+          playerId: id,
+          teamId: myTeamId,
+          goals: goalsCount,
+          assists: assistsCount,
+          yellowCard: hasYellowCard,
+          redCard: hasRedCard,
+          mmrChange: 0,
+          team: {
+            id: myTeamId,
+            name: player.teamMemberships.find((tm: any) => tm.team?.id === myTeamId)?.team?.name || 'Tournament Team',
+            teamType: 'TOURNAMENT',
+            sportType: m.tournament.sport
+          }
+        });
+      }
+    }
+
+    const mergedStats = [...player.matchStats, ...tournamentStats];
+
+    return NextResponse.json({ 
+      ...player, 
+      matchStats: mergedStats,
+      peakTournamentFinish 
+    });
   } catch (error: any) {
     console.error('API Error fetching player profile:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

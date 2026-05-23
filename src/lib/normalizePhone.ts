@@ -8,9 +8,36 @@
  *      01XXXXXXXXX  → 8801XXXXXXXXX  (prepend 88, NOT 880)
  */
 export function normalizePhone(phone: string): string {
-  let p = phone.trim();
-  if (p.startsWith('+880')) return p.slice(1);       // +880… → 880…
-  if (p.startsWith('880'))  return p;                 // already canonical
-  if (p.startsWith('01'))   return '88' + p;          // 01… → 8801…  (88 + 01XXXXXXXXX = 13 digits)
-  return p; // unknown format — return as-is and let validation catch it
+  // Strip all whitespace, hyphens, parentheses, and other common formatting
+  let p = phone.trim().replace(/\s+|-|\(|\)/g, '');
+  
+  // Track if it had a leading plus sign
+  const hasPlus = p.startsWith('+');
+  
+  // Strip all non-digit characters
+  p = p.replace(/\D/g, '');
+  
+  if (hasPlus) {
+    p = '+' + p;
+  }
+
+  // 1. Starts with +8801... (e.g. +8801811008303, length 14)
+  if (p.startsWith('+8801') && p.length === 14) {
+    return p.slice(1); // -> 8801811008303
+  }
+  
+  // 2. Starts with 8801... (e.g. 8801811008303, length 13)
+  if (p.startsWith('8801') && p.length === 13) {
+    return p; // -> 8801811008303
+  }
+  
+  // 3. Starts with 01... (e.g. 01811008303, typically 11 digits)
+  if (p.startsWith('01') && p.length === 11) {
+    return '88' + p; // -> 8801811008303
+  }
+
+  // If it's invalid (e.g. 10 digits missing leading '0', like '1811008303'), return ""
+  return '';
 }
+
+

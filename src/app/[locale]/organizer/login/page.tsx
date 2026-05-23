@@ -1,10 +1,13 @@
 'use client';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { Loader2, ShieldCheck, ArrowRight } from 'lucide-react';
 
 export default function OrganizerLoginPage() {
   const router = useRouter();
+  const params = useParams();
+  const locale = (params?.locale as string) || 'en';
+
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,7 +27,7 @@ export default function OrganizerLoginPage() {
       const data = await res.json();
       
       if (data.success) {
-        router.push('/organizer/dashboard');
+        window.location.href = window.location.origin + `/${locale}/organizer/dashboard`;
       } else {
         setError(data.error);
       }

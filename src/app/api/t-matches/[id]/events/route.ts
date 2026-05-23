@@ -11,10 +11,6 @@ export async function POST(
     const { id } = await params;
     const body = await request.json();
     
-    // We should validate token here ideally, or assume middleware does it.
-    // For this implementation, we accept the event data.
-    // Format is similar to the existing MatchEvent structure, but adapted for tournament
-    
     const match = await prisma.tournamentMatch.findUnique({
       where: { id },
       include: { tournament: true }
@@ -49,15 +45,82 @@ export async function POST(
       }
     }
 
-    // Now log the event. Since the actual event structure is very specific to the sport,
-    // we'll store it dynamically in the resultSummary for now, or create formal MatchEvent entries 
-    // if we map directly to the existing MatchEvent table.
+    // Update the live score inside the resultSummary JSON
+    const currentSummary = (match.resultSummary as Record<string, any>) || {};
+    let events = currentSummary.events || [];
     
-    // In a full implementation we would insert to CricketDelivery or MatchEvent.
-    // For now we simulate an update to resultSummary to represent state progression.
+    let goalsA = currentSummary.goalsA ?? 0;
+    let goalsB = currentSummary.goalsB ?? 0;
+    
+    let runsA = currentSummary.runsA ?? 0;
+    let wicketsA = currentSummary.wicketsA ?? 0;
+    let runsB = currentSummary.runsB ?? 0;
+    let wicketsB = currentSummary.wicketsB ?? 0;
+    let battingTeamId = currentSummary.battingTeamId || match.teamAId;
+
+    if (body.action === 'delete') {
+      const { eventId } = body;
+      const eventToDelete = events.find((e: any) => e.id === eventId);
+      if (eventToDelete) {
+        events = events.filter((e: any) => e.id !== eventId);
+        if (match.tournament.sport === 'FOOTBALL') {
+          if (eventToDelete.type === 'goal') {
+            if (eventToDelete.teamId === match.teamAId) {
+              goalsA = Math.max(0, goalsA - 1);
+            } else if (eventToDelete.teamId === match.teamBId) {
+              goalsB = Math.max(0, goalsB - 1);
+            }
+          }
+        }
+      }
+    } else {
+      const newEvent = {
+        id: body.id || Math.random().toString(36).substring(2, 9),
+        ...body,
+        createdAt: new Date().toISOString()
+      };
+      events = [...events, newEvent];
+
+      if (match.tournament.sport === 'FOOTBALL') {
+        if (body.type === 'goal') {
+          if (body.teamId === match.teamAId) {
+            goalsA += 1;
+          } else if (body.teamId === match.teamBId) {
+            goalsB += 1;
+          }
+        }
+      } else if (match.tournament.sport === 'CRICKET') {
+        if (body.type === 'run') {
+          const targetTeam = body.teamId || battingTeamId;
+          if (targetTeam === match.teamAId) {
+            runsA += body.runs || 1;
+          } else {
+            runsB += body.runs || 1;
+          }
+        } else if (body.type === 'wicket') {
+          const targetTeam = body.teamId || battingTeamId;
+          if (targetTeam === match.teamAId) {
+            wicketsA += 1;
+            if (wicketsA >= 10) {
+              battingTeamId = match.teamBId; // Auto switch batting team when all out
+            }
+          } else {
+            wicketsB += 1;
+          }
+        }
+      }
+    }
 
     const newSummary = {
-      ...(match.resultSummary as Record<string, any> || {}),
+      ...currentSummary,
+      events,
+      goalsA,
+      goalsB,
+      runsA,
+      wicketsA,
+      runsB,
+      wicketsB,
+      battingTeamId,
       lastEvent: body,
       updatedAt: new Date().toISOString()
     };
@@ -67,7 +130,7 @@ export async function POST(
       data: { resultSummary: newSummary }
     });
 
-    // Broadcast event via Supabase (pseudo-code using standard broadcast)
+    // Broadcast live event via Supabase
     try {
       await supabase
         .channel(`tournament:match:${id}`)

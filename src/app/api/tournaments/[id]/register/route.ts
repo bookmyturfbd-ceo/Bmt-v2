@@ -81,7 +81,7 @@ export async function POST(
         if (ownerMember.player.walletBalance < tournament.entryFee) {
           return NextResponse.json({ 
             success: false, 
-            error: `Insufficient balance. Team owner (${ownerMember.player.fullName}) needs ৳${tournament.entryFee} to register, but only has ৳${ownerMember.player.walletBalance}.` 
+            error: `Insufficient balance. Team owner (${ownerMember.player.fullName}) needs BDT ${tournament.entryFee} to register, but only has BDT ${ownerMember.player.walletBalance}.` 
           }, { status: 400 });
         }
         ownerIdToCharge = ownerMember.player.id;
@@ -91,7 +91,7 @@ export async function POST(
          const player = await prisma.player.findUnique({ where: { id: entityId }});
          if (!player) return NextResponse.json({ success: false, error: 'Player not found.' }, { status: 400 });
          if (player.walletBalance < tournament.entryFee) {
-            return NextResponse.json({ success: false, error: `Insufficient balance. You need ৳${tournament.entryFee} to register, but only have ৳${player.walletBalance}.` }, { status: 400 });
+            return NextResponse.json({ success: false, error: `Insufficient balance. You need BDT ${tournament.entryFee} to register, but only have BDT ${player.walletBalance}.` }, { status: 400 });
          }
          ownerIdToCharge = player.id;
       }

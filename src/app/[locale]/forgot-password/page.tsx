@@ -27,11 +27,12 @@ export default function ForgotPasswordPage() {
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.phone.trim()) {
+    const cleanPhone = form.phone.trim().replace(/\s+|-|\(|\)/g, '');
+    if (!cleanPhone) {
       setErrors({ phone: 'Mobile number is required' });
       return;
     }
-    if (!/^(?:\+88|88)?01[3-9]\d{8}$/.test(form.phone.trim())) {
+    if (!/^(?:\+88|88)?01[3-9]\d{8}$/.test(cleanPhone)) {
       setErrors({ phone: 'Invalid BD mobile number format' });
       return;
     }
@@ -42,7 +43,7 @@ export default function ForgotPasswordPage() {
       const res = await fetch('/api/auth/otp/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: form.phone, purpose: 'reset' }),
+        body: JSON.stringify({ phone: cleanPhone, purpose: 'reset' }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -64,13 +65,14 @@ export default function ForgotPasswordPage() {
       return;
     }
 
+    const cleanPhone = form.phone.trim().replace(/\s+|-|\(|\)/g, '');
     setSubmitting(true);
     setServerErr('');
     try {
       const res = await fetch('/api/auth/otp/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: form.phone, otp: form.otp, purpose: 'reset' }),
+        body: JSON.stringify({ phone: cleanPhone, otp: form.otp, purpose: 'reset' }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -100,6 +102,7 @@ export default function ForgotPasswordPage() {
       return;
     }
 
+    const cleanPhone = form.phone.trim().replace(/\s+|-|\(|\)/g, '');
     setSubmitting(true);
     setServerErr('');
     try {
@@ -107,7 +110,7 @@ export default function ForgotPasswordPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phone: form.phone,
+          phone: cleanPhone,
           otp: form.otp,
           newPassword: form.password,
         }),

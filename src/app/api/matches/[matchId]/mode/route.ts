@@ -45,10 +45,6 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid mode' }, { status: 400 });
   }
 
-  if (mode === 'LIVE_SINGLE' && !singleScorerId) {
-    return NextResponse.json({ error: 'Missing singleScorerId' }, { status: 400 });
-  }
-
   // Allow picking mode even after match becomes LIVE (since that's when the UI prompts for it)
   const allowed = ['PENDING', 'INTERACTION', 'SCHEDULED', 'LIVE'];
   if (!allowed.includes(ctx.match.status)) {

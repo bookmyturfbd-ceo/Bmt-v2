@@ -82,12 +82,17 @@ export async function GET(
   const isScorer = (myScorer?.playerId === playerId || scorers.some(s => s.playerId === playerId)) && match?.status === 'LIVE';
   const isSingleScorer = match?.scoringMode === 'LIVE_SINGLE' && scorers.filter(s => s.playerId === playerId).length === 2;
 
+  // Import dynamically or directly from token generator
+  const { createCasualScorerToken } = require('@/lib/match/token-generator');
+  const scorerToken = createCasualScorerToken(matchId);
+
   return NextResponse.json({
     match, scorers, events, signOffs, halfTime,
     scoreA, scoreB,
     myTeamId: ctx.myTeamId, isTeamA: ctx.isA, isOMC: ctx.isOMC,
     currentPlayerId: playerId,
     isScorer, isSingleScorer,
+    scorerToken,
     // Score After Match fields
     scoringMode: match?.scoringMode ?? 'LIVE',
     scoreModeRequestedBy: match?.scoreModeRequestedBy ?? null,

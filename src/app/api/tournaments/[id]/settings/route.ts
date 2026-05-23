@@ -43,6 +43,9 @@ export async function PATCH(
         operatorId:        true,
         registrationOpenAt: true,
         isRegistrationOpen: true,
+        status:             true,
+        registrationType:   true,
+        auctionEnabled:     true,
       },
     });
 
@@ -61,7 +64,11 @@ export async function PATCH(
     let data: Record<string, any> = {};
 
     if (action === 'open') {
+      if (tournament.status !== 'DRAFT') {
+        return NextResponse.json({ success: false, error: 'Tournament must be in DRAFT state to open registration' }, { status: 400 });
+      }
       data.isRegistrationOpen = true;
+      data.status = 'REGISTRATION_OPEN';
     } else if (action === 'close') {
       if (countdownElapsed) {
         return NextResponse.json(
@@ -69,7 +76,18 @@ export async function PATCH(
           { status: 400 }
         );
       }
+      if (tournament.status !== 'REGISTRATION_OPEN') {
+        return NextResponse.json({ success: false, error: 'Tournament is not open for registration' }, { status: 400 });
+      }
+
+      // Determine next state
+      let nextStatus = 'DRAFTING';
+      if (tournament.registrationType === 'PLAYER' && tournament.auctionEnabled) {
+        nextStatus = 'AUCTION_PENDING';
+      }
+
       data.isRegistrationOpen = false;
+      data.status = nextStatus;
     } else if (action === 'setCountdown') {
       if (tournament.registrationOpenAt !== null) {
         return NextResponse.json(

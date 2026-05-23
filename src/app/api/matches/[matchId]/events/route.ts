@@ -55,25 +55,54 @@ export async function POST(
   { params }: { params: Promise<{ matchId: string }> }
 ) {
   const { matchId } = await params;
-  const playerId = pid(req);
-  if (!playerId) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
+  const body = await req.json().catch(() => ({}));
+  const token = req.headers.get('authorization')?.split(' ')[1] || body.token || null;
+  const { type, scorerPlayerId, assistPlayerId, playerOnId, minute, teamId } = body;
+  
+  let playerId = pid(req);
+  let isAuthorizedToken = false;
+
+  if (!playerId && token) {
+    const { validateCasualScorerToken } = require('@/lib/match/token-generator');
+    const tokenMatchId = validateCasualScorerToken(token);
+    if (tokenMatchId === matchId) {
+      isAuthorizedToken = true;
+    }
+  }
+
+  if (!playerId && !isAuthorizedToken) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
 
   try {
-    const ctx = await getCtx(matchId, playerId);
-    if (!ctx) return NextResponse.json({ error: 'Not in match' }, { status: 403 });
+    let isSingleScorer = false;
+    let isOMC = false;
+    let myTeamId = teamId;
+    let isA = true;
+    let match: any;
 
-    const { match, isA, myTeamId, isOMC, isScorer, isSingleScorer } = ctx;
+    if (isAuthorizedToken) {
+      match = await prisma.match.findUnique({ where: { id: matchId } });
+      if (!match) return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+      isSingleScorer = true;
+      isOMC = true;
+      isA = teamId === match.teamA_Id;
+    } else {
+      const ctx = await getCtx(matchId, playerId!);
+      if (!ctx) return NextResponse.json({ error: 'Not in match' }, { status: 403 });
+      match = ctx.match;
+      isSingleScorer = ctx.isSingleScorer;
+      isOMC = ctx.isOMC;
+      myTeamId = ctx.myTeamId;
+      isA = ctx.isA;
+    }
+
     if (!['LIVE'].includes(match.status))
       return NextResponse.json({ error: 'Match must be LIVE to log events' }, { status: 400 });
-
-    const body = await req.json();
-    const { type, scorerPlayerId, assistPlayerId, playerOnId, minute, teamId } = body;
 
     if (!type || minute === undefined)
       return NextResponse.json({ error: 'type and minute required' }, { status: 400 });
 
     // OMC or assigned scorer can log all events
-    if (!isOMC && !isScorer)
+    if (!isOMC && !isSingleScorer)
       return NextResponse.json({ error: 'Only OMC or assigned scorer can log match events' }, { status: 403 });
 
     // OWN_GOAL: eventTeamId is the conceding team (logged by the scoring team)
@@ -82,9 +111,8 @@ export async function POST(
       ? (isA ? match.teamB_Id : match.teamA_Id) // conceding team is opponent's team
       : myTeamId);
 
-    // Substitutions don't need opponent confirmation — auto-confirm
-    // Single Scorer events don't need opponent confirmation — auto-confirm
-    const initialStatus = (type === 'SUBSTITUTION' || isSingleScorer) ? 'CONFIRMED' : 'PENDING';
+    // All match events are auto-confirmed immediately - no opponent acceptance needed
+    const initialStatus = 'CONFIRMED';
 
     const event = await prisma.matchEvent.create({
       data: {

@@ -37,10 +37,11 @@ export async function POST(request: Request) {
 
     const token = signToken({ id: organizer.id, type: 'ORGANIZER', exp: Date.now() + 7 * 24 * 60 * 60 * 1000 });
 
+    const isHttps = request.url.startsWith('https:');
     const cookieStore = await cookies();
     cookieStore.set('org_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      httpOnly: isHttps,
+      secure: isHttps,
       sameSite: 'lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60

@@ -71,9 +71,20 @@ export async function GET(
       })
     );
 
+    let organizerName = 'Book My Turf';
+    if (tournament.operatorType === 'ORGANIZER' && tournament.operatorId) {
+      const organizer = await prisma.organizer.findUnique({
+        where: { id: tournament.operatorId },
+        select: { name: true }
+      });
+      if (organizer) {
+        organizerName = organizer.name;
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      data: { ...tournament, registrations: enrichedRegistrations }
+      data: { ...tournament, registrations: enrichedRegistrations, organizerName }
     });
   } catch (error: any) {
     console.error('Error fetching public tournament details:', error);

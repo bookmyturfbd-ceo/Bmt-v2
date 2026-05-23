@@ -6,11 +6,13 @@ import SearchCard from './SearchCard';
 import SportsFilter from './SportsFilter';
 import TurfList from './TurfList';
 import PlayerBookingHistory from './PlayerBookingHistory';
+import { Clock } from 'lucide-react';
+import BookComingSoonClient from './BookComingSoonClient';
 
 export default function BookEngine({ 
-  sports, turfs, cities, slots 
+  sports, turfs, cities, slots, turfServiceSetting 
 }: { 
-  sports: any[], turfs: any[], cities: any[], slots: any[] 
+  sports: any[], turfs: any[], cities: any[], slots: any[], turfServiceSetting?: { isActive: boolean; launchAt: string | null } | null
 }) {
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get('tab') === 'history' ? 'history' : 'turf') as 'turf' | 'pros' | 'history';
@@ -100,22 +102,45 @@ export default function BookEngine({
         </div>
       ) : (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 flex flex-col gap-4">
-          <SearchCard 
-             cities={cities} 
-             turfs={turfs}
-             selectedCityId={selectedCityId}
-             setSelectedCityId={setSelectedCityId}
-             searchDate={searchDate}
-             setSearchDate={setSearchDate}
-             searchTime={searchTime}
-             setSearchTime={setSearchTime}
-          />
-          <SportsFilter 
-            categories={categories as string[]} 
-            selectedCategory={selectedCategory} 
-            setSelectedCategory={setSelectedCategory} 
-          />
-          <TurfList turfs={filteredTurfs} cities={cities} sports={sports} groupId={groupId} />
+          {turfServiceSetting?.isActive ? (
+            <div className="relative overflow-hidden rounded-3xl border border-accent/20 bg-gradient-to-b from-black/80 to-neutral-900/80 p-8 flex flex-col items-center text-center gap-5 mt-4 shadow-[0_0_60px_rgba(0,255,65,0.08)]">
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_-10%,rgba(0,255,65,0.08),transparent)] pointer-events-none" />
+              <div className="relative z-10 flex flex-col items-center gap-2">
+                <div className="w-16 h-16 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center mb-2">
+                  <Clock size={28} className="text-accent" />
+                </div>
+                <h2 className="text-2xl font-black text-white tracking-tight">Turf Booking</h2>
+                <p className="text-accent font-black text-sm tracking-widest uppercase">Coming Soon</p>
+                <p className="text-xs text-neutral-400 font-medium mt-1 max-w-[260px]">
+                  We&apos;re finalizing our turf partnerships. Stay tuned — booking goes live soon!
+                </p>
+              </div>
+              {turfServiceSetting.launchAt && (
+                <div className="relative z-10 w-full">
+                  <BookComingSoonClient launchAt={turfServiceSetting.launchAt} />
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <SearchCard 
+                 cities={cities} 
+                 turfs={turfs}
+                 selectedCityId={selectedCityId}
+                 setSelectedCityId={setSelectedCityId}
+                 searchDate={searchDate}
+                 setSearchDate={setSearchDate}
+                 searchTime={searchTime}
+                 setSearchTime={setSearchTime}
+              />
+              <SportsFilter 
+                categories={categories as string[]} 
+                selectedCategory={selectedCategory} 
+                setSelectedCategory={setSelectedCategory} 
+              />
+              <TurfList turfs={filteredTurfs} cities={cities} sports={sports} groupId={groupId} />
+            </>
+          )}
         </div>
       )}
     </>

@@ -11,6 +11,18 @@ export type FixtureSlot = {
   groupId?: string | null;
 };
 
+// Helper function to pad team list to the next power of two using 'BYE'
+function padToPowerOfTwo(teamIds: string[]): string[] {
+  const n = teamIds.length;
+  if (n <= 2) return teamIds;
+  const nextPower = Math.pow(2, Math.ceil(Math.log2(n)));
+  const padded = [...teamIds];
+  while (padded.length < nextPower) {
+    padded.push('BYE');
+  }
+  return padded;
+}
+
 // ── Round-robin (circle method) ────────────────────────────────────────────
 // Generates all N*(N-1)/2 unique pairings for a list of team IDs.
 // If N is odd, inserts a dummy "BYE" team so the rotation works correctly.
@@ -46,10 +58,11 @@ export function generateLeagueFixtures(teamIds: string[]): FixtureSlot[] {
 // Teams are paired: seed[0] vs seed[n-1], seed[1] vs seed[n-2], etc.
 // Later rounds have TBD teams (filled after previous round completes).
 export function generateKnockoutBracket(
-  teamIds: string[],
-  startingStage: string = 'ROUND_OF_16'
+  teamIds: string[]
 ): FixtureSlot[] {
-  const n = teamIds.length;
+  // Pad to power of two to support odd counts and non-power-of-two counts robustly
+  const paddedTeams = padToPowerOfTwo(teamIds);
+  const n = paddedTeams.length;
   const stages = knockoutStages(n);
   const fixtures: FixtureSlot[] = [];
   let matchNumber = 1;
@@ -60,8 +73,8 @@ export function generateKnockoutBracket(
     fixtures.push({
       matchNumber: matchNumber++,
       stage: firstStage,
-      teamAId: teamIds[i],
-      teamBId: teamIds[n - 1 - i],
+      teamAId: paddedTeams[i],
+      teamBId: paddedTeams[n - 1 - i],
     });
   }
 
@@ -98,10 +111,54 @@ export function generateGroupFixtures(
   const fixtures: FixtureSlot[] = [];
   let matchNumber = 1;
 
+  // For each group, generate its round-robin matches grouped by round
+  const groupsMatchesByRound: Record<string, FixtureSlot[][]> = {};
+  let maxRounds = 0;
+
   for (const group of groups) {
-    const groupFixtures = generateLeagueFixtures(group.teamIds);
-    for (const f of groupFixtures) {
-      fixtures.push({ ...f, matchNumber: matchNumber++, groupId: group.id });
+    const teams = [...group.teamIds];
+    if (teams.length % 2 !== 0) teams.push('BYE');
+    const n = teams.length;
+    const rounds = n - 1;
+    if (rounds > maxRounds) maxRounds = rounds;
+
+    const roundList: FixtureSlot[][] = [];
+
+    for (let round = 0; round < rounds; round++) {
+      const roundMatches: FixtureSlot[] = [];
+      for (let i = 0; i < n / 2; i++) {
+        const home = teams[i];
+        const away = teams[n - 1 - i];
+        if (home === 'BYE' || away === 'BYE') continue;
+        roundMatches.push({
+          matchNumber: 0, // Placeholder, set later during interleaving
+          stage: 'GROUP',
+          teamAId: home,
+          teamBId: away,
+          groupId: group.id,
+        });
+      }
+      roundList.push(roundMatches);
+
+      // Circle rotation: keep teams[0] fixed, rotate the rest
+      const last = teams.pop()!;
+      teams.splice(1, 0, last);
+    }
+    groupsMatchesByRound[group.id] = roundList;
+  }
+
+  // Now interleave matches round-by-round across all groups (e.g. Round 1 of Group A, B, C... then Round 2 of Group A, B, C...)
+  for (let r = 0; r < maxRounds; r++) {
+    for (const group of groups) {
+      const roundList = groupsMatchesByRound[group.id];
+      if (roundList && roundList[r]) {
+        for (const match of roundList[r]) {
+          fixtures.push({
+            ...match,
+            matchNumber: matchNumber++,
+          });
+        }
+      }
     }
   }
 
@@ -115,22 +172,24 @@ export function generateDoubleEliminationStubs(teamIds: string[]): {
   losers: FixtureSlot[];
   grandFinal: FixtureSlot;
 } {
-  const n = teamIds.length;
+  // Pad to power of two to support odd/non-power-of-two robustly
+  const paddedTeams = padToPowerOfTwo(teamIds);
+  const n = paddedTeams.length;
   const winnersRound1: FixtureSlot[] = [];
   let matchNumber = 1;
 
   for (let i = 0; i < n / 2; i++) {
     winnersRound1.push({
       matchNumber: matchNumber++,
-      stage: 'QUARTER', // adjust based on n
-      teamAId: teamIds[i],
-      teamBId: teamIds[n - 1 - i],
+      stage: n <= 4 ? 'SEMI' : n <= 8 ? 'QUARTER' : 'ROUND_OF_16',
+      teamAId: paddedTeams[i],
+      teamBId: paddedTeams[n - 1 - i],
     });
   }
 
   const losersRound1: FixtureSlot[] = Array.from({ length: n / 2 }, () => ({
     matchNumber: matchNumber++,
-    stage: 'QUARTER',
+    stage: n <= 4 ? 'SEMI' : n <= 8 ? 'QUARTER' : 'ROUND_OF_16',
     teamAId: null,
     teamBId: null,
   }));

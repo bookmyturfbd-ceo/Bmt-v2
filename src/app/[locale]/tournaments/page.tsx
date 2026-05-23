@@ -19,11 +19,12 @@ const SPORT_VARIANTS: Record<string, string> = {
 // ── helpers ───────────────────────────────────────────────────────────────────
 function getRegStatus(t: any): 'open' | 'countdown' | 'closed' {
   const now = Date.now();
+  if (['ACTIVE', 'COMPLETED', 'REGISTRATION_CLOSED'].includes(t.status)) return 'closed';
   if (t.isRegistrationOpen) return 'open';
   if (t.registrationOpenAt) {
     return new Date(t.registrationOpenAt).getTime() > now ? 'countdown' : 'open';
   }
-  if (['REGISTRATION_OPEN', 'ACTIVE'].includes(t.status)) return 'open';
+  if (t.status === 'REGISTRATION_OPEN') return 'open';
   return 'closed';
 }
 
@@ -74,6 +75,10 @@ function RegPill({ t }: { t: any }) {
 
 // ── Detail modal ──────────────────────────────────────────────────────────────
 function TournamentModal({ t, onClose, isBmt }: { t: any; onClose: () => void; isBmt: boolean }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const locale = pathname.split('/')[1] || 'en';
+
   const status = getRegStatus(t);
   const cdLabel = useCountdown(status === 'countdown' ? t.registrationOpenAt : null);
   const accent = isBmt ? 'yellow' : 'violet';
@@ -126,21 +131,36 @@ function TournamentModal({ t, onClose, isBmt }: { t: any; onClose: () => void; i
           )}
 
           {status === 'open' && (
-            <button className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm ${
-              isBmt
-                ? 'bg-yellow-500 text-black hover:brightness-110'
-                : 'bg-violet-500 text-white hover:brightness-110'
-            } transition-all active:scale-[0.98]`}>
-              Join Tournament
+            <button
+              onClick={() => {
+                onClose();
+                router.push(`/${locale}/tournaments/${t.id}`);
+              }}
+              className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm ${
+                isBmt
+                  ? 'bg-yellow-500 text-black hover:brightness-110'
+                  : 'bg-violet-500 text-white hover:brightness-110'
+              } transition-all active:scale-[0.98]`}
+            >
+              Enter Tournament
             </button>
           )}
 
           {status === 'closed' && (
-            <div className="rounded-2xl bg-zinc-900 border border-white/5 p-4 text-center">
-              <Lock size={20} className="text-neutral-600 mx-auto mb-1.5" />
-              <p className="text-sm font-black text-neutral-500">Registration Closed</p>
-              <p className="text-xs text-neutral-600 mt-0.5 font-bold">The organizer hasn't opened registration yet.</p>
-            </div>
+            <button
+              onClick={() => {
+                onClose();
+                router.push(`/${locale}/tournaments/${t.id}`);
+              }}
+              className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg ${
+                isBmt
+                  ? 'bg-yellow-500 text-black hover:brightness-110 shadow-yellow-500/10'
+                  : 'bg-violet-500 text-white hover:brightness-110 shadow-violet-500/10'
+              }`}
+            >
+              <Trophy size={16} />
+              Spectate Tournament
+            </button>
           )}
 
           {/* Info grid */}
@@ -154,8 +174,8 @@ function TournamentModal({ t, onClose, isBmt }: { t: any; onClose: () => void; i
               },
               { label: 'Format', value: t.formatType?.replace(/_/g, ' ') },
               { label: 'Teams', value: `${t._count?.registrations || 0} / ${t.maxParticipants}` },
-              { label: 'Entry Fee', value: t.entryFee === 0 ? 'Free Entry' : `৳${t.entryFee.toLocaleString()}` },
-              { label: 'Prize Pool', value: t.prizePoolTotal > 0 ? `৳${t.prizePoolTotal.toLocaleString()}` : 'Trophy Only' },
+              { label: 'Entry Fee', value: t.entryFee === 0 ? 'Free Entry' : `BDT ${t.entryFee.toLocaleString()}` },
+              { label: 'Prize Pool', value: t.prizePoolTotal > 0 ? `BDT ${t.prizePoolTotal.toLocaleString()}` : 'Trophy Only' },
               ...(t.venue ? [{ label: 'Venue', value: t.venue }] : []),
               ...(t.startDate ? [{ label: 'Starts', value: new Date(t.startDate).toLocaleDateString() }] : []),
               ...(t.endDate ? [{ label: 'Ends', value: new Date(t.endDate).toLocaleDateString() }] : []),
@@ -201,9 +221,11 @@ function TournamentModal({ t, onClose, isBmt }: { t: any; onClose: () => void; i
 
 // ── Status badge (for non-registration status) ────────────────────────────────
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
-  ACTIVE:       { label: '🔴 Live',     className: 'bg-[#00ff41]/20 text-[#00ff41]' },
-  SCHEDULED:    { label: '📅 Scheduled', className: 'bg-yellow-500/20 text-yellow-400' },
-  AUCTION_LIVE: { label: '🔨 Auction',  className: 'bg-orange-500/20 text-orange-400' },
+  ACTIVE:              { label: '🔴 Live',      className: 'bg-[#00ff41]/20 text-[#00ff41]' },
+  SCHEDULED:           { label: '📅 Scheduled', className: 'bg-yellow-500/20 text-yellow-400' },
+  AUCTION_LIVE:        { label: '🔨 Auction',   className: 'bg-orange-500/20 text-orange-400' },
+  REGISTRATION_CLOSED: { label: '🔒 Closed',    className: 'bg-zinc-800 text-neutral-400 border border-white/5' },
+  COMPLETED:           { label: '🏆 Completed', className: 'bg-zinc-800 text-neutral-450 border border-white/5' },
 };
 
 type OrgTab = 'bmt' | 'open';
@@ -212,6 +234,7 @@ type OrgTab = 'bmt' | 'open';
 export default function TournamentsPage() {
   const router   = useRouter();
   const pathname = usePathname();
+  const locale   = pathname.split('/')[1] || 'en';
 
   const [tournaments, setTournaments] = useState<any[]>([]);
   const [loading, setLoading]         = useState(true);
@@ -343,7 +366,7 @@ export default function TournamentsPage() {
               return (
                 <button
                   key={t.id}
-                  onClick={() => setSelected(t)}
+                  onClick={() => router.push(`/${locale}/tournaments/${t.id}`)}
                   className={`relative w-full rounded-3xl overflow-hidden border ${
                     isBmt ? 'border-yellow-500/20 hover:border-yellow-500/40' : 'border-violet-500/20 hover:border-violet-500/40'
                   } bg-zinc-900 p-5 text-left group transition-all active:scale-[0.99]`}
@@ -409,12 +432,12 @@ export default function TournamentsPage() {
                     )}
                     <div className={`flex items-center gap-1.5 ${t.entryFee > 0 ? (isBmt ? 'text-yellow-400' : 'text-violet-400') : 'text-neutral-500'}`}>
                       <Banknote size={13} />
-                      <span>{t.entryFee > 0 ? `৳${t.entryFee.toLocaleString()} Entry` : 'Free Entry'}</span>
+                      <span>{t.entryFee > 0 ? `BDT ${t.entryFee.toLocaleString()} Entry` : 'Free Entry'}</span>
                     </div>
                     {t.prizePoolTotal > 0 && (
                       <div className={`flex items-center gap-1.5 ml-auto ${isBmt ? 'text-yellow-400' : 'text-violet-400'}`}>
                         <Trophy size={13} />
-                        <span>৳{t.prizePoolTotal.toLocaleString()} Pool</span>
+                        <span>BDT {t.prizePoolTotal.toLocaleString()} Pool</span>
                       </div>
                     )}
                   </div>

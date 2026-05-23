@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Tournament Engine — Token Generator
  * Generates and validates match scorer access tokens.
  */
@@ -21,7 +21,7 @@ export async function createScorerToken(
   if (existing && existing.isActive) {
     // Generate the URL based on env
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    return { token: existing.token, url: `\${baseUrl}/score/\${existing.token}` };
+    return { token: existing.token, url: `${baseUrl}/en/score/${existing.token}` };
   }
 
   // Generate new random token
@@ -45,7 +45,7 @@ export async function createScorerToken(
   });
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  return { token: record.token, url: `\${baseUrl}/score/\${record.token}` };
+  return { token: record.token, url: `${baseUrl}/en/score/${record.token}` };
 }
 
 /**

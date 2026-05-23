@@ -33,11 +33,12 @@ export default function RegisterPage() {
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.phone.trim()) {
+    const cleanPhone = form.phone.trim().replace(/\s+|-|\(|\)/g, '');
+    if (!cleanPhone) {
       setErrors({ phone: val('fieldRequired') });
       return;
     }
-    if (!/^(?:\+88|88)?01[3-9]\d{8}$/.test(form.phone.trim())) {
+    if (!/^(?:\+88|88)?01[3-9]\d{8}$/.test(cleanPhone)) {
       setErrors({ phone: val('phoneInvalid') });
       return;
     }
@@ -48,7 +49,7 @@ export default function RegisterPage() {
       const res = await fetch('/api/auth/otp/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: form.phone, purpose: 'signup' }),
+        body: JSON.stringify({ phone: cleanPhone, purpose: 'signup' }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -70,13 +71,14 @@ export default function RegisterPage() {
       return;
     }
 
+    const cleanPhone = form.phone.trim().replace(/\s+|-|\(|\)/g, '');
     setSubmitting(true);
     setServerErr('');
     try {
       const res = await fetch('/api/auth/otp/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: form.phone, otp: form.otp, purpose: 'signup' }),
+        body: JSON.stringify({ phone: cleanPhone, otp: form.otp, purpose: 'signup' }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -109,6 +111,7 @@ export default function RegisterPage() {
       return;
     }
 
+    const cleanPhone = form.phone.trim().replace(/\s+|-|\(|\)/g, '');
     setSubmitting(true);
     setServerErr('');
     try {
@@ -118,7 +121,7 @@ export default function RegisterPage() {
         body: JSON.stringify({
           fullName: form.fullName,
           email:    form.email,
-          phone:    form.phone,
+          phone:    cleanPhone,
           password: form.password,
           otp:      form.otp,
           joinedAt: new Date().toISOString().split('T')[0],

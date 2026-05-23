@@ -36,7 +36,24 @@ export async function distributeTournamentMmr(matchId: string) {
   // Update Team MMRs
   const mmrField = isCricket ? 'cricketMmr' : 'footballMmr';
   
-  await prisma.$transaction([
+  // Fetch team member player IDs for Team A and Team B
+  const [teamAMembersList, teamBMembersList] = await Promise.all([
+    prisma.teamMember.findMany({
+      where: { teamId: match.teamAId },
+      select: { playerId: true }
+    }),
+    prisma.teamMember.findMany({
+      where: { teamId: match.teamBId },
+      select: { playerId: true }
+    })
+  ]);
+
+  const teamAPlayers = teamAMembersList.map((m: { playerId: string }) => m.playerId);
+  const teamBPlayers = teamBMembersList.map((m: { playerId: string }) => m.playerId);
+
+  const playerMmrField = isCricket ? 'tournamentCricketMmr' : 'tournamentFootballMmr';
+
+  const updates: any[] = [
     prisma.team.update({
       where: { id: match.teamAId },
       data: { [mmrField]: { increment: deltaA } },
@@ -45,9 +62,25 @@ export async function distributeTournamentMmr(matchId: string) {
       where: { id: match.teamBId },
       data: { [mmrField]: { increment: deltaB } },
     })
-  ]);
+  ];
 
-  // TODO: Player MMR updates (requires looking up roster for this specific match)
-  // For tournaments, rosters are either Team members or TournamentTeam players
-  // This can be expanded based on the player tracking logic in scoring.
+  if (teamAPlayers.length > 0) {
+    updates.push(
+      prisma.player.updateMany({
+        where: { id: { in: teamAPlayers } },
+        data: { [playerMmrField]: { increment: deltaA } }
+      })
+    );
+  }
+
+  if (teamBPlayers.length > 0) {
+    updates.push(
+      prisma.player.updateMany({
+        where: { id: { in: teamBPlayers } },
+        data: { [playerMmrField]: { increment: deltaB } }
+      })
+    );
+  }
+
+  await prisma.$transaction(updates);
 }

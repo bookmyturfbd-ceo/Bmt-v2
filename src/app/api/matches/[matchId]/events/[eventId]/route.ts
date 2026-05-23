@@ -59,8 +59,8 @@ export async function PATCH(
     if (action === 'dispute') {
       if (event.teamId === myTeamId)
         return NextResponse.json({ error: 'Cannot dispute your own team\'s event' }, { status: 403 });
-      if (event.status !== 'PENDING')
-        return NextResponse.json({ error: 'Event is not pending' }, { status: 400 });
+      if (!['PENDING', 'CONFIRMED'].includes(event.status))
+        return NextResponse.json({ error: 'Event is not active' }, { status: 400 });
       if (!isOMC)
         return NextResponse.json({ error: 'Only OMC can raise a dispute' }, { status: 403 });
 

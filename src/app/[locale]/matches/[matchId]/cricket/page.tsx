@@ -1887,6 +1887,16 @@ export default function CricketScoringPage() {
       matchResult.winnerId === null ? 'draw' :
       matchResult.winnerId === tid ? 'win' : 'loss';
 
+    // Prevent second rank popup in Interaction Hub
+    try {
+      const stored = localStorage.getItem('bmt_shown_results');
+      const shownIds = stored ? JSON.parse(stored) : [];
+      if (!shownIds.includes(m.id)) {
+        shownIds.push(m.id);
+        localStorage.setItem('bmt_shown_results', JSON.stringify(shownIds));
+      }
+    } catch {}
+
     showMatchResult({
       outcome,
       sportType,
