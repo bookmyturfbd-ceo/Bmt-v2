@@ -30,12 +30,12 @@ const TYPE_CONFIG: Record<RequestType, {
     formDesc: 'Tell us about yourself and your turf. Our team will reach out to onboard you.',
   },
   PROFESSIONAL: {
-    title: 'Are You a Professional?',
+    title: 'Are You a Tournament Organizer?',
     icon: Briefcase,
     gradient: 'from-blue-600/20 to-blue-900/10',
     glow: 'group-hover:shadow-blue-500/20',
-    formTitle: 'Join as a Professional',
-    formDesc: 'Be discovered by players looking for expert coaching, training or consultancy.',
+    formTitle: 'Join as a Tournament Organizer',
+    formDesc: 'Register your interest and our team will onboard you to host official tournaments on BMT.',
   },
   COACH: {
     title: 'Coach / Ref / Trainer?',

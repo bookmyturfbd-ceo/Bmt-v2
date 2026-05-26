@@ -21,8 +21,8 @@ interface JoinRequest {
 }
 
 const TYPE_TABS: { key: JoinRequestType; label: string; icon: typeof Building2; color: string; bg: string }[] = [
-  { key: 'TURF_OWNER',   label: 'Turf Owners',  icon: Building2,      color: 'text-emerald-400',  bg: 'bg-emerald-500/20 border-emerald-500/30' },
-  { key: 'PROFESSIONAL', label: 'Professionals', icon: Briefcase,      color: 'text-blue-400',     bg: 'bg-blue-500/20 border-blue-500/30' },
+  { key: 'TURF_OWNER',   label: 'Turf Owners',           icon: Building2,      color: 'text-emerald-400',  bg: 'bg-emerald-500/20 border-emerald-500/30' },
+  { key: 'PROFESSIONAL', label: 'Tournament Organizers',  icon: Briefcase,      color: 'text-blue-400',     bg: 'bg-blue-500/20 border-blue-500/30' },
   { key: 'COACH',        label: 'Coaches / Refs / Trainers', icon: GraduationCap, color: 'text-fuchsia-400', bg: 'bg-fuchsia-500/20 border-fuchsia-500/30' },
 ];
 
