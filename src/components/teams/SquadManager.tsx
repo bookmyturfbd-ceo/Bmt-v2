@@ -164,6 +164,7 @@ export default function SquadManager({ team, setTeam, myRole }: SquadManagerProp
   const [searching,    setSearching]    = useState(false);
   const [adding,       setAdding]       = useState<string | null>(null);
   const [removing,     setRemoving]     = useState(false);
+  const [sentRequests, setSentRequests] = useState<string[]>([]);
   const [loadingRole,  setLoadingRole]  = useState(false);
   const [cmFee,        setCmFee]        = useState<number | null>(null);
   const [showSubConfirm, setShowSubConfirm] = useState(false);
@@ -293,13 +294,23 @@ export default function SquadManager({ team, setTeam, myRole }: SquadManagerProp
 
   const handleAddPlayer = async (playerId: string) => {
     setAdding(playerId);
-    const res = await patch({ action: 'add_member', payload: { targetPlayerId: playerId } });
-    const data = await res.json();
-    if (res.ok && data.member) {
-      setTeam({ ...team, members: [...team.members, data.member] });
-      setSearchResults(prev => prev.filter(p => p.id !== playerId));
+    try {
+      const res = await patch({ action: 'add_member', payload: { targetPlayerId: playerId } });
+      const data = await res.json();
+      if (res.ok) {
+        if (data.invitationSent) {
+          setSentRequests(prev => [...prev, playerId]);
+        } else if (data.member) {
+          setTeam({ ...team, members: [...team.members, data.member] });
+        }
+      } else {
+        alert(data.error || 'Failed to send invitation.');
+      }
+    } catch (err: any) {
+      alert(err.message || 'An error occurred.');
+    } finally {
+      setAdding(null);
     }
-    setAdding(null);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -727,7 +738,7 @@ export default function SquadManager({ team, setTeam, myRole }: SquadManagerProp
             <div className="flex items-center justify-between p-5 border-b border-[var(--panel-border)] shrink-0">
               <div>
                 <h3 className="font-black text-base flex items-center gap-2"><UserPlus size={18} className="text-accent" /> Add Player</h3>
-                <p className="text-[10px] text-[var(--muted)] mt-0.5">Search by name, email or phone</p>
+                <p className="text-[10px] text-[var(--muted)] mt-0.5">Search by name, phone, email or unique Player Code</p>
               </div>
               <button onClick={() => setShowAddModal(false)} className="p-2 rounded-xl hover:bg-white/10"><X size={18} /></button>
             </div>
@@ -738,7 +749,7 @@ export default function SquadManager({ team, setTeam, myRole }: SquadManagerProp
                 <input
                   autoFocus
                   type="text"
-                  placeholder="Name, email or phone..."
+                  placeholder="Name, email, phone or player code (e.g. P-XXXXXX)..."
                   value={searchQ}
                   onChange={e => handleSearchPlayer(e.target.value)}
                   className="w-full bg-neutral-800 border border-[var(--panel-border)] rounded-xl pl-9 pr-9 py-3 text-sm outline-none focus:border-accent"
@@ -753,6 +764,7 @@ export default function SquadManager({ team, setTeam, myRole }: SquadManagerProp
               ) : (
                 searchResults.map(player => {
                   const alreadyMember = team.members.some((m: any) => m.playerId === player.id);
+                  const requestSent = sentRequests.includes(player.id);
                   return (
                     <div key={player.id} className="flex items-center gap-3 p-3 rounded-xl bg-neutral-800/60 border border-white/5 hover:border-white/10">
                       <div className="w-10 h-10 rounded-full bg-neutral-900 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
@@ -760,7 +772,9 @@ export default function SquadManager({ team, setTeam, myRole }: SquadManagerProp
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold truncate">{player.fullName}</p>
-                        <p className="text-[10px] text-[var(--muted)] truncate">{player.email}</p>
+                        <p className="text-[10px] text-[var(--muted)] truncate">
+                          {player.email} {player.playerCode && `· ${player.playerCode}`}
+                        </p>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-[9px] font-black text-accent">MMR {isCricket ? (player.cricketMmr ?? 1000) : (player.footballMmr ?? player.mmr ?? 1000)}</span>
                           <span className="text-[9px] text-[var(--muted)]">LVL {player.level}</span>
@@ -768,6 +782,8 @@ export default function SquadManager({ team, setTeam, myRole }: SquadManagerProp
                       </div>
                       {alreadyMember ? (
                         <span className="text-[10px] font-black text-green-500 uppercase px-2 py-1 bg-green-500/10 rounded-lg shrink-0">✓ On Team</span>
+                      ) : requestSent ? (
+                        <span className="text-[10px] font-black text-amber-500 uppercase px-2 py-1 bg-amber-500/10 border border-amber-500/20 rounded-lg shrink-0 shadow-[0_0_10px_rgba(245,158,11,0.1)]">Request Sent</span>
                       ) : (
                         <button
                           onClick={() => handleAddPlayer(player.id)}

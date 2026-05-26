@@ -69,10 +69,14 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { monthlyFee } = await req.json();
+    const { monthlyFee, isFree } = await req.json();
+    const updateData: any = {};
+    if (monthlyFee !== undefined) updateData.monthlyFee = monthlyFee;
+    if (isFree !== undefined) updateData.isFree = isFree;
+
     const config = await prisma.challengeMarketConfig.update({
       where: { id: 'singleton' },
-      data: { monthlyFee }
+      data: updateData
     });
     return NextResponse.json({ ok: true, config });
   } catch (error: any) {

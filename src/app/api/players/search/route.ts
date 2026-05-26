@@ -12,9 +12,10 @@ export async function GET(req: NextRequest) {
         { email: { contains: q, mode: 'insensitive' } },
         { phone: { contains: q } },
         { fullName: { contains: q, mode: 'insensitive' } },
+        { playerCode: { contains: q, mode: 'insensitive' } },
       ],
     },
-    select: { id: true, fullName: true, email: true, phone: true, avatarUrl: true, mmr: true, level: true },
+    select: { id: true, fullName: true, email: true, phone: true, avatarUrl: true, mmr: true, level: true, playerCode: true },
     take: 10,
   });
 

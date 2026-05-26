@@ -25,6 +25,7 @@ export async function GET(_req: NextRequest, { params }: { params: Params }) {
         banStatus:     true,
         banUntil:      true,
         banReason:     true,
+        playerCode:    true,
         mmr:           true,
         footballMmr:   true,
         cricketMmr:    true,
@@ -169,6 +170,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Params }) {
         banStatus:     true,
         banUntil:      true,
         banReason:     true,
+        playerCode:    true,
       },
     });
     return NextResponse.json(updated);

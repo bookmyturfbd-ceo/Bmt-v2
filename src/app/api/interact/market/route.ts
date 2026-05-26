@@ -44,15 +44,20 @@ export async function GET(req: NextRequest) {
   if (!playerId) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
 
   try {
+    const cfg = await prisma.challengeMarketConfig.findUnique({ where: { id: 'singleton' } });
+    const isFree = cfg?.isFree ?? false;
+
     const activeSeason = await prisma.challengeSeason.findFirst({
       where: { isActive: true },
     });
 
     const teams = await prisma.team.findMany({
-      where: {
-        isSubscribed: true,
-        challengeSubscription: { active: true },
-      },
+      where: isFree 
+        ? { teamType: 'REGULAR' }
+        : {
+            isSubscribed: true,
+            challengeSubscription: { active: true },
+          },
       select: {
         id: true,
         name: true,
@@ -61,6 +66,7 @@ export async function GET(req: NextRequest) {
         teamMmr: true,
         ownerId: true,
         isSubscribed: true,
+        teamCode: true,
         challengeSubscription: {
           select: { active: true, subscribedAt: true, gracePeriodEnd: true },
         },

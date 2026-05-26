@@ -21,6 +21,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   
   // Also fetch active season for countdown
   const activeSeason = await prisma.challengeSeason.findFirst({ where: { isActive: true } });
+  const cfg = await prisma.challengeMarketConfig.findUnique({ where: { id: 'singleton' } });
+  const isFree = cfg?.isFree ?? false;
 
   const team = await prisma.team.findUnique({
     where: { id },
@@ -60,7 +62,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       m.playerId === team.ownerId ? { ...m, role: 'owner' } : m
     )
   };
-  return NextResponse.json({ team: normalised, myPlayerId: playerId, activeSeason });
+  return NextResponse.json({ team: normalised, myPlayerId: playerId, activeSeason, isFree });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -129,20 +131,33 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         return NextResponse.json({ error: `Player is already in a ${mapEnumToSport(teamCheck.sportType)} ${typeLabel} team (${inSameSport.team.name}). They must leave it before joining.` }, { status: 400 });
       }
 
-      const member = await prisma.teamMember.create({
-        data: { teamId: id, playerId: targetPlayerId, role: 'member' },
-        select: {
-          id: true, role: true, playerId: true, sportRole: true, isStarter: true, pitchPosition: true,
-          player: { select: { id: true, fullName: true, avatarUrl: true, mmr: true, level: true } }
-        }
+      // Check if an invitation is already pending
+      const existingInvite = await prisma.teamInvitation.findUnique({
+        where: { teamId_playerId: { teamId: id, playerId: targetPlayerId } }
       });
-
-      if (teamCheck.teamType === 'TOURNAMENT') {
-        const { syncTournamentTeamMmr } = await import('@/lib/teamMmr');
-        await syncTournamentTeamMmr(id);
+      
+      if (existingInvite) {
+        if (existingInvite.status === 'PENDING') {
+          return NextResponse.json({ error: 'Invitation already sent and is pending.' }, { status: 400 });
+        } else {
+          // If denied, we can reset it to PENDING. If accepted, they shouldn't reach here (already member check passes, but safety first).
+          await prisma.teamInvitation.update({
+            where: { id: existingInvite.id },
+            data: { status: 'PENDING', invitedById: playerId }
+          });
+        }
+      } else {
+        await prisma.teamInvitation.create({
+          data: {
+            teamId: id,
+            playerId: targetPlayerId,
+            invitedById: playerId,
+            status: 'PENDING'
+          }
+        });
       }
 
-      return NextResponse.json({ ok: true, member });
+      return NextResponse.json({ ok: true, invitationSent: true });
     }
 
     if (action === 'kick_member') {
@@ -269,11 +284,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (existing && existing.active) return NextResponse.json({ error: 'Team is already subscribed.' }, { status: 400 });
 
       const cfg = await prisma.challengeMarketConfig.findUnique({ where: { id: 'singleton' } });
-      const fee = cfg?.monthlyFee ?? 500;
+      const isFree = cfg?.isFree ?? false;
+      const fee = isFree ? 0 : (cfg?.monthlyFee ?? 500);
 
       // STRICT OVERDRAFT PROTECT
       const expectedOwner = await prisma.player.findUnique({ where: { id: teamCheck.ownerId } });
-      if (!expectedOwner || expectedOwner.walletBalance < fee) {
+      if (!isFree && (!expectedOwner || expectedOwner.walletBalance < fee)) {
         return NextResponse.json({ error: `Insufficient wallet balance. You need ৳${fee} but only have ৳${expectedOwner?.walletBalance || 0}. Please recharge your wallet.` }, { status: 400 });
       }
 
@@ -309,6 +325,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ ok: true, walletBalance: ownerRec.walletBalance });
     }
 
+    if (action === 'leave_team') {
+      const member = await prisma.teamMember.findUnique({
+        where: { teamId_playerId: { teamId: id, playerId } }
+      });
+      if (!member) return NextResponse.json({ error: 'You are not a member of this team' }, { status: 404 });
+      
+      if (teamCheck.ownerId === playerId) {
+        return NextResponse.json({ error: 'Owners cannot leave the team. You must disband/delete it instead.' }, { status: 400 });
+      }
+
+      await prisma.teamMember.delete({
+        where: { teamId_playerId: { teamId: id, playerId } }
+      });
+
+      if (teamCheck.teamType === 'TOURNAMENT') {
+        const { syncTournamentTeamMmr } = await import('@/lib/teamMmr');
+        await syncTournamentTeamMmr(id);
+      }
+
+      return NextResponse.json({ ok: true });
+    }
+
     if (action === 'delete_team') {
       if (myRole !== 'owner') return NextResponse.json({ error: 'Only the team owner can delete the team.' }, { status: 403 });
       
@@ -321,7 +359,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const pwMatch = await bcrypt.compare(password, owner.password);
       if (!pwMatch) return NextResponse.json({ error: 'Incorrect password.' }, { status: 401 });
 
-      await prisma.team.delete({ where: { id } });
+      await prisma.team.update({
+        where: { id },
+        data: { isDisbanded: true }
+      });
       return NextResponse.json({ ok: true });
     }
 

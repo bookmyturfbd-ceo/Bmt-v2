@@ -30,7 +30,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only Owners, Managers, or Captains can issue challenges' }, { status: 403 });
     }
 
-    if (!challengerTeam.isSubscribed || !challengerTeam.challengeSubscription?.active) {
+    const cfg = await prisma.challengeMarketConfig.findUnique({ where: { id: 'singleton' } });
+    const isFree = cfg?.isFree ?? false;
+
+    if (!isFree && (!challengerTeam.isSubscribed || !challengerTeam.challengeSubscription?.active)) {
       return NextResponse.json({ error: 'Your team must be subscribed to the Challenge Market' }, { status: 403 });
     }
 
@@ -41,7 +44,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!opponentTeam) return NextResponse.json({ error: 'Opponent team not found' }, { status: 404 });
-    if (!opponentTeam.isSubscribed || !opponentTeam.challengeSubscription?.active) {
+    if (!isFree && (!opponentTeam.isSubscribed || !opponentTeam.challengeSubscription?.active)) {
       return NextResponse.json({ error: 'Opponent team is not in Challenge Market' }, { status: 400 });
     }
     if (opponentTeam.sportType !== challengerTeam.sportType) {

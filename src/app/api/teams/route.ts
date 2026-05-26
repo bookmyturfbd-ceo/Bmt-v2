@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { SportType } from '@prisma/client';
+import { generateCode } from '@/lib/generateCode';
 
 type TeamType = 'REGULAR' | 'TOURNAMENT';
 
@@ -119,6 +120,7 @@ export async function POST(req: NextRequest) {
         teamType: teamType as any,
         logoUrl: logoUrl || null,
         ownerId: playerId,
+        teamCode: generateCode('T-'),
         members: {
           create: { playerId, role: 'owner' },
         },

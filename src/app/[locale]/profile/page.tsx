@@ -17,6 +17,7 @@ interface PlayerProfile {
   joinedAt: string; walletBalance?: number; loyaltyPoints?: number;
   level?: number; levelProgress?: number; avatarBase64?: string; avatarUrl?: string;
   banStatus?: 'none' | 'soft' | 'perma'; banUntil?: string; banReason?: string;
+  playerCode?: string;
   mmr?: number; footballMmr?: number; cricketMmr?: number;
   tournamentFootballMmr?: number; tournamentCricketMmr?: number;
   peakTournamentFinish?: number | null;
@@ -130,7 +131,7 @@ export default function ProfilePage() {
 
   const loadData = useCallback(async (pid: string) => {
     const [ps, bs, ss, ts, so] = await Promise.all([
-      fetch(`/api/bmt/players/${pid}`).then(r => r.json()),
+      fetch(`/api/bmt/players/${pid}?t=${Date.now()}`, { cache: 'no-store' }).then(r => r.json()),
       fetch('/api/bmt/bookings').then(r => r.json()),
       fetch('/api/bmt/slots').then(r => r.json()),
       fetch('/api/bmt/turfs').then(r => r.json()),
@@ -345,9 +346,16 @@ export default function ProfilePage() {
                 </div>
               )}
               {profile?.id && (
-                <p className="text-[10px] text-[var(--muted)] font-bold tracking-widest uppercase flex items-center gap-1">
-                  <Hash size={10} /> {profile.id.slice(0, 8)}
-                </p>
+                <div className="flex flex-col gap-1 mt-0.5">
+                  <p className="text-[10px] text-[var(--muted)] font-bold tracking-widest uppercase flex items-center gap-1">
+                    <Hash size={10} /> {profile.id.slice(0, 8)}
+                  </p>
+                  {profile.playerCode && (
+                    <div className="inline-flex items-center gap-1.5 self-start px-2 py-0.5 rounded-lg bg-accent/10 border border-accent/30 text-[10px] font-black text-accent tracking-wider uppercase">
+                      Code: {profile.playerCode}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>

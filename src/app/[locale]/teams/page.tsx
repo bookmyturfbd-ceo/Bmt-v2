@@ -295,22 +295,60 @@ function EmptyState({ type, onCreate }: { type: TeamType; onCreate: () => void }
 export default function TeamsPage() {
   const [activeTab,  setActiveTab]  = useState<TeamType>('REGULAR');
   const [allTeams,   setAllTeams]   = useState<Team[]>([]);
+  const [invitations, setInvitations] = useState<any[]>([]);
+  const [inviteActionId, setInviteActionId] = useState<string | null>(null);
   const [loading,    setLoading]    = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [loggedIn,   setLoggedIn]   = useState(true);
 
   const load = async () => {
     setLoading(true);
-    const res = await fetch('/api/teams');
-    if (res.status === 401) { setLoggedIn(false); setLoading(false); return; }
-    const data = await res.json();
-    setAllTeams(data.teams ?? []);
-    setLoading(false);
+    try {
+      const [resTeams, resInvites] = await Promise.all([
+        fetch('/api/teams'),
+        fetch('/api/teams/invitations')
+      ]);
+      if (resTeams.status === 401) { setLoggedIn(false); setLoading(false); return; }
+      
+      const dataTeams = await resTeams.json();
+      setAllTeams(dataTeams.teams ?? []);
+
+      if (resInvites.ok) {
+        const dataInvites = await resInvites.json();
+        setInvitations(dataInvites.invitations ?? []);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInviteResponse = async (inviteId: string, action: 'accept' | 'decline') => {
+    setInviteActionId(inviteId);
+    try {
+      const res = await fetch(`/api/teams/invitations/${inviteId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        await load();
+      } else {
+        alert(data.error || `Failed to ${action} invitation.`);
+      }
+    } catch (err: any) {
+      alert(err.message || 'An error occurred.');
+    } finally {
+      setInviteActionId(null);
+    }
   };
 
   useEffect(() => { load(); }, []);
 
   const teams = allTeams.filter(t => t.teamType === activeTab);
+  const activeInvitations = invitations.filter(inv => inv.team?.teamType === activeTab);
 
   const TABS: { key: TeamType; label: string; icon: typeof Swords }[] = [
     { key: 'REGULAR',    label: 'Rank Teams',    icon: Swords  },
@@ -374,6 +412,73 @@ export default function TeamsPage() {
 
         {/* Content */}
         <div className="flex flex-col gap-3 px-4 pt-1">
+          {/* Pending Invitations Banner */}
+          {activeInvitations.length > 0 && (
+            <div className="flex flex-col gap-2 shrink-0 mb-2">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)] flex items-center gap-1.5">
+                <span>✉️ Pending Invitations ({activeInvitations.length})</span>
+              </h3>
+              
+              <div className="flex flex-col gap-2.5">
+                {activeInvitations.map((invite) => {
+                  const isTourney = invite.team?.teamType === 'TOURNAMENT';
+                  const accentColorClass = isTourney ? 'border-amber-500/30 bg-amber-500/5' : 'border-accent/30 bg-accent/5';
+                  const textColorClass = isTourney ? 'text-amber-400' : 'text-accent';
+                  const glowShadow = isTourney ? 'shadow-[0_0_15px_rgba(251,191,36,0.08)]' : 'shadow-[0_0_15px_rgba(0,255,65,0.08)]';
+
+                  return (
+                    <div
+                      key={invite.id}
+                      className={`flex flex-col p-4 rounded-2xl border ${accentColorClass} ${glowShadow} backdrop-blur-md transition-all gap-3`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {/* Team Logo */}
+                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-black/40 border border-white/10 shrink-0 flex items-center justify-center">
+                          {invite.team?.logoUrl ? (
+                            <img src={invite.team.logoUrl} alt={invite.team.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-xl">{getSportEmoji(invite.team?.sport || '')}</span>
+                          )}
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-grow min-w-0">
+                          <p className="font-black text-sm text-white truncate leading-tight">{invite.team?.name}</p>
+                          <p className="text-[10px] text-[var(--muted)] mt-1 font-bold">
+                            {invite.team?.sport}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleInviteResponse(invite.id, 'accept')}
+                          disabled={inviteActionId !== null}
+                          className={`flex-grow py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all text-black hover:brightness-110 active:scale-95 disabled:opacity-40
+                            ${isTourney ? 'bg-amber-400 shadow-[0_4px_12px_rgba(251,191,36,0.2)]' : 'bg-accent shadow-[0_4px_12px_rgba(0,255,65,0.2)]'}`}
+                        >
+                          {inviteActionId === invite.id ? (
+                            <Loader2 size={12} className="animate-spin text-black" />
+                          ) : '✓ Accept'}
+                        </button>
+                        <button
+                          onClick={() => handleInviteResponse(invite.id, 'decline')}
+                          disabled={inviteActionId !== null}
+                          className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-neutral-800 hover:bg-neutral-700 text-red-400 border border-red-500/20 transition-all hover:border-red-500/40 active:scale-95 disabled:opacity-40"
+                        >
+                          {inviteActionId === invite.id ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : 'Decline'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Create button */}
           <button
             onClick={() => loggedIn ? setShowCreate(true) : null}

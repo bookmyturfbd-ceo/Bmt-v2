@@ -62,6 +62,8 @@ export async function GET(req: NextRequest) {
   });
 }
 
+import { generateCode } from '@/lib/generateCode';
+
 // POST /api/bmt/players  — register a new player (bcrypt-hashes password)
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -122,6 +124,7 @@ export async function POST(req: NextRequest) {
       phone:     phone.trim(),
       password:  hashed,
       joinedAt:  joinedAt ? new Date(joinedAt) : new Date(),
+      playerCode: generateCode('P-'),
     },
     select: {
       id:            true,
@@ -135,6 +138,7 @@ export async function POST(req: NextRequest) {
       levelProgress: true,
       avatarUrl:     true,
       banStatus:     true,
+      playerCode:    true,
     },
   });
 

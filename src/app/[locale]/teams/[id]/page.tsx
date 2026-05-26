@@ -115,7 +115,7 @@ function EditableDecree({
 }
 
 export default function SingleTeamPage() {
-  const { id } = useParams() as { id: string };
+  const { id, locale = 'en' } = useParams() as { id: string; locale?: string };
   const router = useRouter();
   
   const [team, setTeam] = useState<any>(null);
@@ -151,7 +151,7 @@ export default function SingleTeamPage() {
   const seasonCountdown = useCountdown(activeSeason?.endDate ?? null);
 
   useEffect(() => {
-    fetch(`/api/teams/${id}`).then(r => r.json()).then(d => {
+    fetch(`/api/teams/${id}?t=${Date.now()}`, { cache: 'no-store' }).then(r => r.json()).then(d => {
       setTeam(d.team);
       if (d.activeSeason) setActiveSeason(d.activeSeason);
       if (d.team && d.myPlayerId) {
@@ -298,6 +298,24 @@ export default function SingleTeamPage() {
     }
   };
 
+  const handleLeaveTeam = async () => {
+    if (!confirm('Are you sure you want to leave this team?')) return;
+    setSaving(true);
+    const res = await fetch(`/api/teams/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'leave_team' })
+    });
+    
+    if (res.ok) {
+       router.push(`/${locale}/teams`);
+    } else {
+       const data = await res.json();
+       alert(data.error || 'Failed to leave team.');
+       setSaving(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background pb-24 font-sans text-white">
       
@@ -344,6 +362,11 @@ export default function SingleTeamPage() {
                   {/* Info */}
                   <div className="flex flex-col flex-grow">
                     <h1 className="text-2xl font-black text-white leading-tight drop-shadow-md break-words">{team.name}</h1>
+                    {team.teamCode && (
+                      <div className="inline-flex items-center self-start text-[10px] font-black text-accent bg-accent/10 px-2 py-0.5 rounded border border-accent/20 my-0.5">
+                        CODE: {team.teamCode}
+                      </div>
+                    )}
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="text-sm">{sportEmoji}</span>
                       <span className="text-[11px] font-bold tracking-wide text-white/80 uppercase drop-shadow-sm">{sportName}</span>
@@ -433,6 +456,11 @@ export default function SingleTeamPage() {
                 )}
               </div>
               <h1 className="mt-3 text-xl font-black text-center leading-tight whitespace-nowrap">{team.name}</h1>
+              {team.teamCode && (
+                <div className="inline-flex items-center justify-center text-[10px] font-black text-accent bg-accent/10 px-2 py-0.5 rounded-lg border border-accent/20 mt-1">
+                  CODE: {team.teamCode}
+                </div>
+              )}
               <div className="flex items-center gap-1.5 mt-1">
                 <span className="text-xs">{sportEmoji}</span>
                 <span className="text-[11px] font-bold tracking-wide text-[var(--muted)]">{sportName}</span>
@@ -646,6 +674,26 @@ export default function SingleTeamPage() {
               className="w-full py-3 rounded-xl border border-red-500/40 text-red-400 font-black text-xs hover:bg-red-500/10 transition-colors uppercase tracking-widest relative z-10"
             >
               Delete Team
+            </button>
+          </div>
+        )}
+
+        {/* LEAVE TEAM ZONE */}
+        {myRole !== 'none' && myRole !== 'owner' && (
+          <div className="mt-6 glass-panel border border-red-500/20 rounded-2xl p-4 flex flex-col gap-3 relative overflow-hidden group">
+            <div className="flex items-center gap-2 text-red-500 mb-1 relative z-10">
+              <AlertTriangle size={16} />
+              <h3 className="font-black text-sm uppercase tracking-widest">Leave Team</h3>
+            </div>
+            <p className="text-xs text-[var(--muted)] leading-relaxed mb-1 relative z-10">
+              Are you sure you want to leave this team? You will lose your roster slot, lineup placement, and shared MMR achievements.
+            </p>
+            <button 
+              onClick={handleLeaveTeam} 
+              disabled={saving}
+              className="w-full py-3 rounded-xl border border-red-500/40 text-red-400 font-black text-xs hover:bg-red-500/10 transition-colors uppercase tracking-widest relative z-10 flex justify-center items-center gap-2"
+            >
+              {saving ? <Loader2 size={16} className="animate-spin" /> : 'Leave Team'}
             </button>
           </div>
         )}

@@ -104,26 +104,38 @@ function TeamCard({ team, rank }: { team: any; rank: number }) {
   const top3 = rank <= 3;
   return (
     <div
-      className="flex items-center gap-3 p-3 rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.06] transition-all"
+      className="flex items-center gap-3 p-3 rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.06] transition-all relative overflow-hidden"
       style={top3 ? { boxShadow: `0 0 20px ${PODIUM_GLOW[rank - 1]}`, borderColor: `rgba(255,255,255,0.1)` } : {}}
     >
+      {/* Disbanded background shroud */}
+      {team.isDisbanded && (
+        <div className="absolute inset-0 bg-black/45 backdrop-blur-[0.5px] pointer-events-none z-10" />
+      )}
+
       {/* Rank */}
-      <div className="w-8 shrink-0 text-center">
+      <div className="w-8 shrink-0 text-center relative z-20">
         {top3
           ? <span className="text-xl">{PODIUM_LABEL[rank - 1]}</span>
           : <span className="text-sm font-black text-neutral-500">#{rank}</span>}
       </div>
 
       {/* Logo */}
-      <div className="w-11 h-11 rounded-xl overflow-hidden bg-neutral-800 border border-white/10 shrink-0 flex items-center justify-center">
+      <div className="w-11 h-11 rounded-xl overflow-hidden bg-neutral-800 border border-white/10 shrink-0 flex items-center justify-center relative z-20">
         {team.logoUrl
           ? <img src={team.logoUrl} className="w-full h-full object-cover" alt={team.name} />
           : <Shield size={18} className="text-neutral-500" />}
       </div>
 
       {/* Info */}
-      <div className="flex-1 min-w-0">
-        <p className="font-black text-sm truncate text-white">{team.name}</p>
+      <div className="flex-1 min-w-0 relative z-20">
+        <div className="flex items-center gap-2">
+          <p className="font-black text-sm truncate text-white">{team.name}</p>
+          {team.isDisbanded && (
+            <span className="shrink-0 text-[8px] font-black uppercase tracking-widest text-red-400 bg-red-500/10 border border-red-500/30 px-1.5 py-0.5 rounded-full animate-pulse">
+              Disbanded
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
           <span className="text-[9px] text-neutral-500 font-bold">{sportEmoji(team.sportType)} {sportLabel(team.sportType)}</span>
           <span className="text-[9px] text-neutral-600">·</span>
@@ -134,7 +146,7 @@ function TeamCard({ team, rank }: { team: any; rank: number }) {
       </div>
 
       {/* MMR + Rank */}
-      <div className="shrink-0 flex flex-col items-end gap-1">
+      <div className="shrink-0 flex flex-col items-end gap-1 relative z-20">
         <div className="flex items-center gap-1.5">
           {rankIcon(rd.tier) && (
             <img src={rankIcon(rd.tier)} className="w-5 h-5 object-contain" alt={rd.tier} />
@@ -219,6 +231,7 @@ export default function LeaderboardPage() {
 
   // Tabs
   const [mainTab,  setMainTab]  = useState<MainTab>('teams');
+  const [category, setCategory] = useState<'ranked' | 'tournament'>('ranked');
 
   // Filters
   const [sport, setSport] = useState('ALL');
@@ -236,7 +249,7 @@ export default function LeaderboardPage() {
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/leaderboard?type=${mainTab}&sport=${sport}&tier=${tier}`
+        `/api/leaderboard?type=${mainTab}&sport=${sport}&tier=${tier}&category=${category}`
       );
       const json = await res.json();
       setData(json.leaderboard ?? []);
@@ -244,7 +257,7 @@ export default function LeaderboardPage() {
       setData([]);
     }
     setLoading(false);
-  }, [mainTab, sport, tier]);
+  }, [mainTab, sport, tier, category]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -268,6 +281,26 @@ export default function LeaderboardPage() {
             <BarChart2 size={18} className="text-orange-400" />
             <h1 className="font-black text-xl tracking-tight">Leaderboard</h1>
           </div>
+        </div>
+
+        {/* Category Tabs: Ranked vs Tournament */}
+        <div className="flex gap-2 mb-3 bg-white/[0.02] border border-white/5 p-1 rounded-2xl shrink-0">
+          {([
+            { key: 'ranked', label: '🛡️ Ranked Arena' },
+            { key: 'tournament', label: '🏆 Tournaments' }
+          ] as const).map(cat => (
+            <button
+              key={cat.key}
+              onClick={() => setCategory(cat.key)}
+              className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                category === cat.key
+                  ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-black shadow-[0_0_16px_rgba(249,115,22,0.3)]'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
         </div>
 
         {/* Main Tabs */}

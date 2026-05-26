@@ -29,6 +29,8 @@ export default function ChallengeMarketPanel() {
   
   const [fee, setFee] = useState<number | ''>('');
   const [savingFee, setSavingFee] = useState(false);
+  const [isFree, setIsFree] = useState(false);
+  const [savingFree, setSavingFree] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'subscriptions' | 'disputes' | 'seasons'>('overview');
 
   // Season form state
@@ -47,7 +49,10 @@ export default function ChallengeMarketPanel() {
       .then(res => res.json())
       .then(d => {
         setData(d);
-        if (d.config) setFee(d.config.monthlyFee);
+        if (d.config) {
+          setFee(d.config.monthlyFee);
+          setIsFree(d.config.isFree);
+        }
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -64,6 +69,21 @@ export default function ChallengeMarketPanel() {
       body: JSON.stringify({ monthlyFee: Number(fee) })
     });
     setSavingFee(false);
+  };
+
+  const handleToggleFree = async () => {
+    setSavingFree(true);
+    const newIsFree = !isFree;
+    const res = await fetch('/api/admin/challenge-market', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isFree: newIsFree })
+    });
+    setSavingFree(false);
+    if (res.ok) {
+      setIsFree(newIsFree);
+      reload();
+    }
   };
 
   const handleCreateSeason = async () => {
@@ -117,22 +137,44 @@ export default function ChallengeMarketPanel() {
           <p className="text-sm text-[var(--muted)]">Manage subscriptions, seasons, disputes, and billing.</p>
         </div>
         
-        <div className="flex items-center gap-2 bg-neutral-900 border border-white/10 p-2 rounded-2xl">
-          <span className="text-[10px] font-black uppercase text-[var(--muted)] px-2">Monthly Fee:</span>
-          <div className="relative">
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--muted)] font-black text-xs">৳</span>
-            <input 
-              type="number" value={fee}
-              onChange={e => setFee(e.target.value === '' ? '' : Number(e.target.value))}
-              className="bg-black border border-white/5 rounded-xl pl-6 pr-3 py-1.5 w-24 outline-none focus:border-fuchsia-500 font-bold text-sm"
-            />
+        <div className="flex items-center gap-3 bg-neutral-900 border border-white/10 p-2 rounded-2xl flex-wrap">
+          <div className="flex items-center gap-2 px-2">
+            <span className="text-[10px] font-black uppercase text-[var(--muted)]">Free Subscription:</span>
+            <button
+              onClick={handleToggleFree}
+              disabled={savingFree}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                isFree ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-neutral-800'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  isFree ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
           </div>
-          <button 
-            onClick={handleSaveFee} disabled={savingFee || fee === ''}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-fuchsia-600 text-white font-black uppercase text-[10px] rounded-xl hover:bg-fuchsia-500 disabled:opacity-50"
-          >
-            {savingFee ? <Loader2 size={12} className="animate-spin" /> : 'Save'}
-          </button>
+
+          <div className="h-6 w-[1px] bg-white/10 hidden md:block" />
+
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black uppercase text-[var(--muted)] px-2">Monthly Fee:</span>
+            <div className="relative">
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--muted)] font-black text-xs">৳</span>
+              <input 
+                type="number" value={fee}
+                disabled={isFree}
+                onChange={e => setFee(e.target.value === '' ? '' : Number(e.target.value))}
+                className="bg-black border border-white/5 rounded-xl pl-6 pr-3 py-1.5 w-24 outline-none focus:border-fuchsia-500 font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+            </div>
+            <button 
+              onClick={handleSaveFee} disabled={savingFee || fee === '' || isFree}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-fuchsia-600 text-white font-black uppercase text-[10px] rounded-xl hover:bg-fuchsia-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {savingFee ? <Loader2 size={12} className="animate-spin" /> : 'Save'}
+            </button>
+          </div>
         </div>
       </div>
 

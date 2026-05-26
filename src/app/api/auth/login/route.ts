@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
   };
 
   // ── Super Admin ──────────────────────────────────────────────────────────────
-  if (cred === 'admin@bmt.com' && pw === '1234') {
+  if (cred === 'admin@bmt.com' && pw === 'Pass11408812#$') {
     const response = NextResponse.json({ ok: true, redirect: '/en/admin' });
     response.cookies.set('bmt_auth',  '1',     cookieOpts);
     response.cookies.set('bmt_role',  'admin', cookieOpts);

@@ -21,6 +21,7 @@ import TournamentListTab from '@/components/admin/tournaments/TournamentListTab'
 import OrganizerListTab from '@/components/admin/tournaments/OrganizerListTab';
 import OrganizerRechargePanel from '@/components/admin/OrganizerRechargePanel';
 import OrganizerPayoutPanel from '@/components/admin/tournaments/OrganizerPayoutPanel';
+import InterestedPanel from '@/components/admin/InterestedPanel';
 
 const PAGE_TITLES: Record<AdminPage, string> = {
   overview:         'Dashboard Overview',
@@ -42,6 +43,7 @@ const PAGE_TITLES: Record<AdminPage, string> = {
   organizers:       'Organizers',
   orgRecharge:      'Org Wallet Recharges',
   orgPayouts:       'Organizer Payouts',
+  interested:       'Interested Parties',
 };
 
 export default function AdminPage() {
@@ -205,6 +207,12 @@ export default function AdminPage() {
                 <p className="text-sm md:text-base text-[var(--muted)] mt-0.5 md:mt-1">Track revenue, product costs, marketing spend, and profit by product subcategory.</p>
               </div>
               <ShopIncomePanel />
+            </section>
+          )}
+
+          {activePage === 'interested' && (
+            <section className="h-full">
+              <InterestedPanel />
             </section>
           )}
         </main>

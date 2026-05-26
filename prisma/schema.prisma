@@ -310,6 +310,8 @@ model Player {
 
   // Profile image — CDN URL injected later
   avatarUrl      String?
+  playerCode     String?   @unique
+  teamInvitations TeamInvitation[]
 
   // Moderation
   banStatus      BanStatus @default(none)
@@ -848,6 +850,9 @@ model Team {
   
   formation    String?
   teamType     TeamType @default(REGULAR)
+  isDisbanded  Boolean  @default(false)
+  teamCode     String?  @unique
+  invitations  TeamInvitation[]
 
   @@map("teams")
 }
@@ -1176,6 +1181,7 @@ model ChallengeDispute {
 model ChallengeMarketConfig {
   id                  String   @id @default("singleton")
   monthlyFee          Int      @default(500)   // BDT, deducted from owner wallet
+  isFree              Boolean  @default(false)
   updatedAt           DateTime @updatedAt
   updatedByAdminId    String?
 
@@ -2261,4 +2267,60 @@ model TournamentSponsor {
   tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@map("tournament_sponsors")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// JOIN REQUEST — Interested parties from the homepage "Join Us" section
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum JoinRequestType {
+  TURF_OWNER
+  PROFESSIONAL
+  COACH
+}
+
+enum JoinRequestStatus {
+  PENDING
+  REVIEWED
+  CONTACTED
+}
+
+model JoinRequest {
+  id        String            @id @default(cuid())
+  type      JoinRequestType
+  name      String
+  phone     String
+  email     String?
+  location  String
+  message   String?
+  status    JoinRequestStatus @default(PENDING)
+  createdAt DateTime          @default(now())
+
+  @@map("join_requests")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEAM INVITATION — Team invitations sent by OMCs to players
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DENIED
+}
+
+model TeamInvitation {
+  id           String           @id @default(cuid())
+  teamId       String
+  playerId     String
+  invitedById  String           // OMC player ID
+  status       InvitationStatus @default(PENDING)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  team         Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player       Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, playerId])
+  @@map("team_invitations")
 }

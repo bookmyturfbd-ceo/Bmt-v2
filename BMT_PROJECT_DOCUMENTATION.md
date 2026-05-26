@@ -28,7 +28,7 @@ The system does NOT use standard NextAuth or Supabase Auth. It relies on a custo
 **Cookies Set**: `bmt_auth`, `bmt_role`, `bmt_name`, `bmt_player_id` / `bmt_owner_id`, `org_token` (JWT for organizers).
 
 ### Roles:
-1. **Super Admin**: Hardcoded backdoor (`admin@bmt.com` / `1234`). Redirects to `/en/admin`.
+1. **Super Admin**: Hardcoded backdoor (`admin@bmt.com` / `Pass11408812#$`). Redirects to `/en/admin`.
 2. **Turf Owner**: Authenticates against the `Owner` table. Redirects to `/en/dashboard/owner`.
 3. **Organizer**: Authenticates against the `Organizer` table. Uses a secure JWT (`org_token`). Redirects to `/en/organizer/dashboard`.
 4. **Player**: Authenticates against the `Player` table. Supports soft/perma bans. Redirects to `/en`.

@@ -1,8 +1,8 @@
 'use client';
 import { useState } from 'react';
-import { LayoutDashboard, Building2, UserCircle2, Settings, ChevronLeft, ChevronRight, Zap, Menu, X, Banknote, ChevronDown, ChevronUp, Users, Wallet, KeyRound, Monitor, Trophy, Swords, ShoppingBag, PackageCheck, BarChart3, Globe2 } from 'lucide-react';
+import { LayoutDashboard, Building2, UserCircle2, Settings, ChevronLeft, ChevronRight, Zap, Menu, X, Banknote, ChevronDown, ChevronUp, Users, Wallet, KeyRound, Monitor, Trophy, Swords, ShoppingBag, PackageCheck, BarChart3, Globe2, PhoneCall } from 'lucide-react';
 
-export type AdminPage = 'overview' | 'platformSettings' | 'manageTurfs' | 'managePros' | 'payouts' | 'walletRecharge' | 'players' | 'frontend' | 'competitiveTeams' | 'challengeMarket' | 'openWbt' | 'shop' | 'shopOrders' | 'shopIncome' | 'tournaments' | 'bmtTournaments' | 'organizers' | 'orgRecharge' | 'orgPayouts';
+export type AdminPage = 'overview' | 'platformSettings' | 'manageTurfs' | 'managePros' | 'payouts' | 'walletRecharge' | 'players' | 'frontend' | 'competitiveTeams' | 'challengeMarket' | 'openWbt' | 'shop' | 'shopOrders' | 'shopIncome' | 'tournaments' | 'bmtTournaments' | 'organizers' | 'orgRecharge' | 'orgPayouts' | 'interested';
 
 interface NavGroup {
   label: string;
@@ -22,6 +22,7 @@ const NAV_GROUPS: NavGroup[] = [
       { key: 'platformSettings', icon: Settings,      label: 'Platform Settings' },
       { key: 'manageTurfs',      icon: Building2,     label: 'Owners & Turfs' },
       { key: 'payouts',          icon: Banknote,      label: 'Payouts & Ledger' },
+      { key: 'interested',       icon: PhoneCall,     label: 'Interested Parties' },
     ],
   },
   {

@@ -38,6 +38,7 @@ export default function MarketPage() {
   const [scoutTeamId,    setScoutTeamId]    = useState('ALL');
   const [showRankMenu,   setShowRankMenu]   = useState(false);
   const [showSportMenu,  setShowSportMenu]  = useState(false);
+  const [teamSearchQuery, setTeamSearchQuery] = useState('');
 
   // ── Score modal ─────────────────────────────────────────────────────────────
   const [scoreModalId,     setScoreModalId]     = useState<string | null>(null);
@@ -197,10 +198,21 @@ export default function MarketPage() {
 
   // ── Discover helpers ────────────────────────────────────────────────────────
   const [minMmr, maxMmr] = TIER_RANGES[divisionFilter] ?? [0, 9999];
-  const filteredTeams = otherTeams.filter(t =>
-    (sportFilter === 'ALL' || t.sportType === sportFilter) &&
-    (t.teamMmr ?? 1000) >= minMmr && (t.teamMmr ?? 1000) <= maxMmr
-  );
+  const filteredTeams = otherTeams.filter(t => {
+    const matchesFilters = (sportFilter === 'ALL' || t.sportType === sportFilter) &&
+      (t.teamMmr ?? 1000) >= minMmr && (t.teamMmr ?? 1000) <= maxMmr;
+    
+    if (!matchesFilters) return false;
+
+    if (teamSearchQuery.trim()) {
+      const q = teamSearchQuery.toLowerCase();
+      const matchesName = t.name.toLowerCase().includes(q);
+      const matchesCode = t.teamCode ? t.teamCode.toLowerCase().includes(q) : false;
+      return matchesName || matchesCode;
+    }
+
+    return true;
+  });
 
 
   const handleChallengeAttempt = (e: React.MouseEvent, target: any) => {
@@ -561,6 +573,20 @@ export default function MarketPage() {
             );
           })()}
 
+          {/* Search bar */}
+          <div className="px-4 pt-4 shrink-0">
+            <div className="relative">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-500">🔍</span>
+              <input
+                type="text"
+                placeholder="Search team by name or team code..."
+                value={teamSearchQuery}
+                onChange={e => setTeamSearchQuery(e.target.value)}
+                className="w-full bg-[#111] border border-white/10 text-xs font-bold text-white rounded-xl pl-9 pr-4 py-3 outline-none transition-colors focus:border-[#00ff41]/50 placeholder:text-neutral-600"
+              />
+            </div>
+          </div>
+
           {/* ── Native Dropdown Filters replaced with Trigger Buttons ── */}
           <div className="px-4 pt-4 flex gap-3">
              {/* Sport Filter Button */}
@@ -675,7 +701,7 @@ export default function MarketPage() {
                                 </span>
                               )}
                             </div>
-                            <p className="text-[11px] text-neutral-500 mt-0.5 font-medium">{sportEmoji(t.sportType)} {sportName(t.sportType)}</p>
+                            <p className="text-[11px] text-neutral-500 mt-0.5 font-medium">{sportEmoji(t.sportType)} {sportName(t.sportType)} {t.teamCode && `· ${t.teamCode}`}</p>
                           </div>
                         </div>
                         {/* Rank */}
