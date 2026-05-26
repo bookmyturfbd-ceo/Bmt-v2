@@ -56,6 +56,8 @@ export async function POST(
     let wicketsA = currentSummary.wicketsA ?? 0;
     let runsB = currentSummary.runsB ?? 0;
     let wicketsB = currentSummary.wicketsB ?? 0;
+    let oversA = currentSummary.oversA ?? 0;
+    let oversB = currentSummary.oversB ?? 0;
     let battingTeamId = currentSummary.battingTeamId || match.teamAId;
 
     if (body.action === 'delete') {
@@ -90,22 +92,37 @@ export async function POST(
           }
         }
       } else if (match.tournament.sport === 'CRICKET') {
-        if (body.type === 'run') {
-          const targetTeam = body.teamId || battingTeamId;
-          if (targetTeam === match.teamAId) {
-            runsA += body.runs || 1;
-          } else {
-            runsB += body.runs || 1;
+        if (body.cricketState) {
+          const cs = body.cricketState;
+          if (cs.innings1) {
+            runsA = cs.innings1.totalRuns;
+            wicketsA = cs.innings1.totalWickets;
+            oversA = cs.innings1.legalBallsBowled / 6;
           }
-        } else if (body.type === 'wicket') {
-          const targetTeam = body.teamId || battingTeamId;
-          if (targetTeam === match.teamAId) {
-            wicketsA += 1;
-            if (wicketsA >= 10) {
-              battingTeamId = match.teamBId; // Auto switch batting team when all out
+          if (cs.innings2) {
+            runsB = cs.innings2.totalRuns;
+            wicketsB = cs.innings2.totalWickets;
+            oversB = cs.innings2.legalBallsBowled / 6;
+          }
+        } else {
+          // Fallback if cricketState not present
+          if (body.type === 'run') {
+            const targetTeam = body.teamId || battingTeamId;
+            if (targetTeam === match.teamAId) {
+              runsA += body.runs || 1;
+            } else {
+              runsB += body.runs || 1;
             }
-          } else {
-            wicketsB += 1;
+          } else if (body.type === 'wicket') {
+            const targetTeam = body.teamId || battingTeamId;
+            if (targetTeam === match.teamAId) {
+              wicketsA += 1;
+              if (wicketsA >= 10) {
+                battingTeamId = match.teamBId; // Auto switch batting team when all out
+              }
+            } else {
+              wicketsB += 1;
+            }
           }
         }
       }
@@ -118,8 +135,10 @@ export async function POST(
       goalsB,
       runsA,
       wicketsA,
+      oversA,
       runsB,
       wicketsB,
+      oversB,
       battingTeamId,
       lastEvent: body,
       updatedAt: new Date().toISOString()

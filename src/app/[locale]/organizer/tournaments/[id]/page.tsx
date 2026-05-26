@@ -51,7 +51,17 @@ export default function OrganizerTournamentDetails() {
       return side === 'A' ? rs.goalsA ?? 0 : rs.goalsB ?? 0;
     }
     if (tournament?.sport === 'CRICKET') {
-      return side === 'A' ? rs.runsA ?? 0 : rs.runsB ?? 0;
+      const runs = side === 'A' ? rs.runsA : rs.runsB;
+      if (runs === undefined || runs === null) return null;
+      const wickets = side === 'A' ? rs.wicketsA : rs.wicketsB;
+      const overs = side === 'A' ? rs.oversA : rs.oversB;
+      
+      const w = wickets !== undefined && wickets !== null ? wickets : 0;
+      if (overs === undefined || overs === null || overs === 0) {
+        return `${runs}/${w}`;
+      }
+      const totalBalls = Math.round(overs * 6);
+      return `${runs}/${w} (${Math.floor(totalBalls / 6)}.${totalBalls % 6} ov)`;
     }
     return null;
   };
@@ -174,8 +184,9 @@ export default function OrganizerTournamentDetails() {
       });
       const data = await res.json();
       if (data.success) {
-        // Copy to clipboard
-        navigator.clipboard.writeText(data.data.url);
+        // Construct the URL using window.location.origin to support Tailscale/localhost origins correctly
+        const scorerUrl = `${window.location.origin}/${locale}/score/${data.data.token}`;
+        navigator.clipboard.writeText(scorerUrl);
         alert('Scorer link generated and copied to clipboard! Send this to the scorer device.');
         await loadData();
       } else {
@@ -269,28 +280,40 @@ export default function OrganizerTournamentDetails() {
             <h2 className="text-xl font-black uppercase tracking-wider mb-4 text-accent">Actions</h2>
             <div className="flex flex-col gap-3">
               {tournament.status === 'DRAFT' && (
-                <button onClick={() => handleAction('open-registration')} disabled={actionLoading} className="w-full bg-accent text-black font-black uppercase tracking-wider px-4 py-3 rounded-xl text-sm hover:bg-white transition-colors">
-                  Open Registration
+                <button onClick={() => handleAction('open-registration')} disabled={actionLoading} className="w-full bg-accent text-black font-black uppercase tracking-wider px-4 py-3 rounded-xl text-sm hover:bg-white transition-colors flex items-center justify-center gap-2">
+                  {actionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Open Registration'}
                 </button>
               )}
               {tournament.status === 'REGISTRATION_OPEN' && (
-                <button onClick={() => handleAction('close-registration')} disabled={actionLoading} className="w-full bg-white text-black font-black uppercase tracking-wider px-4 py-3 rounded-xl text-sm hover:bg-neutral-200 transition-colors">
-                  Close Registration
+                <button onClick={() => handleAction('close-registration')} disabled={actionLoading} className="w-full bg-white text-black font-black uppercase tracking-wider px-4 py-3 rounded-xl text-sm hover:bg-neutral-200 transition-colors flex items-center justify-center gap-2">
+                  {actionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Close Registration'}
                 </button>
               )}
               {tournament.status === 'DRAFTING' && tournament.formatType === 'GROUP_KNOCKOUT' && tournament.groups.length === 0 && (
                 <button onClick={() => handleAction('groups/draw')} disabled={actionLoading} className="w-full bg-blue-500 text-white font-black uppercase tracking-wider px-4 py-3 rounded-xl text-sm hover:bg-blue-400 transition-colors flex items-center justify-center gap-2">
-                  <Users size={16} /> Draw Groups
+                  {actionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : (
+                    <>
+                      <Users size={16} /> Draw Groups
+                    </>
+                  )}
                 </button>
               )}
               {tournament.status === 'DRAFTING' && (tournament.formatType !== 'GROUP_KNOCKOUT' || tournament.groups.length > 0) && (
                 <button onClick={() => handleAction('generate-fixtures')} disabled={actionLoading} className="w-full bg-purple-500 text-white font-black uppercase tracking-wider px-4 py-3 rounded-xl text-sm hover:bg-purple-400 transition-colors flex items-center justify-center gap-2">
-                  <GitMerge size={16} /> Generate Fixtures
+                  {actionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : (
+                    <>
+                      <GitMerge size={16} /> Generate Fixtures
+                    </>
+                  )}
                 </button>
               )}
               {tournament.status === 'SCHEDULED' && (
                 <button onClick={() => handleAction('activate')} disabled={actionLoading} className="w-full bg-[#00ff41] text-black font-black uppercase tracking-wider px-4 py-3 rounded-xl text-sm hover:bg-[#00cc33] transition-colors flex items-center justify-center gap-2">
-                  <Play size={16} fill="currentColor" /> Start Tournament
+                  {actionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : (
+                    <>
+                      <Play size={16} fill="currentColor" /> Start Tournament
+                    </>
+                  )}
                 </button>
               )}
               {tournament.status === 'ACTIVE' && (
@@ -496,7 +519,7 @@ export default function OrganizerTournamentDetails() {
                     {matches.map(m => {
                       const scoreA = getScore(m, 'A');
                       const scoreB = getScore(m, 'B');
-                      const hasScore = m.status === 'LIVE' || m.status === 'COMPLETED';
+                      const hasScore = m.status === 'LIVE' || m.status === 'COMPLETED' || m.resultSummary?.forfeited;
                       return (
                         <div key={m.id} className="bg-black/50 border border-white/5 hover:border-white/10 transition-colors rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                           <div>
@@ -517,12 +540,13 @@ export default function OrganizerTournamentDetails() {
                           
                           <div className="flex items-center gap-3">
                             <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg ${
+                              m.resultSummary?.forfeited ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' :
                               m.status === 'COMPLETED' ? 'bg-[#00ff41]/20 text-[#00ff41]' :
                               m.status === 'LIVE' ? 'bg-red-500/20 text-red-500' :
                               m.status === 'SCORER_ASSIGNED' ? 'bg-blue-500/20 text-blue-400' :
                               'bg-neutral-800 text-neutral-400'
                             }`}>
-                              {m.status.replace('_', ' ')}
+                              {m.resultSummary?.forfeited ? 'FORFEITED' : m.status.replace(/_/g, ' ')}
                             </span>
                             
                             {['SCHEDULED', 'SCORER_ASSIGNED'].includes(m.status) && tournament.status === 'ACTIVE' && (

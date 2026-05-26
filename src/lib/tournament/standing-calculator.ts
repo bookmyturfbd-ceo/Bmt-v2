@@ -41,7 +41,8 @@ type int = number;
 export function computeFootballStandings(
   matches: MatchResult[],
   groupId: string | null,
-  tournamentId: string
+  tournamentId: string,
+  groupTeamIds?: string[]
 ): Standing[] {
   const standings = new Map<string, Standing>();
 
@@ -58,6 +59,12 @@ export function computeFootballStandings(
     }
     return standings.get(teamId)!;
   };
+
+  if (groupTeamIds) {
+    for (const teamId of groupTeamIds) {
+      get(teamId);
+    }
+  }
 
   for (const m of matches) {
     if (m.status !== 'COMPLETED' && m.status !== 'WALKOVER') continue;
@@ -123,7 +130,8 @@ export function computeFootballStandings(
 export function computeCricketStandings(
   matches: MatchResult[],
   groupId: string | null,
-  tournamentId: string
+  tournamentId: string,
+  groupTeamIds?: string[]
 ): Standing[] {
   const standings = new Map<string, Standing>();
 
@@ -140,6 +148,12 @@ export function computeCricketStandings(
     }
     return standings.get(teamId)!;
   };
+
+  if (groupTeamIds) {
+    for (const teamId of groupTeamIds) {
+      get(teamId);
+    }
+  }
 
   // NRR accumulators: runsFor, runsAgainst, oversFor, oversAgainst
   const nrrData = new Map<string, { rf: number; ra: number; of: number; oa: number }>();

@@ -51,9 +51,14 @@ export async function POST(
         where: { groupId: match.groupId }
       });
       
+      const group = await prisma.tournamentGroup.findUnique({
+        where: { id: match.groupId }
+      });
+      const groupTeamIds = group?.teamIds || [];
+      
       const newStandings = match.tournament.sport === 'CRICKET' 
-        ? computeCricketStandings(allGroupMatches as any[], match.groupId, match.tournamentId)
-        : computeFootballStandings(allGroupMatches as any[], match.groupId, match.tournamentId);
+        ? computeCricketStandings(allGroupMatches as any[], match.groupId, match.tournamentId, groupTeamIds)
+        : computeFootballStandings(allGroupMatches as any[], match.groupId, match.tournamentId, groupTeamIds);
 
       // Save standings
       for (const standing of newStandings) {

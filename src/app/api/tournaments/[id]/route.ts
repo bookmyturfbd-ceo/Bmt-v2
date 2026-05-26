@@ -100,6 +100,22 @@ export async function PATCH(
     if (!existing) {
       return NextResponse.json({ success: false, error: 'Tournament not found' }, { status: 404 });
     }
+
+    const formatType = body.formatType || existing.formatType;
+    const formatConfig = body.formatConfig;
+
+    if (formatConfig && formatType === 'GROUP_KNOCKOUT') {
+      if (formatConfig.numberOfGroups !== undefined && body.groupCount === undefined) {
+        body.groupCount = formatConfig.numberOfGroups ? parseInt(formatConfig.numberOfGroups) : null;
+      }
+      if (formatConfig.teamsPerGroup !== undefined && body.teamsPerGroup === undefined) {
+        body.teamsPerGroup = formatConfig.teamsPerGroup ? parseInt(formatConfig.teamsPerGroup) : null;
+      }
+      if (formatConfig.teamsAdvancePerGroup !== undefined && body.qualifyPerGroup === undefined) {
+        body.qualifyPerGroup = formatConfig.teamsAdvancePerGroup ? parseInt(formatConfig.teamsAdvancePerGroup) : null;
+      }
+    }
+
     const updated = await prisma.tournament.update({ where: { id }, data: body });
     return NextResponse.json({ success: true, data: updated });
   } catch (error: any) {

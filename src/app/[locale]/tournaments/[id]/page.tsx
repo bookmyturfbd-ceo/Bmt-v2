@@ -789,7 +789,11 @@ function MatchesTab({
     return teamNameMap[tid] || tid.slice(0, 10) + '…';
   }
 
-  function matchStatusStyle(s: string) {
+  function matchStatusStyle(m: any) {
+    if (m.resultSummary?.forfeited) {
+      return 'bg-amber-500/20 text-amber-500 border border-amber-500/30';
+    }
+    const s = m.status;
     if (s === 'LIVE') return 'bg-red-500/20 text-red-400 border-red-500/30';
     if (s === 'COMPLETED') return 'bg-[#00ff41]/15 text-[#00ff41]';
     if (s === 'WALKOVER') return 'bg-neutral-700 text-neutral-400';
@@ -803,7 +807,17 @@ function MatchesTab({
       return side === 'A' ? rs.goalsA ?? null : rs.goalsB ?? null;
     }
     if (tournament.sport === 'CRICKET') {
-      return side === 'A' ? rs.runsA ?? null : rs.runsB ?? null;
+      const runs = side === 'A' ? rs.runsA : rs.runsB;
+      if (runs === undefined || runs === null) return null;
+      const wickets = side === 'A' ? rs.wicketsA : rs.wicketsB;
+      const overs = side === 'A' ? rs.oversA : rs.oversB;
+      
+      const w = wickets !== undefined && wickets !== null ? wickets : 0;
+      if (overs === undefined || overs === null || overs === 0) {
+        return `${runs}/${w}`;
+      }
+      const totalBalls = Math.round(overs * 6);
+      return `${runs}/${w} (${Math.floor(totalBalls / 6)}.${totalBalls % 6} ov)`;
     }
     return null;
   }
@@ -861,9 +875,9 @@ function MatchesTab({
                         {m.scheduledAt && ` · ${new Date(m.scheduledAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
                         {m.venue && ` · ${m.venue}`}
                       </span>
-                      <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${matchStatusStyle(m.status)}`}>
+                      <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${matchStatusStyle(m)}`}>
                         {isLive && <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 mr-1 animate-pulse" />}
-                        {m.status.replace(/_/g, ' ')}
+                        {m.resultSummary?.forfeited ? 'FORFEITED' : m.status.replace(/_/g, ' ')}
                       </span>
                     </div>
 

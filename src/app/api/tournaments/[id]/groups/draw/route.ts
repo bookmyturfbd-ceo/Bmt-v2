@@ -54,15 +54,49 @@ export async function POST(
 
     // Determine group count adaptively
     let groupCount = tournament.groupCount;
+    let teamsPerGroup = tournament.teamsPerGroup;
+    let qualifyPerGroup = tournament.qualifyPerGroup;
+
+    let needsDbSync = false;
+
+    if (tournament.formatConfig && tournament.formatType === 'GROUP_KNOCKOUT') {
+      const config = tournament.formatConfig as any;
+      if (config.numberOfGroups && !groupCount) {
+        groupCount = parseInt(config.numberOfGroups);
+        needsDbSync = true;
+      }
+      if (config.teamsPerGroup && !teamsPerGroup) {
+        teamsPerGroup = parseInt(config.teamsPerGroup);
+        needsDbSync = true;
+      }
+      if (config.teamsAdvancePerGroup && !qualifyPerGroup) {
+        qualifyPerGroup = parseInt(config.teamsAdvancePerGroup);
+        needsDbSync = true;
+      }
+    }
+
     if (!groupCount) {
-      if (tournament.teamsPerGroup) {
-        groupCount = Math.max(1, Math.ceil(teamIds.length / tournament.teamsPerGroup));
+      if (teamsPerGroup) {
+        groupCount = Math.max(1, Math.ceil(teamIds.length / teamsPerGroup));
       } else {
         groupCount = 2; // Default fallback
       }
     }
+
     // Cap group count at number of teams
     groupCount = Math.min(groupCount, teamIds.length);
+
+    // Auto-heal the tournament columns in database
+    if (needsDbSync) {
+      await prisma.tournament.update({
+        where: { id },
+        data: {
+          groupCount,
+          teamsPerGroup,
+          qualifyPerGroup
+        }
+      });
+    }
 
     // Shuffle teams
     for (let i = teamIds.length - 1; i > 0; i--) {
