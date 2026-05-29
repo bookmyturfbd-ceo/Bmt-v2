@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname } from '@/i18n/routing';
+import { useTranslations } from 'next-intl';
 import {
   ArrowLeft, Trophy, Users, Calendar, ChevronRight, Loader2,
   Flag, ShieldCheck, Lock, Unlock, Clock, X, MapPin, Zap, Banknote
@@ -49,13 +50,14 @@ function useCountdown(target: string | null): string {
 
 // ── Registration pill ─────────────────────────────────────────────────────────
 function RegPill({ t }: { t: any }) {
+  const trans = useTranslations('Tournaments');
   const status = getRegStatus(t);
   const cdLabel = useCountdown(status === 'countdown' ? t.registrationOpenAt : null);
 
   if (status === 'open') {
     return (
       <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
-        <Unlock size={9} /> Open
+        <Unlock size={9} /> {trans('open')}
       </span>
     );
   }
@@ -68,13 +70,14 @@ function RegPill({ t }: { t: any }) {
   }
   return (
     <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-500">
-      <Lock size={9} /> Closed
+      <Lock size={9} /> {trans('closed')}
     </span>
   );
 }
 
 // ── Detail modal ──────────────────────────────────────────────────────────────
 function TournamentModal({ t, onClose, isBmt }: { t: any; onClose: () => void; isBmt: boolean }) {
+  const trans = useTranslations('Tournaments');
   const router = useRouter();
   const pathname = usePathname();
   const locale = pathname.split('/')[1] || 'en';
@@ -119,7 +122,7 @@ function TournamentModal({ t, onClose, isBmt }: { t: any; onClose: () => void; i
           {status === 'countdown' && (
             <div className={`rounded-2xl bg-amber-500/10 border border-amber-500/20 p-5 text-center`}>
               <p className="text-xs font-black uppercase tracking-widest text-amber-400/70 mb-2">
-                Registration Opens In
+                {trans('regOpensIn')}
               </p>
               <p className="text-4xl font-black text-amber-400 tabular-nums tracking-tight">
                 {cdLabel}
@@ -140,9 +143,9 @@ function TournamentModal({ t, onClose, isBmt }: { t: any; onClose: () => void; i
                 isBmt
                   ? 'bg-yellow-500 text-black hover:brightness-110'
                   : 'bg-violet-500 text-white hover:brightness-110'
-              } transition-all active:scale-[0.98]`}
+              } transition-all active:scale-[0.98] cursor-pointer`}
             >
-              Enter Tournament
+              {trans('enterTournament')}
             </button>
           )}
 
@@ -152,14 +155,14 @@ function TournamentModal({ t, onClose, isBmt }: { t: any; onClose: () => void; i
                 onClose();
                 router.push(`/${locale}/tournaments/${t.id}`);
               }}
-              className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg ${
+              className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg cursor-pointer ${
                 isBmt
                   ? 'bg-yellow-500 text-black hover:brightness-110 shadow-yellow-500/10'
                   : 'bg-violet-500 text-white hover:brightness-110 shadow-violet-500/10'
               }`}
             >
               <Trophy size={16} />
-              Spectate Tournament
+              {trans('spectateTournament')}
             </button>
           )}
 
@@ -174,11 +177,11 @@ function TournamentModal({ t, onClose, isBmt }: { t: any; onClose: () => void; i
               },
               { label: 'Format', value: t.formatType?.replace(/_/g, ' ') },
               { label: 'Teams', value: `${t._count?.registrations || 0} / ${t.maxParticipants}` },
-              { label: 'Entry Fee', value: t.entryFee === 0 ? 'Free Entry' : `BDT ${t.entryFee.toLocaleString()}` },
-              { label: 'Prize Pool', value: t.prizePoolTotal > 0 ? `BDT ${t.prizePoolTotal.toLocaleString()}` : 'Trophy Only' },
-              ...(t.venue ? [{ label: 'Venue', value: t.venue }] : []),
-              ...(t.startDate ? [{ label: 'Starts', value: new Date(t.startDate).toLocaleDateString() }] : []),
-              ...(t.endDate ? [{ label: 'Ends', value: new Date(t.endDate).toLocaleDateString() }] : []),
+              { label: trans('entryFee'), value: t.entryFee === 0 ? trans('freeEntry') : `BDT ${t.entryFee.toLocaleString()}` },
+              { label: trans('prizePool'), value: t.prizePoolTotal > 0 ? `BDT ${t.prizePoolTotal.toLocaleString()}` : 'Trophy Only' },
+              ...(t.venue ? [{ label: trans('venue'), value: t.venue }] : []),
+              ...(t.startDate ? [{ label: trans('starts'), value: new Date(t.startDate).toLocaleDateString() }] : []),
+              ...(t.endDate ? [{ label: trans('ends'), value: new Date(t.endDate).toLocaleDateString() }] : []),
             ].map(item => (
               <div key={item.label} className="bg-zinc-900 border border-white/5 rounded-xl p-3">
                 <p className="text-[9px] font-black uppercase tracking-widest text-neutral-600 mb-0.5">{item.label}</p>
@@ -191,7 +194,7 @@ function TournamentModal({ t, onClose, isBmt }: { t: any; onClose: () => void; i
           {t._count?.registrations > 0 && (
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-3 flex items-center gap-2">
-                <Users size={12} /> Registered ({t._count.registrations})
+                <Users size={12} /> {trans('registered')} ({t._count.registrations})
               </p>
               <div className="flex flex-col gap-2">
                 {(t.registrations || []).map((r: any, i: number) => (
@@ -232,6 +235,7 @@ type OrgTab = 'bmt' | 'open';
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function TournamentsPage() {
+  const trans    = useTranslations('Tournaments');
   const router   = useRouter();
   const pathname = usePathname();
   const locale   = pathname.split('/')[1] || 'en';
@@ -260,19 +264,28 @@ export default function TournamentsPage() {
   const isBmt     = orgTab === 'bmt';
   const accent    = isBmt ? 'yellow' : 'violet';
 
+  const getBadgeLabel = (status: string) => {
+    if (status === 'ACTIVE') return `${trans('live')}`;
+    if (status === 'SCHEDULED') return `${trans('scheduled')}`;
+    if (status === 'AUCTION_LIVE') return `${trans('auction')}`;
+    if (status === 'REGISTRATION_CLOSED') return `${trans('closed')}`;
+    if (status === 'COMPLETED') return `${trans('completed')}`;
+    return status;
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground pb-28">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur-md border-b border-white/5 px-4 py-4 flex items-center gap-4">
         <button
           onClick={() => router.back()}
-          className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors"
+          className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer"
         >
           <ArrowLeft size={18} />
         </button>
         <div className="flex-1">
-          <h1 className="font-black text-xl tracking-tight">Tournaments</h1>
-          <p className="text-xs text-[var(--muted)] font-bold">Compete for prizes &amp; MMR</p>
+          <h1 className="font-black text-xl tracking-tight">{trans('title')}</h1>
+          <p className="text-xs text-[var(--muted)] font-bold">{trans('subtitle')}</p>
         </div>
         <div className="w-8 h-8 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center">
           <Trophy size={16} className="text-yellow-400" />
@@ -285,14 +298,14 @@ export default function TournamentsPage() {
         <div className="flex gap-2 bg-zinc-900 border border-white/10 rounded-2xl p-1">
           <button
             onClick={() => setOrgTab('bmt')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-black uppercase tracking-wider transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-black uppercase tracking-wider transition-all cursor-pointer ${
               orgTab === 'bmt'
                 ? 'bg-yellow-500 text-black shadow-md'
                 : 'text-neutral-500 hover:text-white'
             }`}
           >
             <Trophy size={15} />
-            BMT Official
+            {trans('official')}
             {bmtCount > 0 && (
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${orgTab === 'bmt' ? 'bg-black/20' : 'bg-white/10'}`}>
                 {bmtCount}
@@ -301,14 +314,14 @@ export default function TournamentsPage() {
           </button>
           <button
             onClick={() => setOrgTab('open')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-black uppercase tracking-wider transition-all ${
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-black uppercase tracking-wider transition-all cursor-pointer ${
               orgTab === 'open'
                 ? 'bg-violet-500 text-white shadow-md'
                 : 'text-neutral-500 hover:text-white'
             }`}
           >
             <ShieldCheck size={15} />
-            Open Circuit
+            {trans('openCircuit')}
             {openCount > 0 && (
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${orgTab === 'open' ? 'bg-white/20' : 'bg-white/10'}`}>
                 {openCount}
@@ -320,8 +333,8 @@ export default function TournamentsPage() {
         {/* Context blurb */}
         <p className="text-xs text-[var(--muted)] font-bold -mt-1">
           {isBmt
-            ? '🏅 Officially organized by BMT — verified prizes & highest integrity.'
-            : '🌐 Community-run tournaments organized by verified third-party organizers.'}
+            ? trans('verifiedPrizes')
+            : trans('communityRun')}
         </p>
 
         {/* ── Sport Filter ── */}
@@ -330,7 +343,7 @@ export default function TournamentsPage() {
             <button
               key={f}
               onClick={() => setSport(f)}
-              className={`shrink-0 px-4 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all ${
+              className={`shrink-0 px-4 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
                 sport === f
                   ? isBmt
                     ? 'bg-yellow-500 text-black'
@@ -338,7 +351,7 @@ export default function TournamentsPage() {
                   : 'bg-zinc-900 border border-white/10 text-[var(--muted)] hover:text-white'
               }`}
             >
-              {f === 'all' ? 'All Sports' : f}
+              {f === 'all' ? trans('allSports') : f}
             </button>
           ))}
         </div>
@@ -351,11 +364,11 @@ export default function TournamentsPage() {
         ) : filtered.length === 0 ? (
           <div className="py-24 text-center flex flex-col items-center">
             <Trophy size={56} className="text-neutral-800 mb-4" />
-            <h3 className="text-xl font-black text-white mb-2">No Tournaments</h3>
+            <h3 className="text-xl font-black text-white mb-2">{trans('noEvents')}</h3>
             <p className="text-neutral-500 font-bold text-sm">
               {isBmt
-                ? 'BMT has no active events right now. Check back soon!'
-                : 'No Open Circuit events yet. Community organizers coming soon!'}
+                ? trans('bmtNoEvents')
+                : trans('openNoEvents')}
             </p>
           </div>
         ) : (
@@ -367,7 +380,7 @@ export default function TournamentsPage() {
                 <button
                   key={t.id}
                   onClick={() => router.push(`/${locale}/tournaments/${t.id}`)}
-                  className={`relative w-full rounded-3xl overflow-hidden border ${
+                  className={`relative w-full rounded-3xl overflow-hidden border cursor-pointer ${
                     isBmt ? 'border-yellow-500/20 hover:border-yellow-500/40' : 'border-violet-500/20 hover:border-violet-500/40'
                   } bg-zinc-900 p-5 text-left group transition-all active:scale-[0.99]`}
                 >
@@ -396,7 +409,7 @@ export default function TournamentsPage() {
                           <RegPill t={t} />
                           {badge && (
                             <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${badge.className}`}>
-                              {badge.label}
+                              {getBadgeLabel(t.status)}
                             </span>
                           )}
                         </div>
@@ -432,12 +445,12 @@ export default function TournamentsPage() {
                     )}
                     <div className={`flex items-center gap-1.5 ${t.entryFee > 0 ? (isBmt ? 'text-yellow-400' : 'text-violet-400') : 'text-neutral-500'}`}>
                       <Banknote size={13} />
-                      <span>{t.entryFee > 0 ? `BDT ${t.entryFee.toLocaleString()} Entry` : 'Free Entry'}</span>
+                      <span>{t.entryFee > 0 ? `BDT ${t.entryFee.toLocaleString()} ${trans('entryFee')}` : trans('freeEntry')}</span>
                     </div>
                     {t.prizePoolTotal > 0 && (
                       <div className={`flex items-center gap-1.5 ml-auto ${isBmt ? 'text-yellow-400' : 'text-violet-400'}`}>
                         <Trophy size={13} />
-                        <span>BDT {t.prizePoolTotal.toLocaleString()} Pool</span>
+                        <span>BDT {t.prizePoolTotal.toLocaleString()} {trans('pool')}</span>
                       </div>
                     )}
                   </div>

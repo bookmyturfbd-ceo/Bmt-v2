@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 
 function CountdownUnit({ value, label }: { value: number; label: string }) {
   return (
@@ -13,6 +14,7 @@ function CountdownUnit({ value, label }: { value: number; label: string }) {
 }
 
 export default function BookComingSoonClient({ launchAt }: { launchAt: string }) {
+  const t = useTranslations('Book.comingSoon');
   const [ct, setCt] = useState({ d: 0, h: 0, m: 0, s: 0, done: false });
 
   useEffect(() => {
@@ -35,20 +37,26 @@ export default function BookComingSoonClient({ launchAt }: { launchAt: string })
   if (ct.done) {
     return (
       <div className="px-4 py-2 bg-accent/20 border border-accent/40 rounded-full text-accent font-black text-sm animate-pulse inline-block">
-        🚀 Launching now — refresh!
+        {t('launchingNow')}
       </div>
     );
   }
 
+  // We fallback to standard abbreviations if keys aren't in language dictionaries
+  const daysLabel = t('days') || 'Days';
+  const hrsLabel = t('hours') || 'Hrs';
+  const minLabel = t('minutes') || 'Min';
+  const secLabel = t('seconds') || 'Sec';
+
   return (
     <div className="flex items-end justify-center gap-3">
-      <CountdownUnit value={ct.d} label="Days" />
+      <CountdownUnit value={ct.d} label={daysLabel} />
       <span className="text-accent font-black text-2xl mb-4">:</span>
-      <CountdownUnit value={ct.h} label="Hrs" />
+      <CountdownUnit value={ct.h} label={hrsLabel} />
       <span className="text-accent font-black text-2xl mb-4">:</span>
-      <CountdownUnit value={ct.m} label="Min" />
+      <CountdownUnit value={ct.m} label={minLabel} />
       <span className="text-accent font-black text-2xl mb-4">:</span>
-      <CountdownUnit value={ct.s} label="Sec" />
+      <CountdownUnit value={ct.s} label={secLabel} />
     </div>
   );
 }

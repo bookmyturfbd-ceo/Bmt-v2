@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname } from '@/i18n/routing';
+import { useTranslations } from 'next-intl';
 import {
   Swords, ChevronLeft, Shield, Loader2, Trophy, Users, Flame,
   ChevronDown, X, CheckCircle, XCircle, Clock, ExternalLink,
@@ -24,6 +25,7 @@ const sportEmoji = (s: string) => s?.includes('CRICKET') ? '🏏' : '⚽';
 type MasterTab = 'discover' | 'active' | 'history';
 
 export default function MarketPage() {
+  const trans = useTranslations('Interact');
   const router   = useRouter();
   const pathname = usePathname();
   const locale   = pathname.split('/')[1] || 'en';
@@ -476,12 +478,12 @@ export default function MarketPage() {
       {/* ═══ TOP HEADER ═══ */}
       <header className="sticky top-0 z-40 bg-[#080808]/90 backdrop-blur-md border-b border-white/5 px-4 py-4">
         <div className="flex items-center gap-3 mb-4">
-          <button onClick={() => router.back()} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors shrink-0">
+          <button onClick={() => router.back()} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors shrink-0 cursor-pointer">
             <ChevronLeft size={18} />
           </button>
           <div className="flex items-center gap-2 flex-1">
             <Swords size={18} className="text-purple-400" />
-            <h1 className="font-black text-lg tracking-tight">Challenge Market</h1>
+            <h1 className="font-black text-lg tracking-tight">{trans('challengeMarket')}</h1>
           </div>
           {/* Active count badge */}
           {activeCards.length > 0 && (
@@ -495,9 +497,9 @@ export default function MarketPage() {
         {/* ── Master tabs — pill design ── */}
         <div className="flex gap-1.5 p-1 bg-white/5 border border-white/8 rounded-2xl">
           {([
-            ['discover', 'Discover', Swords],
-            ['active',   'Active',   Zap],
-            ['history',  'History',  History],
+            ['discover', trans('discover'), Swords],
+            ['active',   trans('active'),   Zap],
+            ['history',  trans('history'),  History],
           ] as const).map(([tab, label, Icon]) => {
             const isActive = masterTab === tab;
             const count = tab === 'active' ? activeCards.length : tab === 'history' ? vaultCards.length : null;
@@ -505,7 +507,7 @@ export default function MarketPage() {
               <button
                 key={tab}
                 onClick={() => setMasterTab(tab)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-black transition-all ${
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
                   isActive
                     ? 'bg-purple-600 text-white shadow-[0_0_16px_rgba(147,51,234,0.4)]'
                     : 'text-neutral-500 hover:text-white hover:bg-white/5'
@@ -540,7 +542,7 @@ export default function MarketPage() {
                   {scout.logoUrl ? <img src={scout.logoUrl} className="w-full h-full object-cover" /> : <Shield size={12} className="text-[#00ff41]" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[9px] text-neutral-600 font-bold uppercase tracking-widest leading-none mb-0.5">Scouting As</p>
+                  <p className="text-[9px] text-neutral-600 font-bold uppercase tracking-widest leading-none mb-0.5">{trans('scoutingAs')}</p>
                   <p className="text-[13px] font-black text-white leading-tight truncate">
                     {scout.name}{' '}
                     <span className="text-[10px] font-bold" style={{ color: sr.color }}>({sr.label})</span>
@@ -579,7 +581,7 @@ export default function MarketPage() {
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-500">🔍</span>
               <input
                 type="text"
-                placeholder="Search team by name or team code..."
+                placeholder={trans('discover') === 'খুঁজুন' ? 'টিমের নাম বা টিম কোড দিয়ে খুঁজুন...' : 'Search team by name or team code...'}
                 value={teamSearchQuery}
                 onChange={e => setTeamSearchQuery(e.target.value)}
                 className="w-full bg-[#111] border border-white/10 text-xs font-bold text-white rounded-xl pl-9 pr-4 py-3 outline-none transition-colors focus:border-[#00ff41]/50 placeholder:text-neutral-600"
@@ -593,10 +595,10 @@ export default function MarketPage() {
              <div className="flex-1 relative">
                 <button 
                   onClick={() => setShowSportMenu(true)}
-                  className="w-full bg-[#111] border border-white/10 text-[11px] font-black text-white rounded-xl px-3.5 py-3 flex items-center justify-between outline-none transition-colors hover:border-white/20"
+                  className="w-full bg-[#111] border border-white/10 text-[11px] font-black text-white rounded-xl px-3.5 py-3 flex items-center justify-between outline-none transition-colors hover:border-white/20 cursor-pointer"
                 >
                   <div className="flex items-center gap-2 truncate">
-                    <span>{sportFilter === 'ALL' ? 'All Sports' : `${sportEmoji(sportFilter)} ${sportName(sportFilter)}`}</span>
+                    <span>{sportFilter === 'ALL' ? (trans('discover') === 'খুঁজুন' ? 'সব খেলা' : 'All Sports') : `${sportEmoji(sportFilter)} ${sportName(sportFilter)}`}</span>
                   </div>
                   <ChevronDown size={14} className="text-neutral-500 shrink-0" />
                 </button>
@@ -606,11 +608,11 @@ export default function MarketPage() {
              <div className="flex-1 relative">
                 <button 
                   onClick={() => setShowRankMenu(true)}
-                  className="w-full bg-[#111] border border-white/10 text-[11px] font-black text-white rounded-xl px-3.5 py-3 flex items-center justify-between outline-none transition-colors hover:border-white/20"
+                  className="w-full bg-[#111] border border-white/10 text-[11px] font-black text-white rounded-xl px-3.5 py-3 flex items-center justify-between outline-none transition-colors hover:border-white/20 cursor-pointer"
                 >
                   <div className="flex items-center gap-2 truncate">
                     {divisionFilter !== 'ALL' && <img src={`/ranks/${divisionFilter}.svg`} className="w-4 h-4 object-contain shrink-0" />}
-                    <span>{divisionFilter === 'ALL' ? 'All Divisions' : divisionFilter}</span>
+                    <span>{divisionFilter === 'ALL' ? trans('allDivisions') : divisionFilter}</span>
                   </div>
                   <ChevronDown size={14} className="text-neutral-500 shrink-0" />
                 </button>
@@ -625,17 +627,17 @@ export default function MarketPage() {
               <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
               <div className="relative bg-[#0d0d0d] border-t border-white/10 rounded-t-3xl overflow-hidden flex flex-col max-h-[75vh]" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-5 pt-5 pb-3">
-                  <h3 className="text-lg font-black text-white">Select Sport format</h3>
-                  <button onClick={() => setShowSportMenu(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition">
+                  <h3 className="text-lg font-black text-white">{trans('discover') === 'খুঁজুন' ? 'খেলার ধরন নির্বাচন করুন' : 'Select Sport format'}</h3>
+                  <button onClick={() => setShowSportMenu(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition cursor-pointer">
                     <X size={16} className="text-neutral-400" />
                   </button>
                 </div>
                 <div className="overflow-y-auto px-4 pb-8 flex flex-col gap-2">
-                  <button onClick={() => {setSportFilter('ALL'); setShowSportMenu(false)}} className={`w-full py-4 px-5 rounded-2xl text-left border ${sportFilter === 'ALL' ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]' : 'border-white/5 bg-neutral-900 text-white'}`}>
-                    <span className="font-black text-sm">🌐 All Sports</span>
+                  <button onClick={() => {setSportFilter('ALL'); setShowSportMenu(false)}} className={`w-full py-4 px-5 rounded-2xl text-left border cursor-pointer ${sportFilter === 'ALL' ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]' : 'border-white/5 bg-neutral-900 text-white'}`}>
+                    <span className="font-black text-sm">🌐 {trans('discover') === 'খুঁজুন' ? 'সব খেলা' : 'All Sports'}</span>
                   </button>
                   {[['FUTSAL_5', '5-a-side Futsal'], ['FUTSAL_6', '6-a-side Futsal'], ['FUTSAL_7', '7-a-side Futsal'], ['CRICKET_7', '7-a-side Cricket'], ['FOOTBALL_FULL', 'Football (Full 11v11)'], ['CRICKET_FULL', 'Cricket (Full 11v11)']].map(([val, label]) => (
-                    <button key={val} onClick={() => {setSportFilter(val); setShowSportMenu(false)}} className={`w-full py-4 px-5 rounded-2xl text-left border flex items-center gap-3 ${sportFilter === val ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]' : 'border-white/5 bg-neutral-900 hover:bg-white/5 text-white'}`}>
+                    <button key={val} onClick={() => {setSportFilter(val); setShowSportMenu(false)}} className={`w-full py-4 px-5 rounded-2xl text-left border flex items-center gap-3 cursor-pointer ${sportFilter === val ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]' : 'border-white/5 bg-neutral-900 hover:bg-white/5 text-white'}`}>
                       <span className="text-lg">{sportEmoji(val)}</span>
                       <span className="font-black text-sm">{label}</span>
                     </button>
@@ -651,17 +653,17 @@ export default function MarketPage() {
               <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
               <div className="relative bg-[#0d0d0d] border-t border-white/10 rounded-t-3xl overflow-hidden flex flex-col max-h-[75vh]" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-5 pt-5 pb-3">
-                  <h3 className="text-lg font-black text-white">Select Division Target</h3>
-                  <button onClick={() => setShowRankMenu(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition">
+                  <h3 className="text-lg font-black text-white">{trans('discover') === 'খুঁজুন' ? 'ডিভিশন লক্ষ্য নির্বাচন করুন' : 'Select Division Target'}</h3>
+                  <button onClick={() => setShowRankMenu(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition cursor-pointer">
                     <X size={16} className="text-neutral-400" />
                   </button>
                 </div>
                 <div className="overflow-y-auto px-4 pb-8 flex flex-col gap-2">
-                  <button onClick={() => {setDivisionFilter('ALL'); setShowRankMenu(false)}} className={`w-full py-4 px-5 rounded-2xl text-left border ${divisionFilter === 'ALL' ? 'bg-purple-500/10 border-purple-500/30 text-purple-400' : 'border-white/5 bg-neutral-900 text-white'}`}>
-                    <span className="font-black text-sm">🌌 All Divisions</span>
+                  <button onClick={() => {setDivisionFilter('ALL'); setShowRankMenu(false)}} className={`w-full py-4 px-5 rounded-2xl text-left border cursor-pointer ${divisionFilter === 'ALL' ? 'bg-purple-500/10 border-purple-500/30 text-purple-400' : 'border-white/5 bg-neutral-900 text-white'}`}>
+                    <span className="font-black text-sm">🌌 {trans('allDivisions')}</span>
                   </button>
                   {['Bronze', 'Silver', 'Gold', 'Platinum', 'Legend'].map(div => (
-                    <button key={div} onClick={() => {setDivisionFilter(div); setShowRankMenu(false)}} className={`w-full py-4 px-5 rounded-2xl flex items-center gap-3 border transition ${divisionFilter === div ? 'bg-purple-500/10 border-purple-500/30 text-purple-400' : 'border-white/5 bg-neutral-900 hover:bg-white/5 text-white'}`}>
+                    <button key={div} onClick={() => {setDivisionFilter(div); setShowRankMenu(false)}} className={`w-full py-4 px-5 rounded-2xl flex items-center gap-3 border transition cursor-pointer ${divisionFilter === div ? 'bg-purple-500/10 border-purple-500/30 text-purple-400' : 'border-white/5 bg-neutral-900 hover:bg-white/5 text-white'}`}>
                       <img src={`/ranks/${div}.svg`} className="w-8 h-8 object-contain scale-125 ml-1" />
                       <span className="font-black text-md">{div} Division</span>
                     </button>
@@ -739,19 +741,19 @@ export default function MarketPage() {
                       {/* Action row */}
                       <div className="flex items-center justify-between pt-1 border-t border-white/5">
                         <button onClick={() => { setTeamDetailModal(t); setDetailTab('roster'); }}
-                          className="flex items-center gap-1.5 text-[11px] text-neutral-500 hover:text-purple-300 font-black transition-colors">
+                          className="flex items-center gap-1.5 text-[11px] text-neutral-500 hover:text-purple-300 font-black transition-colors cursor-pointer">
                           <Users size={12} /> Roster & History <ChevronDown size={11} />
                         </button>
                         <button
                           onClick={(e) => !isChallenged && handleChallengeAttempt(e, t)}
                           disabled={isChallenged}
-                          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all active:scale-95 ${
+                          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer active:scale-95 ${
                             isChallenged
                               ? 'bg-purple-900/40 border border-purple-600/40 text-purple-400 cursor-not-allowed'
                               : 'bg-[#00ff41] text-black hover:bg-[#00dd38] shadow-[0_0_16px_rgba(0,255,65,0.3)] hover:shadow-[0_0_24px_rgba(0,255,65,0.45)]'
                           }`}>
-                          <Swords size={13} />
-                          {isChallenged ? 'CHALLENGED' : 'CHALLENGE ⚔️'}
+                          <Swords size={13} strokeWidth={2.5} />
+                          {isChallenged ? trans('challenged') : trans('challenge')}
                         </button>
                       </div>
                     </div>
@@ -762,8 +764,8 @@ export default function MarketPage() {
               {!loading && filteredTeams.length === 0 && (
                 <div className="py-20 text-center flex flex-col items-center gap-3">
                   <Swords size={36} className="text-neutral-700" />
-                  <p className="text-neutral-500 font-black text-sm">No opponents found</p>
-                  <p className="text-neutral-700 text-xs">Try a different sport or division filter.</p>
+                  <p className="text-neutral-500 font-black text-sm">{trans('noOpponents')}</p>
+                  <p className="text-neutral-700 text-xs">{trans('tryFilters')}</p>
                 </div>
               )}
             </div>
@@ -785,11 +787,11 @@ export default function MarketPage() {
               <div className="w-16 h-16 rounded-2xl bg-white/3 border border-white/8 flex items-center justify-center">
                 <Swords size={28} className="text-neutral-600" />
               </div>
-              <p className="font-black text-neutral-400">No active challenges</p>
-              <p className="text-xs text-neutral-600 max-w-[200px]">Head to Discover to challenge a rival team!</p>
+              <p className="font-black text-neutral-400">{trans('noActiveChallenges')}</p>
+              <p className="text-xs text-neutral-600 max-w-[200px]">{trans('activeInstructions')}</p>
               <button onClick={() => setMasterTab('discover')}
-                className="mt-2 px-5 py-2.5 bg-purple-600 text-white font-black rounded-xl text-sm hover:bg-purple-500 transition-colors">
-                Browse Teams →
+                className="mt-2 px-5 py-2.5 bg-purple-600 text-white font-black rounded-xl text-sm hover:bg-purple-500 transition-colors cursor-pointer active:scale-95">
+                {trans('browseTeams')}
               </button>
             </div>
           )}

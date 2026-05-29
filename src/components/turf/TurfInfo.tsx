@@ -30,7 +30,7 @@ export default function TurfInfo({ turf }: { turf: any }) {
           {turf.mapLink && (
             <a href={turf.mapLink} target="_blank" rel="noopener noreferrer" 
                className="ml-6 inline-flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors w-fit">
-              <span className="underline underline-offset-2">Open in Google Maps</span> ↗
+              <span className="underline underline-offset-2">{t('openInMaps')}</span> ↗
             </a>
           )}
         </div>
@@ -54,7 +54,7 @@ export default function TurfInfo({ turf }: { turf: any }) {
         {turf.rules && (
           <button onClick={() => setShowRules(true)} className="flex items-center gap-2 px-4 py-3 bg-orange-500/10 border border-orange-500/20 rounded-xl text-orange-400 w-full hover:bg-orange-500/20 transition-colors">
             <FileText size={16} />
-            <span className="text-sm font-bold">House Rules & Terms</span>
+            <span className="text-sm font-bold">{t('houseRules')}</span>
           </button>
         )}
       </div>
@@ -66,7 +66,7 @@ export default function TurfInfo({ turf }: { turf: any }) {
           <div className="relative w-full max-w-sm glass border border-white/10 rounded-3xl p-6 shadow-2xl flex flex-col max-h-[80vh]">
             <div className="flex items-center justify-between mb-4 shrink-0">
               <h3 className="text-lg font-black text-white flex items-center gap-2">
-                <FileText size={20} className="text-accent" /> House Rules
+                <FileText size={20} className="text-accent" /> {t('rulesTitle')}
               </h3>
               <button onClick={() => setShowRules(false)} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20">
                 <X size={16} />
@@ -77,7 +77,7 @@ export default function TurfInfo({ turf }: { turf: any }) {
             </div>
             <div className="mt-6 pt-4 border-t border-white/10 shrink-0">
               <button onClick={() => setShowRules(false)} className="w-full py-3 bg-accent text-black font-black rounded-xl">
-                I Agree
+                {t('agree')}
               </button>
             </div>
           </div>

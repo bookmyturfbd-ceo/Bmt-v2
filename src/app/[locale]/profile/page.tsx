@@ -2,6 +2,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getCookie } from '@/lib/cookies';
 import { Link } from '@/i18n/routing';
+import { useTranslations } from 'next-intl';
+import { useParams } from 'next/navigation';
 import {
   LogIn, UserPlus, LogOut, User, Calendar, Wallet, Shield,
   ChevronRight, Crown, Star, Phone, Mail, Hash, CalendarCheck2,
@@ -85,23 +87,24 @@ function slotHours(s: Slot) {
 
 // ─── Guest gate ───────────────────────────────────────────────────────────────
 function GuestProfile() {
+  const t = useTranslations('Profile');
   return (
     <div className="min-h-screen bg-background flex flex-col pb-20">
-      <div className="px-5 pt-12 pb-6"><h1 className="text-2xl font-black tracking-tight">Profile</h1></div>
+      <div className="px-5 pt-12 pb-6"><h1 className="text-2xl font-black tracking-tight">{t('title')}</h1></div>
       <div className="mx-4 glass-panel border border-[var(--panel-border)] rounded-3xl p-8 flex flex-col items-center gap-5 text-center">
         <div className="w-20 h-20 rounded-full bg-white/5 border-2 border-dashed border-white/20 flex items-center justify-center">
           <User size={32} className="text-neutral-600" />
         </div>
         <div>
-          <h2 className="text-xl font-black">You're not signed in</h2>
-          <p className="text-sm text-[var(--muted)] mt-1 leading-relaxed">Sign in to view your bookings, wallet, and manage your account.</p>
+          <h2 className="text-xl font-black">{t('notSignedIn')}</h2>
+          <p className="text-sm text-[var(--muted)] mt-1 leading-relaxed">{t('notSignedInDesc')}</p>
         </div>
         <div className="flex flex-col w-full gap-3">
           <Link href="/login" className="w-full py-3.5 rounded-2xl bg-accent text-black font-black text-sm flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all shadow-[0_4px_20px_rgba(0,255,65,0.2)]">
-            <LogIn size={16} /> Sign In
+            <LogIn size={16} /> {t('signIn')}
           </Link>
           <Link href="/register" className="w-full py-3.5 rounded-2xl bg-white/5 border border-white/10 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-white/10 transition-all">
-            <UserPlus size={16} /> Create Account
+            <UserPlus size={16} /> {t('createAccount')}
           </Link>
         </div>
       </div>
@@ -111,6 +114,10 @@ function GuestProfile() {
 
 // ─── Main Profile Page ────────────────────────────────────────────────────────
 export default function ProfilePage() {
+  const t = useTranslations('Profile');
+  const params = useParams();
+  const locale = (params?.locale as string) || 'en';
+
   const [isAuthed, setIsAuthed] = useState<boolean | null>(null);
   const [playerId, setPlayerId] = useState('');
   const [profile, setProfile]   = useState<PlayerProfile | null>(null);
@@ -179,8 +186,8 @@ export default function ProfilePage() {
       <div className="max-w-sm w-full glass-panel border border-red-500/30 rounded-3xl p-8 flex flex-col items-center gap-5 text-center">
         <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center"><AlertTriangle size={28} className="text-red-400" /></div>
         <div>
-          <h2 className="text-xl font-black text-red-400">Account Permanently Banned</h2>
-          <p className="text-sm text-neutral-400 mt-2">Your account has been permanently suspended. Contact support for assistance.</p>
+          <h2 className="text-xl font-black text-red-400">{t('bannedPerma')}</h2>
+          <p className="text-sm text-neutral-400 mt-2">{t('bannedPermaDesc')}</p>
         </div>
       </div>
     </div>
@@ -191,8 +198,10 @@ export default function ProfilePage() {
       <div className="max-w-sm w-full glass-panel border border-orange-500/30 rounded-3xl p-8 flex flex-col items-center gap-5 text-center">
         <div className="w-16 h-16 rounded-2xl bg-orange-500/10 border border-orange-500/30 flex items-center justify-center"><AlertTriangle size={28} className="text-orange-400" /></div>
         <div>
-          <h2 className="text-xl font-black text-orange-400">Account Temporarily Suspended</h2>
-          <p className="text-sm text-neutral-400 mt-2">Your account is suspended until <span className="font-black text-white">{new Date(profile.banUntil).toLocaleDateString('en-BD')}</span>. You can still browse.</p>
+          <h2 className="text-xl font-black text-orange-400">{t('bannedSoft')}</h2>
+          <p className="text-sm text-neutral-400 mt-2">
+            {t('bannedSoftDesc', { date: new Date(profile.banUntil).toLocaleDateString(locale === 'bn' ? 'bn-BD' : 'en-BD') })}
+          </p>
         </div>
       </div>
     </div>
@@ -281,7 +290,7 @@ export default function ProfilePage() {
 
   const logout = () => {
     ['bmt_auth', 'bmt_role', 'bmt_player_id', 'bmt_name'].forEach(k => { document.cookie = `${k}=; path=/; max-age=0`; });
-    window.location.href = '/en';
+    window.location.href = '/' + locale;
   };
 
   const toggleBadgeShowcase = async (badgeId: string, currentlyShowcased: boolean) => {
@@ -309,9 +318,9 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-background flex flex-col pb-28">
       {/* Header */}
       <div className="px-5 pt-12 pb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-black tracking-tight">Profile</h1>
+        <h1 className="text-2xl font-black tracking-tight">{t('title')}</h1>
         <button onClick={logout} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-[var(--muted)] hover:text-white transition-all">
-          <LogOut size={12} /> Sign Out
+          <LogOut size={12} /> {t('signOut')}
         </button>
       </div>
 
@@ -352,7 +361,7 @@ export default function ProfilePage() {
                   </p>
                   {profile.playerCode && (
                     <div className="inline-flex items-center gap-1.5 self-start px-2 py-0.5 rounded-lg bg-accent/10 border border-accent/30 text-[10px] font-black text-accent tracking-wider uppercase">
-                      Code: {profile.playerCode}
+                      {t('code')}: {profile.playerCode}
                     </div>
                   )}
                 </div>
@@ -364,13 +373,13 @@ export default function ProfilePage() {
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-accent/10 border border-accent/30">
               <Wallet size={13} className="text-accent" />
               <span className="text-sm font-black text-accent">৳{balance.toLocaleString()}</span>
-              <span className="text-[9px] font-bold text-accent/60">BDT</span>
+              <span className="text-[9px] font-bold text-accent/60">{t('bdt')}</span>
             </div>
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
-              <Star size={12} className="text-yellow-400" fill="currentColor" /><span className="text-sm font-black text-yellow-400">{lp}</span><span className="text-[9px] font-bold text-yellow-400/60">LP</span>
+              <Star size={12} className="text-yellow-400" fill="currentColor" /><span className="text-sm font-black text-yellow-400">{lp}</span><span className="text-[9px] font-bold text-yellow-400/60">{t('lp')}</span>
             </div>
             <div className="flex items-center gap-2 flex-1 min-w-[120px]">
-              <span className="text-[10px] font-black text-[var(--muted)] whitespace-nowrap">LVL {level}</span>
+              <span className="text-[10px] font-black text-[var(--muted)] whitespace-nowrap">{t('lvl')} {level}</span>
               <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
                 <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${progress}%` }} />
               </div>
@@ -381,9 +390,9 @@ export default function ProfilePage() {
           {/* Stats Pills (MOVED UP) */}
           <div className="flex gap-2 flex-wrap">
             {[
-              { label: 'Bookings', value: String(myBookings.length), icon: CalendarCheck2, color: 'text-accent' },
-              { label: 'Spent',    value: `৳${totalSpent.toLocaleString()}`, icon: Banknote, color: 'text-accent' },
-              { label: 'Time',     value: `${Math.round(totalMinutes)} min`, icon: Clock, color: 'text-blue-400' },
+              { label: t('bookings'), value: String(myBookings.length), icon: CalendarCheck2, color: 'text-accent' },
+              { label: t('spent'),    value: `৳${totalSpent.toLocaleString()}`, icon: Banknote, color: 'text-accent' },
+              { label: t('time'),     value: `${Math.round(totalMinutes)} ${locale === 'bn' ? 'মিনিট' : 'min'}`, icon: Clock, color: 'text-blue-400' },
             ].map(({ label, value, icon: Icon, color }) => (
               <div key={label} className="bg-white/[0.02] border border-white/5 rounded-2xl px-3 py-2 flex items-center gap-2 flex-1 min-w-[90px]">
                 <Icon size={13} className={color} />
@@ -395,8 +404,8 @@ export default function ProfilePage() {
           {/* Tabbed Badges layout */}
           <div className="flex flex-col gap-4 mt-2">
             <div className="flex border-b border-white/10">
-               <button onClick={() => setRankTab('RANK')} className={`flex-1 py-3 text-xs font-black uppercase tracking-widest border-b-2 transition-colors ${rankTab === 'RANK' ? 'border-accent text-accent' : 'border-transparent text-[var(--muted)] hover:text-white'}`}>Rank Match</button>
-               <button onClick={() => setRankTab('TOURNAMENT')} className={`flex-1 py-3 text-xs font-black uppercase tracking-widest border-b-2 transition-colors ${rankTab === 'TOURNAMENT' ? 'border-accent text-accent' : 'border-transparent text-[var(--muted)] hover:text-white'}`}>Tournament</button>
+               <button onClick={() => setRankTab('RANK')} className={`flex-1 py-3 text-xs font-black uppercase tracking-widest border-b-2 transition-colors ${rankTab === 'RANK' ? 'border-accent text-accent' : 'border-transparent text-[var(--muted)] hover:text-white'}`}>{t('rankMatch')}</button>
+               <button onClick={() => setRankTab('TOURNAMENT')} className={`flex-1 py-3 text-xs font-black uppercase tracking-widest border-b-2 transition-colors ${rankTab === 'TOURNAMENT' ? 'border-accent text-accent' : 'border-transparent text-[var(--muted)] hover:text-white'}`}>{t('tournament')}</button>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -416,7 +425,7 @@ export default function ProfilePage() {
             {/* dynamic teams list */}
             {rankTab === 'RANK' && rankTeams.length > 0 && (
                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-3 flex flex-col gap-2 relative overflow-hidden group">
-                 <p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)] px-1 mb-1">Rank Teams</p>
+                 <p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)] px-1 mb-1">{t('rankTeams')}</p>
                  <div className="flex flex-col gap-1.5">
                    {rankTeams.map((t: any) => (
                      <div key={t.id} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5">
@@ -426,7 +435,7 @@ export default function ProfilePage() {
                           <span className="text-xs font-bold text-white truncate leading-tight">{t.name}</span>
                         </div>
                         {t.isSubscribed || t.challengeSubscription?.active ? (
-                          <span className="text-[9px] font-black uppercase text-fuchsia-400 bg-fuchsia-500/10 px-2 py-1 rounded-md border border-fuchsia-500/20 shrink-0 shadow-[0_0_10px_rgba(255,0,255,0.1)]">Listed</span>
+                          <span className="text-[9px] font-black uppercase text-fuchsia-400 bg-fuchsia-500/10 px-2 py-1 rounded-md border border-fuchsia-500/20 shrink-0 shadow-[0_0_10px_rgba(255,0,255,0.1)]">{t('listed')}</span>
                         ) : null}
                      </div>
                    ))}
@@ -435,7 +444,7 @@ export default function ProfilePage() {
             )}
             {rankTab === 'TOURNAMENT' && tourneyTeams.length > 0 && (
                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-3 flex flex-col gap-2 relative overflow-hidden group">
-                 <p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)] px-1 mb-1">Tournament Teams</p>
+                 <p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)] px-1 mb-1">{t('tournamentTeams')}</p>
                  <div className="flex flex-col gap-1.5">
                    {tourneyTeams.map((t: any) => (
                      <div key={t.id} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5">
@@ -495,39 +504,39 @@ export default function ProfilePage() {
                 return (
                   <>
                     <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
-                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Matches</p>
+                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">{t('matches')}</p>
                       <p className="text-xl font-black text-white">{matches}</p>
                     </div>
                     <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
-                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Runs</p>
+                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">{t('runs')}</p>
                       <p className="text-xl font-black text-amber-400">{runs}</p>
                     </div>
                     <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
-                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Strike Rate</p>
+                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">{t('strikeRate')}</p>
                       <p className="text-xl font-black text-white">{sr}</p>
                     </div>
                     <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
-                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Wickets</p>
+                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">{t('wickets')}</p>
                       <p className="text-xl font-black text-rose-400">{wickets}</p>
                     </div>
                     <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
-                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Economy</p>
+                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">{t('economy')}</p>
                       <p className="text-xl font-black text-white">{economy}</p>
                     </div>
                     <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
-                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Form (MMR)</p>
+                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">{t('form')}</p>
                       <p className={`text-xl font-black ${mmrDelta >= 0 ? 'text-green-400' : mmrDelta < 0 ? 'text-red-400' : 'text-white'}`}>{mmrDelta > 0 ? '+' : ''}{mmrDelta}</p>
                     </div>
                     {rankTab === 'TOURNAMENT' && (
                       <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
-                        <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Peak Finish</p>
+                        <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">{t('peakFinish')}</p>
                         <p className={`text-xl font-black ${peakFinish === 1 ? 'text-yellow-400' : peakFinish === 2 ? 'text-slate-300' : peakFinish === 3 ? 'text-amber-600' : 'text-white'}`}>
                           {peakFinish ? `${peakFinish === 1 ? '🏆' : peakFinish === 2 ? '🥈' : peakFinish === 3 ? '🥉' : ''}${ordinal(peakFinish)}` : '—'}
                         </p>
                       </div>
                     )}
                     <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
-                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Badges</p>
+                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">{t('badges')}</p>
                       <p className="text-xl font-black text-yellow-400">{badgesCount}</p>
                     </div>
                   </>
@@ -540,31 +549,31 @@ export default function ProfilePage() {
                 return (
                   <>
                     <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
-                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Matches</p>
+                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">{t('matches')}</p>
                       <p className="text-xl font-black text-white">{matches}</p>
                     </div>
                     <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
-                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Goals</p>
+                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">{t('goals')}</p>
                       <p className="text-xl font-black text-sky-400">{goals}</p>
                     </div>
                     <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
-                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Assists</p>
+                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">{t('assists')}</p>
                       <p className="text-xl font-black text-indigo-400">{assists}</p>
                     </div>
                     <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
-                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Form (MMR)</p>
+                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">{t('form')}</p>
                       <p className={`text-xl font-black ${mmrDelta >= 0 ? 'text-green-400' : mmrDelta < 0 ? 'text-red-400' : 'text-white'}`}>{mmrDelta > 0 ? '+' : ''}{mmrDelta}</p>
                     </div>
                     {rankTab === 'TOURNAMENT' && (
                       <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
-                        <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Peak Finish</p>
+                        <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">{t('peakFinish')}</p>
                         <p className={`text-xl font-black ${peakFinish === 1 ? 'text-yellow-400' : peakFinish === 2 ? 'text-slate-300' : peakFinish === 3 ? 'text-amber-600' : 'text-white'}`}>
                           {peakFinish ? `${peakFinish === 1 ? '🏆' : peakFinish === 2 ? '🥈' : peakFinish === 3 ? '🥉' : ''}${ordinal(peakFinish)}` : '—'}
                         </p>
                       </div>
                     )}
                     <div className="flex-1 min-w-[30%] bg-white/5 rounded-2xl p-3 border border-white/5">
-                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">Badges</p>
+                      <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest mb-1">{t('badges')}</p>
                       <p className="text-xl font-black text-yellow-400">{badgesCount}</p>
                     </div>
                   </>
@@ -579,9 +588,9 @@ export default function ProfilePage() {
         <div className="px-4 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center"><Star size={13} className="text-yellow-400" /></div>
-            <p className="font-black text-sm">Badge Showcase</p>
+            <p className="font-black text-sm">{t('badgeShowcase')}</p>
           </div>
-          <span className="text-[10px] text-[var(--muted)] font-bold">{showcasedBadges.length}/3 slots</span>
+          <span className="text-[10px] text-[var(--muted)] font-bold">{showcasedBadges.length}/3 {t('slots')}</span>
         </div>
         <div className="border-t border-white/5 px-4 py-5 flex gap-3 items-center justify-center">
           {[0, 1, 2].map(i => {
@@ -598,18 +607,18 @@ export default function ProfilePage() {
             );
           })}
         </div>
-        <div className="pb-3 text-center text-[10px] text-[var(--muted)]">Tap to manage your showcased badges</div>
+        <div className="pb-3 text-center text-[10px] text-[var(--muted)]">{t('tapManageShowcase')}</div>
       </div>
 
       {/* ── Hall of Fame ── */}
       <div className="mx-4 mt-4 glass-panel border border-[var(--panel-border)] rounded-2xl overflow-hidden">
         <div className="px-4 py-3.5 flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center"><Crown size={13} className="text-orange-400" /></div>
-          <p className="font-black text-sm">Hall of Fame</p>
+          <p className="font-black text-sm">{t('hallOfFame')}</p>
         </div>
         <div className="border-t border-white/5 px-4 py-8 flex flex-col items-center gap-3 text-center">
           <Crown size={32} className="text-yellow-500/40" />
-          <p className="text-sm text-[var(--muted)] leading-relaxed max-w-[240px]">Finish in the top 3 of a season to earn your Hall of Fame badge</p>
+          <p className="text-sm text-[var(--muted)] leading-relaxed max-w-[240px]">{t('hallOfFameDesc')}</p>
         </div>
       </div>
 
@@ -619,23 +628,23 @@ export default function ProfilePage() {
           className="w-full flex items-center justify-between px-4 py-3.5">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center"><User size={13} className="text-[var(--muted)]" /></div>
-            <p className="font-black text-sm">Account Details</p>
+            <p className="font-black text-sm">{t('accountDetails')}</p>
           </div>
           <ChevronRight size={14} className={`text-[var(--muted)] transition-transform ${expanded === 'account' ? 'rotate-90' : ''}`} />
         </button>
         {expanded === 'account' && profile && (
           <div className="border-t border-white/5 px-4 py-4 flex flex-col gap-3">
             {[
-              { icon: User,     label: 'Full Name', value: profile.fullName, editable: true },
-              { icon: Mail,     label: 'Email',     value: profile.email,    locked: true },
-              { icon: Phone,    label: 'Phone',     value: profile.phone || '—', locked: true },
-              { icon: Hash,     label: 'Player ID', value: profile.id.toUpperCase() },
-              { icon: Calendar, label: 'Joined',    value: profile.joinedAt },
+              { icon: User,     label: t('fullName'), value: profile.fullName, editable: true },
+              { icon: Mail,     label: t('email'),     value: profile.email,    locked: true },
+              { icon: Phone,    label: t('phone'),     value: profile.phone || '—', locked: true },
+              { icon: Hash,     label: t('playerId'), value: profile.id.toUpperCase() },
+              { icon: Calendar, label: t('joined'),    value: profile.joinedAt },
             ].map(({ icon: Icon, label, value, locked, editable }) => (
               <div key={label} className="flex items-center gap-3">
                 <Icon size={14} className="text-[var(--muted)] shrink-0" />
                 <div className="flex-1 min-w-0"><p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)]">{label}</p><p className="text-sm font-bold truncate">{value}</p></div>
-                {locked   && <span className="text-[9px] text-[var(--muted)] bg-white/5 px-1.5 py-0.5 rounded-md">Locked</span>}
+                {locked   && <span className="text-[9px] text-[var(--muted)] bg-white/5 px-1.5 py-0.5 rounded-md">{t('locked')}</span>}
                 {editable && <button onClick={() => { setEditName(value); setIsEditing(true); setExpanded(null); }} className="text-[var(--muted)] hover:text-accent transition-colors"><Edit3 size={12} /></button>}
               </div>
             ))}

@@ -1,9 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { MapPin, Bell, UserCircle, Sun, Moon } from 'lucide-react';
-import { useTheme } from 'next-themes';
-import { Link } from '@/i18n/routing';
+import { MapPin, Bell, UserCircle, Globe } from 'lucide-react';
+import { Link, usePathname, useRouter } from '@/i18n/routing';
+import { useParams } from 'next/navigation';
 import { getCookie } from '@/lib/cookies';
 
 export default function HomeHeader({ initialAuth = false }: { initialAuth?: boolean }) {
@@ -11,7 +11,10 @@ export default function HomeHeader({ initialAuth = false }: { initialAuth?: bool
   const [initials, setInitials] = useState('');
   const [isAuthed, setIsAuthed]  = useState(initialAuth);
   const [avatar, setAvatar]      = useState('');
-  const { theme, setTheme } = useTheme();
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useParams();
+  const locale = params.locale as string;
   const [mounted, setMounted] = useState(false);
   const [userLocation, setUserLocation] = useState<string | null>(null);
 
@@ -117,12 +120,50 @@ export default function HomeHeader({ initialAuth = false }: { initialAuth?: bool
       </div>
 
       <div className="flex items-center gap-3">
-        <button 
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className="relative p-2 rounded-full glass hover:border-accent/50 hover:bg-white/10 transition-colors pointer-events-auto z-10"
+        <div 
+          className="relative flex items-center p-[2px] rounded-full bg-slate-900/10 dark:bg-white/5 border border-slate-900/5 dark:border-white/5 font-mono select-none w-[78px] h-[32px] shadow-inner pointer-events-auto z-10 shrink-0"
+          aria-label="Select Language"
         >
-          {mounted && theme === 'dark' ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className="text-[var(--foreground)]" />}
-        </button>
+          {/* Sliding background pill */}
+          <div 
+            className="absolute top-[2px] bottom-[2px] left-[2px] w-[35px] rounded-full bg-accent transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-sm"
+            style={{
+              transform: locale === 'bn' ? 'translateX(35px)' : 'translateX(0px)'
+            }}
+          />
+          
+          {/* Option 'EN' */}
+          <button 
+            onClick={() => {
+              if (locale !== 'en') {
+                router.replace(pathname, { locale: 'en' });
+              }
+            }}
+            className={`relative z-10 w-[35px] h-full text-center font-black text-[10px] tracking-wide transition-colors duration-300 cursor-pointer flex items-center justify-center ${
+              locale === 'en' 
+                ? 'text-black dark:text-black' 
+                : 'text-slate-500 dark:text-neutral-400 hover:text-slate-800 dark:hover:text-white'
+            }`}
+          >
+            EN
+          </button>
+          
+          {/* Option 'BN' */}
+          <button 
+            onClick={() => {
+              if (locale !== 'bn') {
+                router.replace(pathname, { locale: 'bn' });
+              }
+            }}
+            className={`relative z-10 w-[35px] h-full text-center font-black text-[10px] tracking-wide transition-colors duration-300 cursor-pointer flex items-center justify-center ${
+              locale === 'bn' 
+                ? 'text-black dark:text-black' 
+                : 'text-slate-500 dark:text-neutral-400 hover:text-slate-800 dark:hover:text-white'
+            }`}
+          >
+            BN
+          </button>
+        </div>
 
         {isAuthed ? (
           <>
@@ -144,7 +185,7 @@ export default function HomeHeader({ initialAuth = false }: { initialAuth?: bool
           </>
         ) : (
           <Link href="/login" className="px-5 py-2 rounded-xl bg-accent text-black font-black text-sm tracking-wide hover:brightness-110 active:scale-95 transition-all shadow-md">
-            Login
+            {t('login')}
           </Link>
         )}
       </div>

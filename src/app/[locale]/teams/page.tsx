@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { Users, Plus, Camera, X, Loader2, ChevronRight, Shield, Trophy, Swords } from 'lucide-react';
 import { uploadFileToCDN } from '@/lib/supabase';
 import { Link } from '@/i18n/routing';
@@ -50,6 +51,7 @@ function CreateTeamModal({
   onCreated: () => void;
   defaultType: TeamType;
 }) {
+  const trans = useTranslations('Teams');
   const [name,      setName]      = useState('');
   const [sport,     setSport]     = useState('');
   const [teamType,  setTeamType]  = useState<TeamType>(defaultType);
@@ -95,8 +97,8 @@ function CreateTeamModal({
         <div className={`h-1 w-full bg-gradient-to-r ${isTournament ? 'from-amber-500/0 via-amber-400 to-amber-500/0' : 'from-accent/0 via-accent to-accent/0'}`} />
         <div className="p-6 flex flex-col gap-5">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-black">Create New Team</h2>
-            <button onClick={onClose} className="w-8 h-8 rounded-full bg-[var(--panel-bg)] border border-[var(--panel-border)] flex items-center justify-center">
+            <h2 className="text-lg font-black">{trans('newTeam')}</h2>
+            <button onClick={onClose} className="w-8 h-8 rounded-full bg-[var(--panel-bg)] border border-[var(--panel-border)] flex items-center justify-center cursor-pointer">
               <X size={14} />
             </button>
           </div>
@@ -107,7 +109,7 @@ function CreateTeamModal({
               <button
                 key={type}
                 onClick={() => setTeamType(type)}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border-2 text-xs font-black transition-all ${
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border-2 text-xs font-black transition-all cursor-pointer ${
                   teamType === type
                     ? type === 'TOURNAMENT'
                       ? 'bg-amber-500/15 border-amber-400/60 text-amber-300'
@@ -116,7 +118,7 @@ function CreateTeamModal({
                 }`}
               >
                 {type === 'TOURNAMENT' ? <Trophy size={13} /> : <Swords size={13} />}
-                {type === 'REGULAR' ? 'Regular' : 'Tournament'}
+                {type === 'REGULAR' ? trans('regular') : trans('tournament')}
               </button>
             ))}
           </div>
@@ -126,8 +128,8 @@ function CreateTeamModal({
             isTournament ? 'bg-amber-500/8 border border-amber-500/20 text-amber-300' : 'bg-accent/5 border border-accent/15 text-accent/80'
           }`}>
             {isTournament
-              ? '🏆 Tournament teams participate in organised competitions only. They do not appear in the Challenge Market.'
-              : '⚔️ Rank teams compete in the Challenge Market and can challenge other teams to matches.'}
+              ? trans('tournamentTeamsContext')
+              : trans('regularTeamsContext')}
           </div>
 
           {/* Logo upload */}
@@ -135,7 +137,7 @@ function CreateTeamModal({
             <button
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
-              className="relative w-24 h-24 rounded-3xl bg-[var(--panel-bg)] border-2 border-dashed border-[var(--panel-border)] hover:border-accent/50 transition-all overflow-hidden flex items-center justify-center group"
+              className="relative w-24 h-24 rounded-3xl bg-[var(--panel-bg)] border-2 border-dashed border-[var(--panel-border)] hover:border-accent/50 transition-all overflow-hidden flex items-center justify-center group cursor-pointer"
             >
               {uploading ? (
                 <Loader2 size={22} className="text-accent animate-spin" />
@@ -144,7 +146,7 @@ function CreateTeamModal({
               ) : (
                 <div className="flex flex-col items-center gap-1.5 text-[var(--muted)] group-hover:text-accent transition-colors">
                   <Camera size={22} />
-                  <span className="text-[10px] font-bold">Upload Logo</span>
+                  <span className="text-[10px] font-bold">{trans('uploadLogo')}</span>
                 </div>
               )}
             </button>
@@ -154,7 +156,7 @@ function CreateTeamModal({
 
           {/* Team name */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-bold uppercase tracking-widest text-[var(--muted)]">Team Name</label>
+            <label className="text-[11px] font-bold uppercase tracking-widest text-[var(--muted)]">{trans('teamName')}</label>
             <input
               value={name}
               onChange={e => setName(e.target.value)}
@@ -166,13 +168,13 @@ function CreateTeamModal({
 
           {/* Sport selection */}
           <div className="flex flex-col gap-2">
-            <label className="text-[11px] font-bold uppercase tracking-widest text-[var(--muted)]">Sport</label>
+            <label className="text-[11px] font-bold uppercase tracking-widest text-[var(--muted)]">{trans('sport')}</label>
             <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
               {COMPETITIVE_MODES.map(s => (
                 <button
                   key={s.id}
                   onClick={() => setSport(s.id)}
-                  className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 text-sm font-bold transition-all text-left ${
+                  className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 text-sm font-bold transition-all text-left cursor-pointer ${
                     sport === s.id
                       ? 'bg-accent/10 border-accent text-accent'
                       : 'bg-[var(--panel-bg)] border-[var(--panel-border)] text-foreground hover:border-accent/30'
@@ -195,14 +197,14 @@ function CreateTeamModal({
           <button
             onClick={submit}
             disabled={saving || uploading || !name.trim() || !sport}
-            className={`flex items-center justify-center gap-2 py-3.5 font-black text-sm rounded-2xl transition-all disabled:opacity-40 ${
+            className={`flex items-center justify-center gap-2 py-3.5 font-black text-sm rounded-2xl transition-all disabled:opacity-40 cursor-pointer ${
               isTournament
                 ? 'bg-amber-400 text-black hover:brightness-110 shadow-[0_4px_20px_rgba(251,191,36,0.3)]'
                 : 'bg-accent text-black hover:brightness-110 shadow-[0_4px_20px_rgba(0,255,65,0.3)]'
             }`}
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} strokeWidth={3} />}
-            {saving ? 'Creating…' : `Create ${isTournament ? 'Tournament' : 'Regular'} Team`}
+            {saving ? trans('creating') : trans('createTeam')}
           </button>
         </div>
       </div>
@@ -212,6 +214,7 @@ function CreateTeamModal({
 
 // ── Team Card ─────────────────────────────────────────────────────────────────
 function TeamCard({ team }: { team: Team }) {
+  const trans = useTranslations('Teams');
   const isTournament = team.teamType === 'TOURNAMENT';
   return (
     <Link
@@ -245,10 +248,10 @@ function TeamCard({ team }: { team: Team }) {
               ? 'bg-accent/10 border-accent/30 text-accent'
               : 'bg-[var(--panel-bg)] border-[var(--panel-border)] text-[var(--muted)]'
           }`}>
-            {team.myRole === 'owner' ? '👑 Owner' : 'Member'}
+            {team.myRole === 'owner' ? `👑 ${trans('owner')}` : trans('member')}
           </span>
           <span className="text-[10px] text-[var(--muted)]">
-            {team.memberCount} member{team.memberCount !== 1 ? 's' : ''}
+            {team.memberCount} {trans('member')}
           </span>
         </div>
       </div>
@@ -260,6 +263,7 @@ function TeamCard({ team }: { team: Team }) {
 
 // ── Empty State ───────────────────────────────────────────────────────────────
 function EmptyState({ type, onCreate }: { type: TeamType; onCreate: () => void }) {
+  const trans = useTranslations('Teams');
   const isTournament = type === 'TOURNAMENT';
   return (
     <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
@@ -270,22 +274,20 @@ function EmptyState({ type, onCreate }: { type: TeamType; onCreate: () => void }
         }
       </div>
       <div>
-        <p className="font-bold text-base">No {isTournament ? 'tournament' : 'regular'} teams yet</p>
+        <p className="font-bold text-base">{trans('noTeamsYet')}</p>
         <p className="text-sm text-[var(--muted)] mt-0.5">
-          {isTournament
-            ? 'Create a tournament team to compete in organised competitions'
-            : 'Create a rank team to enter the Challenge Market'}
+          {trans('createTeamInstructions')}
         </p>
       </div>
       <button
         onClick={onCreate}
-        className={`px-6 py-2.5 text-sm font-black rounded-full transition-all ${
+        className={`px-6 py-2.5 text-sm font-black rounded-full transition-all cursor-pointer ${
           isTournament
             ? 'bg-amber-400 text-black hover:brightness-110'
             : 'bg-accent text-black hover:brightness-110'
         }`}
       >
-        Create {isTournament ? 'Tournament' : 'Regular'} Team
+        {trans('createTeam')}
       </button>
     </div>
   );
@@ -293,6 +295,7 @@ function EmptyState({ type, onCreate }: { type: TeamType; onCreate: () => void }
 
 // ── Main Teams Page ───────────────────────────────────────────────────────────
 export default function TeamsPage() {
+  const trans = useTranslations('Teams');
   const [activeTab,  setActiveTab]  = useState<TeamType>('REGULAR');
   const [allTeams,   setAllTeams]   = useState<Team[]>([]);
   const [invitations, setInvitations] = useState<any[]>([]);
@@ -351,8 +354,8 @@ export default function TeamsPage() {
   const activeInvitations = invitations.filter(inv => inv.team?.teamType === activeTab);
 
   const TABS: { key: TeamType; label: string; icon: typeof Swords }[] = [
-    { key: 'REGULAR',    label: 'Rank Teams',    icon: Swords  },
-    { key: 'TOURNAMENT', label: 'Tournament Teams', icon: Trophy  },
+    { key: 'REGULAR',    label: trans('rankTeams'),    icon: Swords  },
+    { key: 'TOURNAMENT', label: trans('tournamentTeams'), icon: Trophy  },
   ];
 
   return (
@@ -362,8 +365,8 @@ export default function TeamsPage() {
         {/* Header */}
         <div className="px-4 pt-4 pb-2 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-black tracking-tight">My Teams</h1>
-            <p className="text-xs text-[var(--muted)] mt-0.5">Build your squad, challenge others</p>
+            <h1 className="text-2xl font-black tracking-tight">{trans('title')}</h1>
+            <p className="text-xs text-[var(--muted)] mt-0.5">{trans('subtitle')}</p>
           </div>
           <div className="w-10 h-10 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center">
             <Users size={18} className="text-accent" />
@@ -376,7 +379,7 @@ export default function TeamsPage() {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border text-xs font-black transition-all ${
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border text-xs font-black transition-all cursor-pointer ${
                 activeTab === tab.key
                   ? tab.key === 'TOURNAMENT'
                     ? 'bg-amber-400/15 border-amber-400/50 text-amber-300'
@@ -405,8 +408,8 @@ export default function TeamsPage() {
         <div className="px-4 py-2">
           <p className="text-[11px] text-[var(--muted)] font-medium">
             {activeTab === 'REGULAR'
-              ? '⚔️ Rank teams are used in the Challenge Market to challenge other teams.'
-              : '🏆 Tournament teams participate in organised competitions and leagues only.'}
+              ? trans('regularTeamsContext')
+              : trans('tournamentTeamsContext')}
           </p>
         </div>
 
@@ -416,7 +419,7 @@ export default function TeamsPage() {
           {activeInvitations.length > 0 && (
             <div className="flex flex-col gap-2 shrink-0 mb-2">
               <h3 className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)] flex items-center gap-1.5">
-                <span>✉️ Pending Invitations ({activeInvitations.length})</span>
+                <span>✉️ {trans('pendingInvites')} ({activeInvitations.length})</span>
               </h3>
               
               <div className="flex flex-col gap-2.5">
@@ -455,21 +458,21 @@ export default function TeamsPage() {
                         <button
                           onClick={() => handleInviteResponse(invite.id, 'accept')}
                           disabled={inviteActionId !== null}
-                          className={`flex-grow py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all text-black hover:brightness-110 active:scale-95 disabled:opacity-40
+                          className={`flex-grow py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all text-black hover:brightness-110 active:scale-95 disabled:opacity-40 cursor-pointer
                             ${isTourney ? 'bg-amber-400 shadow-[0_4px_12px_rgba(251,191,36,0.2)]' : 'bg-accent shadow-[0_4px_12px_rgba(0,255,65,0.2)]'}`}
                         >
                           {inviteActionId === invite.id ? (
                             <Loader2 size={12} className="animate-spin text-black" />
-                          ) : '✓ Accept'}
+                          ) : `✓ ${trans('accept')}`}
                         </button>
                         <button
                           onClick={() => handleInviteResponse(invite.id, 'decline')}
                           disabled={inviteActionId !== null}
-                          className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-neutral-800 hover:bg-neutral-700 text-red-400 border border-red-500/20 transition-all hover:border-red-500/40 active:scale-95 disabled:opacity-40"
+                          className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-neutral-800 hover:bg-neutral-700 text-red-400 border border-red-500/20 transition-all hover:border-red-500/40 active:scale-95 disabled:opacity-40 cursor-pointer"
                         >
                           {inviteActionId === invite.id ? (
                             <Loader2 size={12} className="animate-spin" />
-                          ) : 'Decline'}
+                          ) : trans('decline')}
                         </button>
                       </div>
                     </div>
@@ -482,14 +485,14 @@ export default function TeamsPage() {
           {/* Create button */}
           <button
             onClick={() => loggedIn ? setShowCreate(true) : null}
-            className={`flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl border-2 border-dashed font-black text-sm hover:brightness-110 transition-all ${
+            className={`flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl border-2 border-dashed font-black text-sm hover:brightness-110 transition-all cursor-pointer ${
               activeTab === 'TOURNAMENT'
                 ? 'border-amber-400/40 text-amber-400 hover:bg-amber-400/5 hover:border-amber-400/70'
                 : 'border-accent/40 text-accent hover:bg-accent/5 hover:border-accent/70'
             }`}
           >
             <Plus size={16} strokeWidth={3} />
-            Create {activeTab === 'TOURNAMENT' ? 'Tournament' : 'Regular'} Team
+            {trans('createTeam')}
           </button>
 
           {!loggedIn ? (

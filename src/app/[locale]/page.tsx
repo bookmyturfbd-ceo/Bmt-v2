@@ -8,6 +8,7 @@ import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import { Trophy, Shield, User, ChevronRight, Star, MapPin, Sparkles } from 'lucide-react';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 
 const FALLBACK_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200';
 const FALLBACK_TURF = 'https://images.unsplash.com/photo-1518605368461-1ee18cd30f6b?auto=format&fit=crop&q=80';
@@ -30,7 +31,10 @@ const SPORT_EMOJIS: Record<string, string> = {
   CRICKET_FULL: '🏏',
 };
 
-export default async function RootPage() {
+export default async function RootPage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'Home' });
+
   const cookieStore = await cookies();
   const authCookie = cookieStore.get('bmt_auth');
   const roleCookie = cookieStore.get('bmt_role');
@@ -202,10 +206,10 @@ export default async function RootPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <Sparkles size={16} className="text-blue-400" />
-                <h3 className="text-base font-black tracking-tight text-white">Hire Professionals</h3>
+                <h3 className="text-base font-black tracking-tight text-white">{t('hireProfessionals')}</h3>
               </div>
               <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest bg-blue-500/10 border border-blue-500/20 px-2.5 py-0.5 rounded-full">
-                {professionals.length} active
+                {professionals.length} {t('active')}
               </span>
             </div>
 
@@ -215,7 +219,7 @@ export default async function RootPage() {
                 return (
                   <a
                     key={pro.id}
-                    href={`/en/turf/${pro.id}`}
+                    href={`/${locale}/turf/${pro.id}`}
                     className="shrink-0 w-[42vw] max-w-[170px] snap-start block active:scale-[0.98] transition-transform"
                   >
                     <div className="glass-panel border border-white/5 rounded-2xl overflow-hidden flex flex-col shadow-lg hover:border-blue-500/30 transition-colors">
@@ -245,7 +249,7 @@ export default async function RootPage() {
                           <span>{pro.area || 'BD'}</span>
                         </div>
                         <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between">
-                          <span className="text-[9px] font-black text-blue-400 uppercase tracking-wider">Book Session</span>
+                          <span className="text-[9px] font-black text-blue-400 uppercase tracking-wider">{t('bookSession')}</span>
                           <span className="text-[9px] font-black text-white">⭐ 5.0</span>
                         </div>
                       </div>
@@ -263,23 +267,23 @@ export default async function RootPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <Trophy size={16} className="text-yellow-400 animate-bounce" />
-                <h3 className="text-base font-black tracking-tight text-white">Active Tournaments</h3>
+                <h3 className="text-base font-black tracking-tight text-white">{t('activeTournaments')}</h3>
               </div>
-              <a href="/en/tournaments" className="text-[10px] font-black text-yellow-400 uppercase tracking-widest flex items-center gap-0.5 hover:brightness-110">
-                View All <ChevronRight size={10} />
+              <a href={`/${locale}/tournaments`} className="text-[10px] font-black text-yellow-400 uppercase tracking-widest flex items-center gap-0.5 hover:brightness-110">
+                {t('viewAll')} <ChevronRight size={10} />
               </a>
             </div>
 
             <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1 snap-x snap-mandatory">
-              {tournaments.map((t: any) => {
-                const cover = t.bannerImageUrl || FALLBACK_TURF;
-                const isRegOpen = t.status === 'REGISTRATION_OPEN';
-                const isActive = t.status === 'ACTIVE';
+              {tournaments.map((tItem: any) => {
+                const cover = tItem.bannerImageUrl || FALLBACK_TURF;
+                const isRegOpen = tItem.status === 'REGISTRATION_OPEN';
+                const isActive = tItem.status === 'ACTIVE';
 
                 return (
                   <a
-                    key={t.id}
-                    href={`/en/tournaments/${t.id}`}
+                    key={tItem.id}
+                    href={`/${locale}/tournaments/${tItem.id}`}
                     className="shrink-0 w-[78vw] max-w-[310px] snap-start block active:scale-[0.98] transition-transform"
                   >
                     <div className="relative rounded-2xl border border-yellow-500/20 bg-gradient-to-r from-yellow-950/20 to-neutral-900/40 p-4 flex gap-4 overflow-hidden group hover:border-yellow-400/40 transition-all min-h-[105px]">
@@ -287,7 +291,7 @@ export default async function RootPage() {
                       
                       {/* Image Thumbnail */}
                       <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-yellow-500/20 relative">
-                        <img src={cover} alt={t.name} className="w-full h-full object-cover" />
+                        <img src={cover} alt={tItem.name} className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-black/35" />
                       </div>
 
@@ -296,28 +300,28 @@ export default async function RootPage() {
                         <div>
                           <div className="flex items-start justify-between gap-2">
                             <h4 className="text-xs font-black text-white truncate leading-tight group-hover:text-yellow-200 transition-colors max-w-[125px]">
-                              {t.name}
+                              {tItem.name}
                             </h4>
                             <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shrink-0 ${
                               isActive ? 'bg-[#00ff41]/20 text-[#00ff41] border border-[#00ff41]/30 animate-pulse' :
                               isRegOpen ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
                               'bg-neutral-800 text-neutral-400 border border-white/5'
                             }`}>
-                              {isRegOpen ? 'Open' : isActive ? 'Live' : t.status.replace('_', ' ')}
+                              {isRegOpen ? t('open') : isActive ? t('live') : tItem.status.replace('_', ' ')}
                             </span>
                           </div>
                           
                           <p className="text-[10px] text-yellow-400/60 font-bold uppercase tracking-wider mt-1.5">
-                            {SPORT_EMOJIS[t.sport] || '🏆'} {SPORT_LABELS[t.sport] || t.sport}
+                            {SPORT_EMOJIS[tItem.sport] || '🏆'} {SPORT_LABELS[tItem.sport] || tItem.sport}
                           </p>
                         </div>
 
                         <div className="flex items-center justify-between border-t border-yellow-500/10 pt-2.5 mt-2.5">
                           <span className="text-[9px] font-black text-white flex items-center gap-1">
-                            💰 <span className="text-yellow-300">BDT {t.prizePoolTotal.toLocaleString()}</span>
+                            💰 <span className="text-yellow-300">BDT {tItem.prizePoolTotal.toLocaleString()}</span>
                           </span>
                           <span className="text-[9px] font-black text-yellow-400 uppercase tracking-widest">
-                            {t.entryFee > 0 ? `BDT ${t.entryFee}` : 'Free'}
+                            {tItem.entryFee > 0 ? `BDT ${tItem.entryFee}` : t('free')}
                           </span>
                         </div>
                       </div>
@@ -335,10 +339,10 @@ export default async function RootPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <Trophy size={16} className="text-accent" />
-                <h3 className="text-base font-black tracking-tight text-white">Leaderboard Highlights</h3>
+                <h3 className="text-base font-black tracking-tight text-white">{t('leaderboardHighlights')}</h3>
               </div>
-              <a href="/en/leaderboard" className="text-[10px] font-black text-accent uppercase tracking-widest flex items-center gap-0.5 hover:brightness-110">
-                View All <ChevronRight size={10} />
+              <a href={`/${locale}/leaderboard`} className="text-[10px] font-black text-accent uppercase tracking-widest flex items-center gap-0.5 hover:brightness-110">
+                {t('viewAll')} <ChevronRight size={10} />
               </a>
             </div>
 
@@ -348,9 +352,9 @@ export default async function RootPage() {
                 <div className="shrink-0 w-[88vw] max-w-[350px] snap-start glass-panel border border-white/5 rounded-2xl p-4 flex flex-col gap-3 shadow-2xl">
                   <div className="flex items-center justify-between border-b border-white/5 pb-2">
                     <span className="text-[10px] font-black text-accent uppercase tracking-wider flex items-center gap-1">
-                      🛡️ Ranked Squads
+                      🛡️ {t('rankedSquads')}
                     </span>
-                    <span className="text-[9px] font-bold text-neutral-500">Regular Teams</span>
+                    <span className="text-[9px] font-bold text-neutral-500">{t('regularTeams')}</span>
                   </div>
                   <div className="flex flex-col gap-2">
                     {topTeams.map((team, idx) => {
@@ -390,9 +394,9 @@ export default async function RootPage() {
                 <div className="shrink-0 w-[88vw] max-w-[350px] snap-start glass-panel border border-white/5 rounded-2xl p-4 flex flex-col gap-3 shadow-2xl">
                   <div className="flex items-center justify-between border-b border-white/5 pb-2">
                     <span className="text-[10px] font-black text-fuchsia-400 uppercase tracking-wider flex items-center gap-1">
-                      👑 Top Competitors
+                      👑 {t('topCompetitors')}
                     </span>
-                    <span className="text-[9px] font-bold text-neutral-500">Player Standings</span>
+                    <span className="text-[9px] font-bold text-neutral-500">{t('playerStandings')}</span>
                   </div>
                   <div className="flex flex-col gap-2">
                     {topPlayers.map((player, idx) => {
@@ -413,7 +417,7 @@ export default async function RootPage() {
                               </p>
                             ) : (
                               <p className="text-[9px] text-neutral-500 font-bold uppercase mt-0.5">
-                                Free Agent
+                                {t('freeAgent')}
                               </p>
                             )}
                           </div>

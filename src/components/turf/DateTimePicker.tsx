@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
+import { useParams } from 'next/navigation';
 import { Tag } from 'lucide-react';
 
 interface Slot {
@@ -56,6 +57,9 @@ function slotTimeOfDay(startTime: string, timeCategory?: string): string {
 
 export default function DateTimePicker({ slots = [], bookings = [], grounds = [], sports = [], onSlotSelect }: Props) {
   const t = useTranslations('TurfDetails');
+  const tBook = useTranslations('Book');
+  const params = useParams();
+  const locale = (params?.locale as string) || 'en';
 
   const [selectedSport, setSelectedSport]     = useState<string | null>(sports[0] || null);
   const [selectedDateIdx, setSelectedDateIdx] = useState(0);
@@ -106,20 +110,22 @@ export default function DateTimePicker({ slots = [], bookings = [], grounds = []
     if (!selectedGroundId && grounds.length > 0) setSelectedGroundId(grounds[0].id);
   }, [grounds, selectedGroundId]);
 
-  const [dates, setDates] = useState<{ dayName: string; monthName: string; dateNum: string; fullDate: string }[]>([]);
+  const [dates, setDates] = useState<{ dayName: string; displayDay: string; displayMonth: string; dateNum: string; fullDate: string }[]>([]);
   useEffect(() => {
     const arr = Array.from({ length: 14 }).map((_, i) => {
       const d = new Date();
       d.setDate(d.getDate() + i);
+      const displayLocale = locale === 'bn' ? 'bn-BD' : 'en-US';
       return {
-        dayName:   d.toLocaleDateString('en-US', { weekday: 'short' }),
-        monthName: d.toLocaleDateString('en-US', { month: 'short' }),
-        dateNum:   d.toLocaleDateString('en-US', { day: '2-digit' }),
+        dayName:   d.toLocaleDateString('en-US', { weekday: 'short' }), // Keep en-US for matching slots
+        displayDay: d.toLocaleDateString(displayLocale, { weekday: 'short' }),
+        displayMonth: d.toLocaleDateString(displayLocale, { month: 'short' }),
+        dateNum:   d.toLocaleDateString(displayLocale, { day: '2-digit' }),
         fullDate:  d.toISOString().split('T')[0],
       };
     });
     setDates(arr);
-  }, []);
+  }, [locale]);
 
   const activeDateObj = dates[selectedDateIdx];
 
@@ -129,6 +135,29 @@ export default function DateTimePicker({ slots = [], bookings = [], grounds = []
       )
     : [];
 
+  const getCategoryLabel = (cat: string) => {
+    switch (cat.toLowerCase()) {
+      case 'morning':
+        return tBook('search.morning');
+      case 'afternoon':
+        return tBook('search.afternoon');
+      case 'evening':
+        return tBook('search.evening');
+      case 'night':
+        return tBook('search.night');
+      default:
+        return cat;
+    }
+  };
+
+  const getSportLabel = (sport: string) => {
+    const key = sport.toLowerCase();
+    if (key === 'football' || key === 'futsal') return tBook('sports.football');
+    if (key === 'badminton') return tBook('sports.badminton');
+    if (key === 'cricket') return tBook('sports.cricket');
+    return sport;
+  };
+
   const renderGrounds = () => {
     const targetGround = grounds.find(g => g.id === selectedGroundId) || grounds[0];
     if (!targetGround) return null;
@@ -137,8 +166,8 @@ export default function DateTimePicker({ slots = [], bookings = [], grounds = []
     if (gSlots.length === 0) {
       return (
         <div className="col-span-2 text-center py-8 border border-neutral-800 border-dashed rounded-xl flex flex-col items-center justify-center">
-          <p className="text-sm text-neutral-500 font-bold mb-1">No slots available</p>
-          <p className="text-xs text-neutral-600 font-medium">Try checking a different date or sport</p>
+          <p className="text-sm text-neutral-500 font-bold mb-1">{t('noSlots')}</p>
+          <p className="text-xs text-neutral-600 font-medium">{t('noSlotsDesc')}</p>
         </div>
       );
     }
@@ -160,7 +189,7 @@ export default function DateTimePicker({ slots = [], bookings = [], grounds = []
           return (
             <div key={cat} className="flex flex-col gap-3">
               <h5 className="text-[10px] font-black text-accent/80 tracking-widest uppercase flex items-center gap-1.5">
-                <div className="w-1 h-1 rounded-full bg-accent/80 shadow-[0_0_8px_rgba(0,255,0,0.5)]" /> {cat}
+                <div className="w-1 h-1 rounded-full bg-accent/80 shadow-[0_0_8px_rgba(0,255,0,0.5)]" /> {getCategoryLabel(cat)}
               </h5>
               <div className="grid grid-cols-2 gap-3">
                 {catSlots.map((slot) => {
@@ -173,8 +202,8 @@ export default function DateTimePicker({ slots = [], bookings = [], grounds = []
                   const effectivelyUnavailable = isMaintenance;
                   const isSelected        = selectedSlotId === slot.id;
                   const applicable        = (!effectivelyBooked && !effectivelyUnavailable)
-                    ? getDiscount(slot, activeDateObj)
-                    : null;
+                     ? getDiscount(slot, activeDateObj)
+                     : null;
                   const discountedPrice   = applicable ? Math.round(slot.price * (1 - applicable.value / 100)) : null;
 
                   let stateClass = '';
@@ -228,7 +257,7 @@ export default function DateTimePicker({ slots = [], bookings = [], grounds = []
 
                       {(effectivelyBooked || effectivelyUnavailable) && (
                         <span className="text-[9px] font-black tracking-widest uppercase mt-0.5">
-                          {isMaintenance ? 'Unavailable' : 'Booked'}
+                          {isMaintenance ? t('unavailable') : t('booked')}
                         </span>
                       )}
                     </button>
@@ -248,7 +277,7 @@ export default function DateTimePicker({ slots = [], bookings = [], grounds = []
       {/* Sport Categories (Pills) */}
       {sports.length > 0 && (
         <div className="flex flex-col gap-3.5">
-          <h3 className="text-[13px] font-bold text-neutral-400 uppercase tracking-widest">Select Sport</h3>
+          <h3 className="text-[13px] font-bold text-neutral-400 uppercase tracking-widest">{t('selectSport')}</h3>
           <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar [&::-webkit-scrollbar]:hidden">
             {sports.map((sport) => (
               <button key={sport} onClick={() => setSelectedSport(sport)}
@@ -257,7 +286,7 @@ export default function DateTimePicker({ slots = [], bookings = [], grounds = []
                     ? 'bg-accent border-accent text-black shadow-[0_0_15px_rgba(0,255,0,0.3)]'
                     : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
                 }`}>
-                {sport}
+                {getSportLabel(sport)}
               </button>
             ))}
           </div>
@@ -269,7 +298,7 @@ export default function DateTimePicker({ slots = [], bookings = [], grounds = []
         <h3 className="text-[13px] font-bold text-neutral-400 uppercase tracking-widest">{t('dateSelection')}</h3>
         <div className="flex gap-3 overflow-x-auto pb-2 hide-scrollbar [&::-webkit-scrollbar]:hidden">
           {dates.length === 0 ? (
-            <p className="text-xs text-neutral-500 italic py-2">Loading calendar...</p>
+            <p className="text-xs text-neutral-500 italic py-2">{t('loadingCalendar')}</p>
           ) : (
             dates.map((d, i) => (
               <button key={d.fullDate} onClick={() => { setSelectedDateIdx(i); pickSlot(null, i); }}
@@ -278,9 +307,9 @@ export default function DateTimePicker({ slots = [], bookings = [], grounds = []
                     ? 'bg-accent/10 border-accent shadow-[inset_0_0_15px_rgba(0,255,0,0.1)]'
                     : 'bg-neutral-900 border-neutral-800 hover:border-neutral-700'
                 }`}>
-                <span className={`text-[9px] font-black uppercase tracking-widest leading-none mb-1.5 ${selectedDateIdx === i ? 'text-accent' : 'text-neutral-500'}`}>{d.monthName}</span>
+                <span className={`text-[9px] font-black uppercase tracking-widest leading-none mb-1.5 ${selectedDateIdx === i ? 'text-accent' : 'text-neutral-500'}`}>{d.displayMonth}</span>
                 <span className={`text-[22px] font-black leading-none my-0.5 ${selectedDateIdx === i ? 'text-accent' : 'text-white'}`}>{d.dateNum}</span>
-                <span className={`text-[10px] font-bold uppercase tracking-widest leading-none mt-1.5 ${selectedDateIdx === i ? 'text-accent' : 'text-neutral-500'}`}>{d.dayName}</span>
+                <span className={`text-[10px] font-bold uppercase tracking-widest leading-none mt-1.5 ${selectedDateIdx === i ? 'text-accent' : 'text-neutral-500'}`}>{d.displayDay}</span>
               </button>
             ))
           )}
@@ -290,7 +319,7 @@ export default function DateTimePicker({ slots = [], bookings = [], grounds = []
       {/* Ground Selection */}
       {grounds.length > 1 && (
         <div className="flex flex-col gap-3.5">
-          <h3 className="text-[13px] font-bold text-neutral-400 uppercase tracking-widest">Select Ground</h3>
+          <h3 className="text-[13px] font-bold text-neutral-400 uppercase tracking-widest">{t('selectGround')}</h3>
           <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar [&::-webkit-scrollbar]:hidden">
             {grounds.map((g) => (
               <button key={g.id} onClick={() => { setSelectedGroundId(g.id); setSelectedSlotId(null); }}

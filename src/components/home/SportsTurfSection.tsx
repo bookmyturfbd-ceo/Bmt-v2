@@ -61,6 +61,7 @@ function CountdownUnit({ value, label }: { value: number; label: string }) {
 }
 
 function ComingSoonOverlay({ launchAt }: { launchAt: Date | string | null }) {
+  const t = useTranslations('Book.comingSoon');
   const ct = useCountdown(launchAt);
 
   return (
@@ -73,28 +74,28 @@ function ComingSoonOverlay({ launchAt }: { launchAt: Date | string | null }) {
           <div className="w-16 h-16 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center mb-2">
             <Clock size={28} className="text-accent" />
           </div>
-          <h3 className="text-2xl font-black text-white tracking-tight">Turf Booking</h3>
-          <p className="text-accent font-black text-sm tracking-widest uppercase">Coming Soon</p>
+          <h3 className="text-2xl font-black text-white tracking-tight">{t('title')}</h3>
+          <p className="text-accent font-black text-sm tracking-widest uppercase">{t('status')}</p>
           <p className="text-xs text-neutral-400 font-medium mt-1 max-w-[260px]">
-            We&apos;re finalizing our turf partnerships. Stay tuned — booking goes live soon!
+            {t('description')}
           </p>
         </div>
 
         {launchAt && !ct.done && (
           <div className="relative z-10 flex items-end gap-3">
-            <CountdownUnit value={ct.d} label="Days" />
+            <CountdownUnit value={ct.d} label={t('days')} />
             <span className="text-accent font-black text-2xl mb-4">:</span>
-            <CountdownUnit value={ct.h} label="Hrs" />
+            <CountdownUnit value={ct.h} label={t('hours')} />
             <span className="text-accent font-black text-2xl mb-4">:</span>
-            <CountdownUnit value={ct.m} label="Min" />
+            <CountdownUnit value={ct.m} label={t('minutes')} />
             <span className="text-accent font-black text-2xl mb-4">:</span>
-            <CountdownUnit value={ct.s} label="Sec" />
+            <CountdownUnit value={ct.s} label={t('seconds')} />
           </div>
         )}
 
         {ct.done && (
           <div className="relative z-10 px-4 py-2 bg-accent/20 border border-accent/40 rounded-full text-accent font-black text-sm animate-pulse">
-            🚀 Launching now — refresh!
+            {t('launchingNow')}
           </div>
         )}
       </div>

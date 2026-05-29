@@ -18,7 +18,7 @@ export default function TurfHero({ turf }: { turf: any }) {
           ))
         ) : (
           <div className="w-full h-full bg-neutral-800 shrink-0 snap-center flex flex-col justify-center items-center text-neutral-600">
-             <span className="text-xs font-black tracking-widest uppercase">No Images Provided</span>
+             <span className="text-xs font-black tracking-widest uppercase">{t('noImages')}</span>
           </div>
         )}
       </div>

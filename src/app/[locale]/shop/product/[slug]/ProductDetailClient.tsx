@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { ChevronLeft, ShoppingCart, Minus, Plus, Ruler, X, CheckCircle2 } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import { useCartStore } from '@/store/useCartStore';
+import { useTranslations } from 'next-intl';
+import { useParams } from 'next/navigation';
 
 export default function ProductDetailClient({ product }: { product: any }) {
   const [selectedSize, setSelectedSize] = useState<any>(product.sizes[0] || null);
@@ -11,6 +13,7 @@ export default function ProductDetailClient({ product }: { product: any }) {
   const [activeImage, setActiveImage] = useState(product.mainImage);
   const [showSizeChart, setShowSizeChart] = useState(false);
   const cart = useCartStore();
+  const t = useTranslations('Shop');
 
   const allImages = [product.mainImage, ...(product.galleryImages || [])];
   const sizeChartUrl = product.category?.sizeChartUrl || product.category?.parent?.sizeChartUrl;
@@ -89,7 +92,7 @@ export default function ProductDetailClient({ product }: { product: any }) {
               <>
                 <p className="text-lg text-[var(--muted)] line-through font-semibold mb-1">৳{currentBase.toLocaleString()}</p>
                 <span className="bg-accent/20 border border-accent/30 text-accent text-[10px] font-black uppercase px-2 py-1 rounded-md mb-1.5 flex items-center gap-1">
-                  Save ৳{savings.toLocaleString()}
+                  {t('save')} ৳{savings.toLocaleString()}
                 </span>
               </>
             )}
@@ -100,10 +103,10 @@ export default function ProductDetailClient({ product }: { product: any }) {
         {product.sizes.length > 0 && (
           <div className="flex flex-col gap-3 pt-6 border-t border-[var(--panel-border)]">
             <div className="flex items-center justify-between">
-              <h3 className="font-black text-sm uppercase tracking-widest text-[var(--muted)]">Select Size</h3>
+              <h3 className="font-black text-sm uppercase tracking-widest text-[var(--muted)]">{t('selectSize')}</h3>
               {sizeChartUrl && (
                 <button onClick={() => setShowSizeChart(true)} className="flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors">
-                  <Ruler size={14} /> Size Chart
+                  <Ruler size={14} /> {t('sizeChart')}
                 </button>
               )}
             </div>
@@ -122,11 +125,11 @@ export default function ProductDetailClient({ product }: { product: any }) {
             {selectedSize && selectedSize.quantity !== undefined && (
               <div className="mt-1 flex items-center">
                 {selectedSize.quantity <= 0 ? (
-                   <span className="text-red-500 font-black text-xs bg-red-500/10 px-2 py-1 rounded-md">Out of stock</span>
+                   <span className="text-red-500 font-black text-xs bg-red-500/10 px-2 py-1 rounded-md">{t('outOfStock')}</span>
                 ) : selectedSize.quantity < 10 ? (
-                   <span className="text-orange-400 font-black text-xs bg-orange-400/10 px-2 py-1 rounded-md">Low stock: Only {selectedSize.quantity} left!</span>
+                   <span className="text-orange-400 font-black text-xs bg-orange-400/10 px-2 py-1 rounded-md">{t('lowStock', { count: selectedSize.quantity })}</span>
                 ) : (
-                   <span className="text-[var(--muted)] font-bold text-xs bg-white/5 px-2 py-1 rounded-md">In stock: {selectedSize.quantity} units</span>
+                   <span className="text-[var(--muted)] font-bold text-xs bg-white/5 px-2 py-1 rounded-md">{t('inStock', { count: selectedSize.quantity })}</span>
                 )}
               </div>
             )}
@@ -135,7 +138,7 @@ export default function ProductDetailClient({ product }: { product: any }) {
 
         {/* Quantity */}
         <div className="flex items-center justify-between pt-6 border-t border-[var(--panel-border)]">
-          <h3 className="font-black text-sm uppercase tracking-widest text-[var(--muted)]">Quantity</h3>
+          <h3 className="font-black text-sm uppercase tracking-widest text-[var(--muted)]">{t('quantity')}</h3>
           <div className="flex items-center bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl overflow-hidden">
             <button onClick={() => setQuantity(q => Math.max(1, q - 1))} className="w-12 h-10 flex items-center justify-center text-[var(--muted)] hover:bg-white/5 hover:text-foreground transition-colors">
               <Minus size={16} />
@@ -150,7 +153,7 @@ export default function ProductDetailClient({ product }: { product: any }) {
         {/* Description */}
         {product.description && (
           <div className="pt-6 border-t border-[var(--panel-border)] flex flex-col gap-3">
-            <h3 className="font-black text-sm uppercase tracking-widest text-[var(--muted)]">Details</h3>
+            <h3 className="font-black text-sm uppercase tracking-widest text-[var(--muted)]">{t('details')}</h3>
             <p className="text-sm leading-relaxed text-white/80 whitespace-pre-wrap">{product.description}</p>
           </div>
         )}
@@ -160,11 +163,11 @@ export default function ProductDetailClient({ product }: { product: any }) {
       <div className="fixed bottom-16 md:bottom-0 left-0 right-0 p-4 bg-zinc-950/90 backdrop-blur-xl border-t border-white/10 z-30 flex items-center gap-3 md:justify-center">
         <button onClick={handleAddToCart} disabled={!selectedSize}
           className="flex-1 max-w-sm py-4 rounded-xl border border-accent/40 bg-accent/10 text-accent font-black text-sm hover:bg-accent/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2">
-          <ShoppingCart size={18} /> Add to Cart
+          <ShoppingCart size={18} /> {t('addToCart')}
         </button>
         <button onClick={handleBuyNow} disabled={!selectedSize}
           className="flex-1 max-w-sm py-4 rounded-xl bg-accent text-black font-black text-sm shadow-[0_0_20px_rgba(0,255,65,0.4)] hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100">
-          Buy Now
+          {t('buyNow')}
         </button>
       </div>
 
@@ -173,7 +176,7 @@ export default function ProductDetailClient({ product }: { product: any }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
           <div className="bg-neutral-900 border border-white/10 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl relative">
             <div className="p-4 border-b border-white/10 flex items-center justify-between bg-black/20">
-              <h3 className="font-black flex items-center gap-2"><Ruler size={16} className="text-blue-400" /> Size Chart</h3>
+              <h3 className="font-black flex items-center gap-2"><Ruler size={16} className="text-blue-400" /> {t('sizeChart')}</h3>
               <button onClick={() => setShowSizeChart(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10">
                 <X size={16} />
               </button>

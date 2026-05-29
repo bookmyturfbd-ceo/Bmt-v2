@@ -12,6 +12,7 @@ import NextTopLoader from 'nextjs-toploader';
 import SplashScreen from '@/components/layout/SplashScreen';
 import { MatchResultProvider } from '@/context/MatchResultContext';
 import MatchResultModal from '@/components/match/MatchResultModal';
+import LanguagePromptModal from '@/components/layout/LanguagePromptModal';
 import '../globals.css';
 import { Metadata, Viewport } from 'next';
 import Script from 'next/script';
@@ -115,6 +116,7 @@ export default async function LocaleLayout({
           <NextIntlClientProvider messages={messages}>
             <MatchResultProvider>
               <MatchResultModal />
+              <LanguagePromptModal />
               <MadeInBangladesh />
               <main className="flex-1 flex flex-col relative pb-16">
                 {children}

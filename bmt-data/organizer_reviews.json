@@ -1,0 +1,20 @@
+[
+  {
+    "id": "rev-1",
+    "organizerId": "cmoqdbyyc000340hwkv9pt84u",
+    "playerId": "cmnycrhlh0003vwhwebuovkdo",
+    "playerName": "Test Play 6",
+    "rating": 5,
+    "comment": "Fantastic tournament! The brackets were super clean, very punctual, and brilliant turf choice.",
+    "createdAt": "2026-05-28T14:30:00.000Z"
+  },
+  {
+    "id": "rev-2",
+    "organizerId": "cmoq8fz8k0001sshwo5lxjwrx",
+    "playerId": "cmnycrhlh0003vwhwebuovkdo",
+    "playerName": "Test Play 6",
+    "rating": 4,
+    "comment": "Good organization, but matches started a bit late. Venue was decent.",
+    "createdAt": "2026-05-27T10:15:00.000Z"
+  }
+]

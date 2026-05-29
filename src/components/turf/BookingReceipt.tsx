@@ -1,6 +1,8 @@
 'use client';
 import { useState, useRef, useCallback } from 'react';
 import { Download, X, Check, MapPin, Calendar, Clock, Building2, Shield, Share2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { useParams } from 'next/navigation';
 
 interface BookingReceiptProps {
   open: boolean;
@@ -35,16 +37,19 @@ function matchCode(id: string): string {
   return code;
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-  });
-}
-
 export default function BookingReceipt({ open, onClose, booking }: BookingReceiptProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const t = useTranslations('BookingReceipt');
+  const params = useParams();
+  const locale = (params?.locale as string) || 'en';
+
+  const formatDate = (iso: string) => {
+    return new Date(iso).toLocaleDateString(locale === 'bn' ? 'bn-BD' : 'en-US', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+  };
 
   const handleDownload = useCallback(async () => {
     if (!receiptRef.current || !booking) return;
@@ -122,13 +127,13 @@ export default function BookingReceipt({ open, onClose, booking }: BookingReceip
                 </div>
                 <div>
                   <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-green-500/60">Book My Turf</p>
-                  <p className="text-xs font-black text-white leading-tight">Booking Receipt</p>
+                  <p className="text-xs font-black text-white leading-tight">{t('title')}</p>
                 </div>
               </div>
               <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1 border border-green-500/30"
                 style={{ background: 'rgba(0,255,65,0.08)' }}>
                 <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_6px_#00ff41]" />
-                <span className="text-[9px] font-black text-green-400 uppercase tracking-widest">Confirmed</span>
+                <span className="text-[9px] font-black text-green-400 uppercase tracking-widest">{t('confirmed')}</span>
               </div>
             </div>
 
@@ -136,9 +141,9 @@ export default function BookingReceipt({ open, onClose, booking }: BookingReceip
             <div className="relative mb-5 rounded-2xl border border-white/10 overflow-hidden"
               style={{ background: 'rgba(255,255,255,0.03)' }}>
               <div className="px-4 pt-3 pb-1">
-                <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-neutral-500 mb-2">Match Code</p>
+                <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-neutral-500 mb-2">{t('matchCode')}</p>
                 <p className="text-[10px] text-neutral-600 font-medium leading-snug">
-                  Show this code to the facility manager at entry
+                  {t('matchCodeDesc')}
                 </p>
               </div>
               <div className="flex items-center justify-center py-4">
@@ -157,7 +162,7 @@ export default function BookingReceipt({ open, onClose, booking }: BookingReceip
               </div>
               <div className="px-4 pb-3">
                 <p className="text-[9px] font-bold text-neutral-600 text-center uppercase tracking-widest">
-                  Booking Ref: {shortId}
+                  {t('bookingRef')}: {shortId}
                 </p>
               </div>
 
@@ -178,10 +183,10 @@ export default function BookingReceipt({ open, onClose, booking }: BookingReceip
               <div className="flex items-start gap-2.5">
                 <Building2 size={13} className="text-green-500 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-[9px] uppercase tracking-widest text-neutral-500 font-bold">Turf</p>
+                  <p className="text-[9px] uppercase tracking-widest text-neutral-500 font-bold">{t('turf')}</p>
                   <p className="text-sm font-black text-white">{booking.turfName}</p>
                   {booking.groundName && (
-                    <p className="text-[10px] font-semibold text-neutral-400 mt-0.5">Ground: {booking.groundName}</p>
+                    <p className="text-[10px] font-semibold text-neutral-400 mt-0.5">{t('ground')}: {booking.groundName}</p>
                   )}
                 </div>
               </div>
@@ -189,7 +194,7 @@ export default function BookingReceipt({ open, onClose, booking }: BookingReceip
               <div className="flex items-start gap-2.5">
                 <Calendar size={13} className="text-green-500 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-[9px] uppercase tracking-widest text-neutral-500 font-bold">Date</p>
+                  <p className="text-[9px] uppercase tracking-widest text-neutral-500 font-bold">{t('date')}</p>
                   <p className="text-sm font-black text-white">{formatDate(booking.date)}</p>
                 </div>
               </div>
@@ -197,7 +202,7 @@ export default function BookingReceipt({ open, onClose, booking }: BookingReceip
               <div className="flex items-start gap-2.5">
                 <Clock size={13} className="text-green-500 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-[9px] uppercase tracking-widest text-neutral-500 font-bold">Time Slot</p>
+                  <p className="text-[9px] uppercase tracking-widest text-neutral-500 font-bold">{t('timeSlot')}</p>
                   <p className="text-sm font-black text-white">{booking.startTime} → {booking.endTime}</p>
                   <p className="text-[10px] text-neutral-400 font-semibold mt-0.5">{booking.sport}</p>
                 </div>
@@ -207,7 +212,7 @@ export default function BookingReceipt({ open, onClose, booking }: BookingReceip
                 <div className="flex items-start gap-2.5">
                   <MapPin size={13} className="text-green-500 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-[9px] uppercase tracking-widest text-neutral-500 font-bold">Location</p>
+                    <p className="text-[9px] uppercase tracking-widest text-neutral-500 font-bold">{t('location')}</p>
                     <p className="text-sm font-black text-white">{[booking.area, booking.cityName].filter(Boolean).join(', ')}</p>
                   </div>
                 </div>
@@ -216,7 +221,7 @@ export default function BookingReceipt({ open, onClose, booking }: BookingReceip
               <div className="flex items-start gap-2.5">
                 <Shield size={13} className="text-green-500 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-[9px] uppercase tracking-widest text-neutral-500 font-bold">Booked By</p>
+                  <p className="text-[9px] uppercase tracking-widest text-neutral-500 font-bold">{t('bookedBy')}</p>
                   <p className="text-sm font-black text-white">{booking.playerName}</p>
                 </div>
               </div>
@@ -232,14 +237,14 @@ export default function BookingReceipt({ open, onClose, booking }: BookingReceip
             {/* Total */}
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[9px] uppercase tracking-widest text-neutral-500 font-bold">Total Paid</p>
+                <p className="text-[9px] uppercase tracking-widest text-neutral-500 font-bold">{t('totalPaid')}</p>
                 <p className="text-2xl font-black text-white">৳{booking.price.toLocaleString()}</p>
               </div>
               <div className="text-right">
-                <p className="text-[9px] uppercase tracking-widest text-neutral-500 font-bold">Status</p>
+                <p className="text-[9px] uppercase tracking-widest text-neutral-500 font-bold">{t('status')}</p>
                 <div className="flex items-center gap-1 mt-0.5">
                   <Check size={11} className="text-green-400" />
-                  <p className="text-xs font-black text-green-400">Paid & Confirmed</p>
+                  <p className="text-xs font-black text-green-400">{t('paidConfirmed')}</p>
                 </div>
               </div>
             </div>
@@ -250,7 +255,7 @@ export default function BookingReceipt({ open, onClose, booking }: BookingReceip
                 bookmyturf.com
               </p>
               <p className="text-[8px] font-bold text-neutral-600">
-                Valid for one entry only
+                {t('validOneEntry')}
               </p>
             </div>
           </div>
@@ -269,12 +274,12 @@ export default function BookingReceipt({ open, onClose, booking }: BookingReceip
             }`}
             style={copied ? {} : { background: '#1a1a1a', borderColor: '#2a2a2a' }}>
             {copied ? <Check size={13} /> : <Share2 size={13} />}
-            {copied ? 'Code Copied!' : 'Copy Code'}
+            {copied ? t('codeCopied') : t('copyCode')}
           </button>
           <button onClick={handleDownload} disabled={downloading}
             className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl bg-green-500 text-black font-black text-xs hover:brightness-110 active:scale-95 transition-all disabled:opacity-60 shadow-[0_4px_20px_rgba(0,255,65,0.25)]">
             <Download size={13} className={downloading ? 'animate-bounce' : ''} />
-            {downloading ? 'Saving…' : 'Download'}
+            {downloading ? t('saving') : t('download')}
           </button>
         </div>
 
@@ -282,7 +287,7 @@ export default function BookingReceipt({ open, onClose, booking }: BookingReceip
         <button onClick={onClose}
           className="w-full mt-1 py-3 rounded-2xl border text-sm font-black text-neutral-300 hover:brightness-110 flex items-center justify-center gap-2 transition-all"
           style={{ background: '#1a1a1a', borderColor: '#2a2a2a' }}>
-          View Booking History
+          {t('viewHistory')}
         </button>
       </div>
       </div>

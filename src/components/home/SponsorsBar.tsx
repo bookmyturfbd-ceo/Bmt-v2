@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 
 interface Sponsor {
   id: string;
@@ -13,12 +14,13 @@ interface SponsorSettings {
 }
 
 export default function SponsorsBar({ sponsors, settings }: { sponsors: Sponsor[]; settings: SponsorSettings }) {
+  const t = useTranslations('Home');
   if (!sponsors || sponsors.length === 0) return null;
 
   return (
     <div className="mx-4 mt-6 mb-2">
       <div className="flex items-center justify-between mb-3 px-1">
-        <h3 className="text-xs font-black uppercase tracking-widest text-[var(--muted)]">Our Partners</h3>
+        <h3 className="text-xs font-black uppercase tracking-widest text-[var(--muted)]">{t('ourPartners')}</h3>
       </div>
 
       <div className="flex items-center justify-center gap-2 md:gap-3 py-1">
@@ -31,7 +33,7 @@ export default function SponsorsBar({ sponsors, settings }: { sponsors: Sponsor[
               {sponsor.ctaLink && (
                 <div className="w-full mt-1.5 shrink-0">
                   <span className="block w-full py-1.5 rounded-xl bg-white/5 border border-white/10 text-[9px] font-black text-center text-white group-hover:bg-accent group-hover:text-black group-hover:border-accent transition-all uppercase tracking-widest shadow-[0_0_15px_rgba(0,255,65,0)] group-hover:shadow-[0_0_15px_rgba(0,255,65,0.2)]">
-                    {sponsor.ctaText || 'EXPLORE'}
+                    {sponsor.ctaText || t('explore')}
                   </span>
                 </div>
               )}

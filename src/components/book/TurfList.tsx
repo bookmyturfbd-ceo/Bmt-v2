@@ -1,5 +1,6 @@
 import { useTranslations } from 'next-intl';
 import { Building2, Users } from 'lucide-react';
+import { useParams } from 'next/navigation';
 
 export default function TurfList({
   turfs = [], cities = [], sports = [], groupId,
@@ -7,6 +8,8 @@ export default function TurfList({
   turfs: any[]; cities: any[]; sports: any[]; groupId?: string;
 }) {
   const t = useTranslations('Book.turfCard');
+  const params = useParams();
+  const locale = (params?.locale as string) || 'en';
 
   if (turfs.length === 0) {
     return (
@@ -15,9 +18,9 @@ export default function TurfList({
           <Building2 size={28} className="text-neutral-600" />
         </div>
         <div>
-          <p className="font-bold text-white">No listings found</p>
+          <p className="font-bold text-white">{t('noListings')}</p>
           <p className="text-sm text-neutral-500 mt-0.5">
-            Venues and professionals will appear here once they are registered and approved.
+            {t('noListingsDesc')}
           </p>
         </div>
       </div>
@@ -31,24 +34,24 @@ export default function TurfList({
         <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/20">
           <Users size={14} className="text-cyan-400 shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-black text-cyan-300">Group Split Mode</p>
-            <p className="text-[10px] text-neutral-400">Cost will be split among your group members based on their allocated amounts.</p>
+            <p className="text-xs font-black text-cyan-300">{t('groupSplit')}</p>
+            <p className="text-[10px] text-neutral-400">{t('groupSplitDesc')}</p>
           </div>
         </div>
       )}
 
       {turfs.map((turf) => {
         const primarySportId = turf.sportIds?.[0];
-        const sportName = sports.find(s => s.id === primarySportId)?.name || 'Multi-Sport';
-        const cityName = cities.find(c => c.id === turf.cityId)?.name || 'Local';
+        const sportName = sports.find(s => s.id === primarySportId)?.name || t('multiSport');
+        const cityName = cities.find(c => c.id === turf.cityId)?.name || t('local');
         const locationString = turf.area ? `${turf.area}, ${cityName}` : cityName;
         const coverImage = turf.imageUrls?.[0] || turf.logoUrl || "https://images.unsplash.com/photo-1518605368461-1ee18cd30f6b?auto=format&fit=crop&q=80";
         // Append groupId to the turf URL so TurfBookingClient enters group mode
-        const href = groupId ? `/en/turf/${turf.id}?groupId=${groupId}` : `/en/turf/${turf.id}`;
+        const href = groupId ? `/${locale}/turf/${turf.id}?groupId=${groupId}` : `/${locale}/turf/${turf.id}`;
 
         const isCoach = turf.isCoachProfile;
-        const badgeLabel = isCoach ? turf.coachType || 'Professional' : sportName;
-        const callToAction = isCoach ? 'Tap to book a session' : 'Tap to book a slot';
+        const badgeLabel = isCoach ? turf.coachType || t('professional') : sportName;
+        const callToAction = isCoach ? t('tapBookSession') : t('tapBookSlot');
 
         return (
           <a href={href} key={turf.id} className="block active:scale-[0.98] transition-transform">
@@ -61,7 +64,7 @@ export default function TurfList({
                 </div>
                 {groupId && (
                   <div className="absolute top-3 right-3 bg-cyan-500/90 backdrop-blur-md px-2 py-0.5 rounded-md text-[9px] font-black tracking-widest uppercase text-black border border-cyan-400/20 shadow-sm">
-                    Split
+                    {t('splitBadge')}
                   </div>
                 )}
                 {turf.logoUrl && (
@@ -75,7 +78,7 @@ export default function TurfList({
                 <p className="text-xs text-neutral-400 font-semibold">{locationString}</p>
                 <div className="flex items-center justify-between mt-1 pt-3 border-t border-white/5">
                   <span className="text-xs font-bold text-accent">
-                    {groupId ? 'Tap to book (split)' : callToAction}
+                    {groupId ? t('tapBookSplit') : callToAction}
                   </span>
                   <span className="text-[11px] font-bold text-white">⭐ 5.0</span>
                 </div>

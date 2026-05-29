@@ -3,6 +3,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Loader2, ChevronLeft, ChevronRight, ShoppingBag, ShoppingCart } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import { useCartStore } from '@/store/useCartStore';
+import { useTranslations } from 'next-intl';
+import { useParams } from 'next/navigation';
 
 interface Slide { id: string; imageUrl: string; ctaText?: string; ctaLink?: string; }
 interface Settings { autoSlide: boolean; intervalMs: number; slideType: string; }
@@ -17,6 +19,9 @@ export default function ShopFrontPage() {
   const [loading, setLoading] = useState(true);
   
   const cart = useCartStore();
+  const t = useTranslations('Shop');
+  const params = useParams();
+  const locale = (params?.locale as string) || 'en';
 
   useEffect(() => {
     Promise.all([
@@ -57,7 +62,7 @@ export default function ShopFrontPage() {
     <div className="min-h-screen flex flex-col pb-24">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-white/5 py-4 px-4 flex items-center justify-between">
-        <h1 className="text-xl font-black flex items-center gap-2"><ShoppingBag size={20} className="text-accent" /> BMT Shop</h1>
+        <h1 className="text-xl font-black flex items-center gap-2"><ShoppingBag size={20} className="text-accent" /> {t('title')}</h1>
         <button onClick={() => cart.setIsOpen(true)} className="relative w-10 h-10 rounded-full bg-neutral-900 border border-white/5 flex items-center justify-center hover:bg-neutral-800 transition-colors">
           <ShoppingCart size={18} className="text-white" />
           {cart.items.length > 0 && (
@@ -76,7 +81,7 @@ export default function ShopFrontPage() {
       {/* Categories block rendering */}
       <div className="flex flex-col gap-10 mt-6 px-4">
         {products.length === 0 ? (
-          <div className="text-center text-[var(--muted)] py-20 font-bold">No products available at the moment.</div>
+          <div className="text-center text-[var(--muted)] py-20 font-bold">{t('noProducts')}</div>
         ) : (
           leafCategories.map(cat => {
             const catProducts = products.filter(p => p.categoryId === cat.id);
@@ -94,10 +99,10 @@ export default function ShopFrontPage() {
                     )}
                     <h2 className="text-lg font-black leading-none">{cat.name}</h2>
                     <span className="text-[10px] font-bold text-[var(--muted)] bg-neutral-900 px-2.5 py-0.5 rounded-md border border-white/5">
-                      {catProducts.length} Product{catProducts.length !== 1 ? 's' : ''}
+                      {catProducts.length} {catProducts.length === 1 ? t('product') : t('products')}
                     </span>
                   </div>
-                  <button className="text-xs font-bold text-accent hover:underline shrink-0">View All</button>
+                  <button className="text-xs font-bold text-accent hover:underline shrink-0">{t('viewAll')}</button>
                 </div>
                 <ProductCarousel products={catProducts} />
               </div>
@@ -177,6 +182,7 @@ function HeroCarousel({ slides, settings }: { slides: Slide[]; settings: Setting
 // ── Product Carousel ────────────────────────────────────────────────────────
 function ProductCarousel({ products }: { products: Product[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const t = useTranslations('Shop');
   
   const scroll = (dir: 'left' | 'right') => {
     if (scrollRef.current) {
@@ -210,7 +216,7 @@ function ProductCarousel({ products }: { products: Product[] }) {
                 <img src={p.mainImage} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 {hasDiscount && (
                   <div className="absolute top-2.5 left-2.5 flex flex-col items-start gap-1.5">
-                    <span className="bg-red-500 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-lg border border-red-400">Sale</span>
+                    <span className="bg-red-500 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-lg border border-red-400">{t('sale')}</span>
                   </div>
                 )}
               </div>
@@ -222,7 +228,7 @@ function ProductCarousel({ products }: { products: Product[] }) {
                 </p>
                 {hasDiscount && (
                   <span className="bg-accent/15 border border-accent/20 text-accent text-[9px] font-black uppercase px-1.5 py-0.5 rounded">
-                    Save ৳{savings.toLocaleString()}
+                    {t('save')} ৳{savings.toLocaleString()}
                   </span>
                 )}
               </div>

@@ -1,31 +1,71 @@
 'use client';
-import { useTheme } from 'next-themes';
+import { usePathname, useRouter } from '@/i18n/routing';
+import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Sun, Moon } from 'lucide-react';
+import { Globe } from 'lucide-react';
 
 export default function ThemeToggle({ className = '' }: { className?: string }) {
-  const { theme, setTheme } = useTheme();
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useParams();
+  const locale = params.locale as string;
   const [mounted, setMounted] = useState(false);
+
   useEffect(() => setMounted(true), []);
 
-  if (!mounted) return <div className="w-9 h-9 rounded-xl bg-[var(--panel-bg)] border border-[var(--panel-border)] animate-pulse" />;
-
-  const isDark = theme === 'dark';
+  if (!mounted) {
+    return (
+      <div className={`relative flex items-center p-[2px] rounded-full bg-slate-900/10 dark:bg-white/5 border border-slate-900/5 dark:border-white/5 font-mono w-[78px] h-[32px] shrink-0 ${className}`}>
+        <div className="w-[35px] h-full" />
+        <div className="w-[35px] h-full" />
+      </div>
+    );
+  }
 
   return (
-    <button
-      onClick={() => setTheme(isDark ? 'light' : 'dark')}
-      aria-label="Toggle theme"
-      className={`relative w-9 h-9 rounded-xl border border-[var(--panel-border)] bg-[var(--panel-bg)] flex items-center justify-center hover:border-accent/40 transition-all active:scale-95 group ${className}`}
+    <div 
+      className={`relative flex items-center p-[2px] rounded-full bg-slate-900/10 dark:bg-white/5 border border-slate-900/5 dark:border-white/5 font-mono select-none w-[78px] h-[32px] shadow-inner pointer-events-auto shrink-0 ${className}`}
+      aria-label="Toggle language"
     >
-      <Sun
-        size={16}
-        className={`absolute transition-all duration-300 ${isDark ? 'opacity-0 rotate-90 scale-50' : 'opacity-100 rotate-0 scale-100 text-amber-500'}`}
+      {/* Sliding background pill */}
+      <div 
+        className="absolute top-[2px] bottom-[2px] left-[2px] w-[35px] rounded-full bg-accent transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-sm"
+        style={{
+          transform: locale === 'bn' ? 'translateX(35px)' : 'translateX(0px)'
+        }}
       />
-      <Moon
-        size={16}
-        className={`absolute transition-all duration-300 ${isDark ? 'opacity-100 rotate-0 scale-100 text-accent' : 'opacity-0 -rotate-90 scale-50'}`}
-      />
-    </button>
+      
+      {/* Option 'EN' */}
+      <button 
+        onClick={() => {
+          if (locale !== 'en') {
+            router.replace(pathname, { locale: 'en' });
+          }
+        }}
+        className={`relative z-10 w-[35px] h-full text-center font-black text-[10px] tracking-wide transition-colors duration-300 cursor-pointer flex items-center justify-center ${
+          locale === 'en' 
+            ? 'text-black dark:text-black' 
+            : 'text-slate-500 dark:text-neutral-400 hover:text-slate-800 dark:hover:text-white'
+        }`}
+      >
+        EN
+      </button>
+      
+      {/* Option 'BN' */}
+      <button 
+        onClick={() => {
+          if (locale !== 'bn') {
+            router.replace(pathname, { locale: 'bn' });
+          }
+        }}
+        className={`relative z-10 w-[35px] h-full text-center font-black text-[10px] tracking-wide transition-colors duration-300 cursor-pointer flex items-center justify-center ${
+          locale === 'bn' 
+            ? 'text-black dark:text-black' 
+            : 'text-slate-500 dark:text-neutral-400 hover:text-slate-800 dark:hover:text-white'
+        }`}
+      >
+        BN
+      </button>
+    </div>
   );
 }

@@ -4,6 +4,7 @@ import { usePathname } from '@/i18n/routing';
 import { Link } from '@/i18n/routing';
 import { Home, Calendar, ShoppingBag, Swords, Wallet } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import { useTranslations } from 'next-intl';
 
 const GlobalWalletModal = dynamic(() => import('./GlobalWalletModal'), { ssr: false });
 
@@ -18,6 +19,7 @@ const rightItems = [
 ] as const;
 
 export default function BottomNav() {
+  const t = useTranslations('Home');
   const pathname = usePathname();
   const [walletOpen, setWalletOpen] = useState(false);
 
@@ -45,7 +47,7 @@ export default function BottomNav() {
           <div className={`p-1.5 rounded-xl ${walletOpen ? 'bg-accent/10' : ''}`}>
             <Icon size={22} className={walletOpen ? 'stroke-[2.5]' : 'stroke-2'} />
           </div>
-          <span className={`text-[10px] font-semibold ${walletOpen ? 'font-bold tracking-wide' : ''}`}>{item.label}</span>
+          <span className={`text-[10px] font-semibold ${walletOpen ? 'font-bold tracking-wide' : ''}`}>{t(`nav.${item.id}` as any)}</span>
         </button>
       );
     }
@@ -60,7 +62,7 @@ export default function BottomNav() {
         <div className={`p-1.5 rounded-xl ${active ? 'bg-accent/10' : ''}`}>
           <Icon size={22} className={active ? 'stroke-[2.5]' : 'stroke-2'} />
         </div>
-        <span className={`text-[10px] font-semibold ${active ? 'font-bold tracking-wide' : ''}`}>{item.label}</span>
+        <span className={`text-[10px] font-semibold ${active ? 'font-bold tracking-wide' : ''}`}>{t(`nav.${item.id}` as any)}</span>
       </Link>
     );
   };
@@ -86,7 +88,7 @@ export default function BottomNav() {
             <div className="relative w-14 h-14 rounded-2xl bg-gradient-to-b from-[#00ff41] to-[#00cc35] shadow-[0_0_24px_rgba(0,255,65,0.45)] flex items-center justify-center active:scale-95 transition-transform">
               <Swords size={24} className="text-black stroke-[2.5]" />
             </div>
-            <span className="text-[10px] font-black text-[#00ff41] mt-1 tracking-wide">Arena</span>
+            <span className="text-[10px] font-black text-[#00ff41] mt-1 tracking-wide">{t('nav.arena')}</span>
           </Link>
 
           {/* Right items */}

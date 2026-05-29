@@ -55,7 +55,7 @@ export default function TurfLocationReviews({ turf, reviews = [] }: { turf: any,
         {/* Render Existing Reviews */}
         <div className="flex flex-col gap-3">
           {reviews.length === 0 ? (
-            <p className="text-xs text-neutral-500 italic px-2">No reviews yet. Be the first!</p>
+            <p className="text-xs text-neutral-500 italic px-2">{t('noReviews')}</p>
           ) : (
             reviews.map((r: any) => (
               <div key={r.id} className="p-4 rounded-2xl bg-neutral-900 border border-neutral-800 flex flex-col gap-2">
@@ -77,7 +77,7 @@ export default function TurfLocationReviews({ turf, reviews = [] }: { turf: any,
 
         {/* Write a Review */}
         <div className="glass p-5 rounded-3xl flex flex-col gap-4 border border-white/5 shadow-md mt-2">
-          <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Rate your experience</p>
+          <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest">{t('rateExperience')}</p>
           <div className="flex gap-1.5 -mt-1 cursor-pointer">
             {[1,2,3,4,5].map(s => (
                <Star 
@@ -99,7 +99,7 @@ export default function TurfLocationReviews({ turf, reviews = [] }: { turf: any,
             onClick={handleSubmitReview}
             className="self-end px-6 py-2.5 bg-accent text-black font-black tracking-wide rounded-xl text-sm hover:brightness-110 shadow-[0_4px_15px_rgba(0,255,0,0.1)] active:scale-95 transition-all disabled:opacity-50"
           >
-            {submitting ? 'Posting...' : t('submit')}
+            {submitting ? t('posting') : t('submit')}
           </button>
         </div>
       </div>

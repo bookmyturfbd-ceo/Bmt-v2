@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { getCookie } from '@/lib/cookies';
 import { Calendar, Search } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface BookingSplit { id: string; playerId: string; amount: number; }
 interface Booking { id: string; slotId: string; date: string; price?: number; playerName?: string; playerId?: string; createdAt?: string; source?: string; groupBookingCode?: string; splits?: BookingSplit[]; }
@@ -18,6 +19,7 @@ function matchCode(id: string) {
 }
 
 export default function PlayerBookingHistory() {
+  const t = useTranslations('Book.history');
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [turfs, setTurfs] = useState<Turf[]>([]);
@@ -63,7 +65,7 @@ export default function PlayerBookingHistory() {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center text-[var(--muted)]">
         <Calendar size={32} className="opacity-20 mb-3" />
-        <p className="text-sm font-bold">Sign in to view your bookings</p>
+        <p className="text-sm font-bold">{t('signIn')}</p>
       </div>
     );
   }
@@ -72,24 +74,24 @@ export default function PlayerBookingHistory() {
     <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
       {/* Sub-tabs: Turf | Pros */}
       <div className="flex gap-1.5 bg-neutral-900 border border-neutral-800 rounded-full p-1 mx-auto max-w-[200px] w-full shadow-inner">
-        <button onClick={() => setSubTab('turf')} className={`flex-1 py-1.5 text-[9px] uppercase tracking-widest font-black rounded-full transition-all ${subTab === 'turf' ? 'bg-accent text-black shadow-[0_0_10px_rgba(0,255,0,0.2)]' : 'text-neutral-500 hover:text-white'}`}>Turf</button>
-        <button onClick={() => setSubTab('pros')} className={`flex-1 py-1.5 text-[9px] uppercase tracking-widest font-black rounded-full transition-all ${subTab === 'pros' ? 'bg-accent text-black shadow-[0_0_10px_rgba(0,255,0,0.2)]' : 'text-neutral-500 hover:text-white'}`}>Pros</button>
+        <button onClick={() => setSubTab('turf')} className={`flex-1 py-1.5 text-[9px] uppercase tracking-widest font-black rounded-full transition-all ${subTab === 'turf' ? 'bg-accent text-black shadow-[0_0_10px_rgba(0,255,0,0.2)]' : 'text-neutral-500 hover:text-white'}`}>{t('turf')}</button>
+        <button onClick={() => setSubTab('pros')} className={`flex-1 py-1.5 text-[9px] uppercase tracking-widest font-black rounded-full transition-all ${subTab === 'pros' ? 'bg-accent text-black shadow-[0_0_10px_rgba(0,255,0,0.2)]' : 'text-neutral-500 hover:text-white'}`}>{t('pros')}</button>
       </div>
 
       <div className="glass-panel border border-[var(--panel-border)] rounded-2xl overflow-hidden min-h-[300px]">
         {subTab === 'pros' ? (
           <div className="flex flex-col items-center justify-center py-16 text-center text-[var(--muted)]">
             <Search size={32} className="opacity-20 mb-3" />
-            <p className="text-sm font-black">No Pro Bookings</p>
-            <p className="text-[11px] opacity-60 mt-1 max-w-[200px] leading-relaxed">You haven't booked any pros yet.</p>
+            <p className="text-sm font-black">{t('noPros')}</p>
+            <p className="text-[11px] opacity-60 mt-1 max-w-[200px] leading-relaxed">{t('noProsDesc')}</p>
           </div>
         ) : (
           <div className="divide-y divide-white/5">
             {bookings.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center text-[var(--muted)]">
                 <Calendar size={32} className="opacity-20 mb-3" />
-                <p className="text-sm font-black">No Turf Bookings</p>
-                <p className="text-[11px] opacity-60 mt-1 max-w-[200px] leading-relaxed">Your turf booking history will appear here.</p>
+                <p className="text-sm font-black">{t('noTurfs')}</p>
+                <p className="text-[11px] opacity-60 mt-1 max-w-[200px] leading-relaxed">{t('noTurfsDesc')}</p>
               </div>
             ) : (
               bookings.map((b, i) => {
@@ -110,10 +112,10 @@ export default function PlayerBookingHistory() {
                        style={{ animationDelay: `${i * 50}ms` }}>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-black truncate text-white/90">{turf?.name || 'Turf'}</p>
+                        <p className="text-sm font-black truncate text-white/90">{turf?.name || t('turf')}</p>
                         {isGroupSplit && (
                           <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
-                            Split Payment
+                            {t('splitPayment')}
                           </span>
                         )}
                       </div>

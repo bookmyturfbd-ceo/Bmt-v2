@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Building2, Briefcase, GraduationCap, X, Loader2, CheckCircle2, Phone, Mail, MapPin, Send } from 'lucide-react';
 
 // Facebook SVG icon (not available in all lucide-react versions)
@@ -14,36 +15,36 @@ function FacebookIcon({ size = 13 }: { size?: number }) {
 type RequestType = 'TURF_OWNER' | 'PROFESSIONAL' | 'COACH';
 
 const TYPE_CONFIG: Record<RequestType, {
-  title: string;
+  titleKey: string;
+  formTitleKey: string;
+  formDescKey: string;
   icon: typeof Building2;
   gradient: string;
   glow: string;
-  formTitle: string;
-  formDesc: string;
 }> = {
   TURF_OWNER: {
-    title: 'Are You a Turf Owner?',
+    titleKey: 'turfOwnerTitle',
+    formTitleKey: 'listTurf',
+    formDescKey: 'listTurfDesc',
     icon: Building2,
     gradient: 'from-emerald-600/20 to-emerald-900/10',
     glow: 'group-hover:shadow-emerald-500/20',
-    formTitle: 'List Your Turf with BMT',
-    formDesc: 'Tell us about yourself and your turf. Our team will reach out to onboard you.',
   },
   PROFESSIONAL: {
-    title: 'Are You a Tournament Organizer?',
+    titleKey: 'organizerTitle',
+    formTitleKey: 'joinOrganizer',
+    formDescKey: 'joinOrganizerDesc',
     icon: Briefcase,
     gradient: 'from-blue-600/20 to-blue-900/10',
     glow: 'group-hover:shadow-blue-500/20',
-    formTitle: 'Join as a Tournament Organizer',
-    formDesc: 'Register your interest and our team will onboard you to host official tournaments on BMT.',
   },
   COACH: {
-    title: 'Coach / Ref / Trainer?',
+    titleKey: 'coachTitle',
+    formTitleKey: 'joinCoach',
+    formDescKey: 'joinCoachDesc',
     icon: GraduationCap,
     gradient: 'from-fuchsia-600/20 to-fuchsia-900/10',
     glow: 'group-hover:shadow-fuchsia-500/20',
-    formTitle: 'Join as a Coach, Ref or Trainer',
-    formDesc: 'Get featured to players and teams actively looking for qualified personnel.',
   },
 };
 
@@ -58,6 +59,7 @@ interface FormState {
 const INITIAL_FORM: FormState = { name: '', phone: '', email: '', location: '', message: '' };
 
 export default function JoinUsBentoSection() {
+  const t = useTranslations('Home');
   const [modalType, setModalType] = useState<RequestType | null>(null);
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [loading, setLoading] = useState(false);
@@ -80,7 +82,7 @@ export default function JoinUsBentoSection() {
 
   const handleSubmit = async () => {
     if (!form.name.trim() || !form.phone.trim() || !form.location.trim()) {
-      setError('Please fill in your name, phone number, and location.');
+      setError(t('formError'));
       return;
     }
     setLoading(true);
@@ -112,7 +114,7 @@ export default function JoinUsBentoSection() {
       <section className="px-4 flex flex-col gap-3">
         <div className="flex items-center gap-1.5">
           <Send size={15} className="text-accent" />
-          <h3 className="text-base font-black tracking-tight text-white">Join the Platform</h3>
+          <h3 className="text-base font-black tracking-tight text-white">{t('joinPlatform')}</h3>
         </div>
 
         <div className="grid grid-cols-3 gap-2.5">
@@ -128,9 +130,9 @@ export default function JoinUsBentoSection() {
                 <div className="w-9 h-9 rounded-xl bg-white/8 flex items-center justify-center border border-white/10 group-hover:scale-110 transition-transform duration-200">
                   <Icon size={18} className="text-white" />
                 </div>
-                <p className="text-[9px] font-black text-white leading-tight">{cfg.title}</p>
+                <p className="text-[9px] font-black text-white leading-tight">{t(cfg.titleKey)}</p>
                 <span className="text-[8px] font-black uppercase tracking-widest text-accent bg-accent/10 border border-accent/20 px-2 py-0.5 rounded-full">
-                  Join Us →
+                  {t('joinUsBtn')} →
                 </span>
               </button>
             );
@@ -155,8 +157,8 @@ export default function JoinUsBentoSection() {
                   <config.icon size={20} className="text-white" />
                 </div>
                 <div>
-                  <h3 className="font-black text-white text-base leading-tight">{config.formTitle}</h3>
-                  <p className="text-[10px] text-[var(--muted)] mt-0.5">{config.formDesc}</p>
+                  <h3 className="font-black text-white text-base leading-tight">{t(config.formTitleKey)}</h3>
+                  <p className="text-[10px] text-[var(--muted)] mt-0.5">{t(config.formDescKey)}</p>
                 </div>
               </div>
               <button
@@ -172,7 +174,7 @@ export default function JoinUsBentoSection() {
 
               {/* ── Contact Us (top of modal body) ── */}
               <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-4 flex flex-col gap-2.5">
-                <p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)]">Need help? Contact us directly</p>
+                <p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)]">{t('needHelp')}</p>
                 <div className="flex flex-col gap-2">
                   <a href="tel:01621960472" className="flex items-center gap-2.5 group">
                     <div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center border border-emerald-500/25 shrink-0">
@@ -209,7 +211,7 @@ export default function JoinUsBentoSection() {
               {/* Divider */}
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-white/8" />
-                <span className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)]">Or fill the form below</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)]">{t('orFillForm')}</span>
                 <div className="flex-1 h-px bg-white/8" />
               </div>
 
@@ -220,16 +222,16 @@ export default function JoinUsBentoSection() {
                     <CheckCircle2 size={32} className="text-emerald-400" />
                   </div>
                   <div>
-                    <p className="font-black text-white text-lg">Request Sent! 🎉</p>
+                    <p className="font-black text-white text-lg">{t('requestSent')}</p>
                     <p className="text-sm text-[var(--muted)] mt-1">
-                      Our team will reach out to you at <span className="text-white font-bold">{form.phone}</span> within 24–48 hours.
+                      {t('requestSentDesc')}
                     </p>
                   </div>
                   <button
                     onClick={handleClose}
                     className="px-6 py-2.5 bg-accent text-black font-black rounded-xl text-sm hover:brightness-110 transition-all"
                   >
-                    Done
+                    {t('doneBtn')}
                   </button>
                 </div>
               ) : (
@@ -237,7 +239,7 @@ export default function JoinUsBentoSection() {
                 <div className="flex flex-col gap-3.5">
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)] block mb-1.5">
-                      Full Name <span className="text-red-400">*</span>
+                      {t('fullName')} <span className="text-red-400">*</span>
                     </label>
                     <input
                       type="text"
@@ -250,7 +252,7 @@ export default function JoinUsBentoSection() {
 
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)] block mb-1.5">
-                      Phone Number <span className="text-red-400">*</span>
+                      {t('phone')} <span className="text-red-400">*</span>
                     </label>
                     <input
                       type="tel"
@@ -263,7 +265,7 @@ export default function JoinUsBentoSection() {
 
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)] block mb-1.5">
-                      Email Address <span className="text-white/30 font-bold normal-case">(optional)</span>
+                      {t('email')} <span className="text-white/30 font-bold normal-case">{t('optional')}</span>
                     </label>
                     <input
                       type="email"
@@ -277,7 +279,7 @@ export default function JoinUsBentoSection() {
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)] block mb-1.5">
                       <MapPin size={10} className="inline mr-1" />
-                      Location / Area <span className="text-red-400">*</span>
+                      {t('locationArea')} <span className="text-red-400">*</span>
                     </label>
                     <input
                       type="text"
@@ -290,10 +292,10 @@ export default function JoinUsBentoSection() {
 
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)] block mb-1.5">
-                      Tell Us More <span className="text-white/30 font-bold normal-case">(optional)</span>
+                      {t('tellUsMore')} <span className="text-white/30 font-bold normal-case">{t('optional')}</span>
                     </label>
                     <textarea
-                      placeholder="Describe your turf, expertise, or what you're looking for..."
+                      placeholder={t('describeExpertise')}
                       value={form.message}
                       onChange={e => setForm(p => ({ ...p, message: e.target.value }))}
                       rows={3}
@@ -312,7 +314,7 @@ export default function JoinUsBentoSection() {
                     disabled={loading}
                     className="w-full py-3.5 bg-accent text-black font-black text-sm rounded-xl hover:brightness-110 disabled:opacity-60 flex items-center justify-center gap-2 transition-all shadow-lg shadow-accent/20"
                   >
-                    {loading ? <Loader2 size={16} className="animate-spin" /> : <><Send size={15} /> Submit Request</>}
+                    {loading ? <Loader2 size={16} className="animate-spin" /> : <><Send size={15} /> {t('submitRequest')}</>}
                   </button>
                 </div>
               )}

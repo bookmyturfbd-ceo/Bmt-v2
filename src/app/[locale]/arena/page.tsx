@@ -4,17 +4,21 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import {
   Swords, Users, Trophy, ArrowLeftRight, BarChart2,
-  Plus, User, ChevronRight, Shield, Sun, Moon, Video
+  Plus, User, ChevronRight, Shield, Video
 } from 'lucide-react';
-import { useTheme } from 'next-themes';
+import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 
 export default function ArenaPage() {
   const router = useRouter();
   const pathname = usePathname();
   const locale = pathname.split('/')[1] || 'en';
-  const { theme, setTheme } = useTheme();
+  const t = useTranslations('Arena');
+
   const [mounted, setMounted] = useState(false);
+  const [avatar, setAvatar] = useState('');
+  const [initials, setInitials] = useState('');
+  const [isAuthed, setIsAuthed] = useState(false);
 
   const [myTeams, setMyTeams] = useState<any[]>([]);
   const [challenges, setChallenges] = useState<{ received: any[]; upcoming: any[] }>({ received: [], upcoming: [] });
@@ -22,6 +26,29 @@ export default function ArenaPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Parse cookies on client
+    const getCookie = (name: string) => {
+      const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+      return match ? decodeURIComponent(match[2]) : '';
+    };
+
+    const auth = document.cookie.includes('bmt_auth=');
+    const role = getCookie('bmt_role');
+    const currentlyAuthed = auth && (!role || role === 'player');
+    setIsAuthed(currentlyAuthed);
+
+    if (currentlyAuthed) {
+      const name = getCookie('bmt_name') || '';
+      setInitials(name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) || 'P');
+      const pid = getCookie('bmt_player_id');
+      if (pid) {
+        fetch(`/api/bmt/players/${pid}`)
+          .then(r => r.json())
+          .then(d => { if (d?.avatarUrl || d?.avatarBase64) setAvatar(d.avatarUrl || d.avatarBase64); })
+          .catch(() => {});
+      }
+    }
+
     Promise.all([
       fetch('/api/interact/market').then(r => r.json()).catch(() => ({ myTeams: [] })),
       fetch('/api/interact/challenge').then(r => r.json()).catch(() => ({ received: [], upcoming: [] })),
@@ -39,24 +66,58 @@ export default function ArenaPage() {
   const liveMatches = challenges.upcoming.filter((c: any) => c.status === 'LIVE').length;
   const activeTournaments = tournaments.filter(t => t.status === 'ACTIVE').length;
 
+  const formatNumber = (num: number | string) => {
+    if (locale === 'bn') {
+      const banglaDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+      return String(num).replace(/[0-9]/g, (w) => banglaDigits[+w]);
+    }
+    return String(num);
+  };
+
+  const translateVariant = (variant: string) => {
+    if (locale === 'bn') {
+      const map: Record<string, string> = {
+        'FUTSAL_5': '৫-এ-সাইড ফুটসাল',
+        'FUTSAL_6': '৬-এ-সাইড',
+        'FUTSAL_7': '৭-এ-সাইড',
+        'FOOTBALL_FULL': '১১ বনাম ১১',
+        'CRICKET_7': '৭-এ-সাইড ক্রিকেট',
+        'CRICKET_FULL': '১১ বনাম ১১ ক্রিকেট',
+      };
+      return map[variant] ?? variant;
+    }
+    const mapEn: Record<string, string> = {
+      'FUTSAL_5': '5-a-side Futsal',
+      'FUTSAL_6': '6-a-side Futsal',
+      'FUTSAL_7': '7-a-side Futsal',
+      'FOOTBALL_FULL': '11-a-side',
+      'CRICKET_7': '7-a-side Cricket',
+      'CRICKET_FULL': '11-a-side Cricket',
+    };
+    return mapEn[variant] ?? variant;
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground pb-28">
       {/* ── Header ── */}
       <header className="sticky top-0 z-40 bg-zinc-950/80 backdrop-blur-md border-b border-white/5 px-5 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Swords size={20} className="text-fuchsia-400" />
-          <h1 className="font-black text-xl tracking-tight">Arena</h1>
+          <h1 className="font-black text-xl tracking-tight">{t('title')}</h1>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="w-10 h-10 rounded-full bg-white dark:bg-white/5 border border-neutral-200 dark:border-white/10 flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-white/10 transition-colors shadow-sm"
-          >
-            {mounted && theme === 'dark' ? <Sun size={18} className="text-yellow-400" /> : <Moon size={18} className="text-blue-500" />}
-          </button>
           <Link href="/profile"
-            className="w-10 h-10 rounded-full bg-white dark:bg-white/5 border border-neutral-200 dark:border-white/10 flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-white/10 transition-colors shadow-sm">
-            <User size={18} className="text-[var(--muted)]" />
+            className="w-10 h-10 rounded-full bg-white dark:bg-white/5 border border-neutral-200 dark:border-white/10 flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-white/10 transition-colors shadow-sm overflow-hidden"
+          >
+            {isAuthed ? (
+              avatar ? (
+                <img src={avatar} className="w-full h-full object-cover" alt="Profile" />
+              ) : (
+                <span className="text-xs font-black text-accent">{initials}</span>
+              )
+            ) : (
+              <User size={18} className="text-[var(--muted)]" />
+            )}
           </Link>
         </div>
       </header>
@@ -77,20 +138,22 @@ export default function ArenaPage() {
                 <Swords size={22} className="text-fuchsia-300" />
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-fuchsia-400/70 mb-1">Competitive</p>
-                <h2 className="text-2xl font-black text-white leading-tight">Challenge Market</h2>
-                <p className="text-sm text-fuchsia-200/60 mt-1 max-w-[200px] leading-relaxed">Browse & challenge rival teams in ranked matches</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-fuchsia-400/70 mb-1">{t('competitive')}</p>
+                <h2 className="text-2xl font-black text-white leading-tight">{t('challengeMarket')}</h2>
+                <p className="text-sm text-fuchsia-200/60 mt-1 max-w-[200px] leading-relaxed">{t('challengeMarketDesc')}</p>
               </div>
               {pendingReceived > 0 && (
                 <div className="inline-flex items-center gap-2 bg-fuchsia-500/20 border border-fuchsia-500/30 rounded-full px-3 py-1.5 w-fit">
                   <span className="w-2 h-2 rounded-full bg-fuchsia-400 animate-pulse" />
-                  <span className="text-xs font-black text-fuchsia-300">{pendingReceived} challenge{pendingReceived > 1 ? 's' : ''} waiting</span>
+                  <span className="text-xs font-black text-fuchsia-300">
+                    {t('challengesWaiting', { count: formatNumber(pendingReceived) })}
+                  </span>
                 </div>
               )}
               {liveMatches > 0 && (
                 <div className="inline-flex items-center gap-2 bg-red-500/20 border border-red-500/30 rounded-full px-3 py-1.5 w-fit">
                   <span className="w-2 h-2 rounded-full bg-red-400 animate-ping" />
-                  <span className="text-xs font-black text-red-300">{liveMatches} LIVE</span>
+                  <span className="text-xs font-black text-red-300">{formatNumber(liveMatches)} {t('live')}</span>
                 </div>
               )}
             </div>
@@ -98,16 +161,18 @@ export default function ArenaPage() {
           </div>
           <div className="relative z-10 mt-5 pt-4 border-t border-fuchsia-500/20 flex items-center gap-5">
             <div className="flex flex-col">
-              <span className="text-[10px] text-fuchsia-400/50 font-bold uppercase tracking-wider">My Teams</span>
-              <span className="font-black text-lg text-white">{loading ? '—' : myTeams.length}</span>
+              <span className="text-[10px] text-fuchsia-400/50 font-bold uppercase tracking-wider">{t('myTeams')}</span>
+              <span className="font-black text-lg text-white">{loading ? '—' : formatNumber(myTeams.length)}</span>
             </div>
             <div className="w-px h-8 bg-fuchsia-500/20" />
             <div className="flex flex-col">
-              <span className="text-[10px] text-fuchsia-400/50 font-bold uppercase tracking-wider">Active Matches</span>
-              <span className="font-black text-lg text-white">{loading ? '—' : challenges.upcoming.filter((c: any) => ['LIVE', 'SCHEDULED', 'SCORE_ENTRY'].includes(c.status)).length}</span>
+              <span className="text-[10px] text-fuchsia-400/50 font-bold uppercase tracking-wider">{t('activeMatches')}</span>
+              <span className="font-black text-lg text-white">
+                {loading ? '—' : formatNumber(challenges.upcoming.filter((c: any) => ['LIVE', 'SCHEDULED', 'SCORE_ENTRY'].includes(c.status)).length)}
+              </span>
             </div>
             <div className="ml-auto">
-              <span className="text-[11px] font-black text-fuchsia-300 bg-fuchsia-500/10 border border-fuchsia-500/20 px-3 py-1.5 rounded-full">Open Arena →</span>
+              <span className="text-[11px] font-black text-fuchsia-300 bg-fuchsia-500/10 border border-fuchsia-500/20 px-3 py-1.5 rounded-full">{t('openArena')}</span>
             </div>
           </div>
         </button>
@@ -126,14 +191,16 @@ export default function ArenaPage() {
                 <Trophy size={22} className="text-yellow-300" />
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-yellow-400/70 mb-1">Official Events</p>
-                <h2 className="text-2xl font-black text-white leading-tight">Tournaments</h2>
-                <p className="text-sm text-yellow-200/50 mt-1">Compete for prizes & MMR in structured events</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-yellow-400/70 mb-1">{t('officialEvents')}</p>
+                <h2 className="text-2xl font-black text-white leading-tight">{t('tournaments')}</h2>
+                <p className="text-sm text-yellow-200/50 mt-1">{t('tournamentsDesc')}</p>
               </div>
               {activeTournaments > 0 && (
                 <div className="inline-flex items-center gap-2 bg-yellow-500/20 border border-yellow-500/30 rounded-full px-3 py-1.5 w-fit">
                   <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-                  <span className="text-xs font-black text-yellow-300">{activeTournaments} Active Now</span>
+                  <span className="text-xs font-black text-yellow-300">
+                    {t('activeNow', { count: formatNumber(activeTournaments) })}
+                  </span>
                 </div>
               )}
             </div>
@@ -144,40 +211,34 @@ export default function ArenaPage() {
           <div className="relative z-10 pt-4 border-t border-yellow-500/20">
             {!loading && tournaments.length > 0 ? (
               <div className="flex flex-col gap-2.5">
-                {tournaments.map(t => {
-                  const SPORT_VARIANTS_MAP: Record<string, string> = {
-                    FUTSAL_5: '5-a-side Futsal', FUTSAL_6: '6-a-side', FUTSAL_7: '7-a-side',
-                    FOOTBALL_FULL: '11-a-side', CRICKET_7: '7-a-side Cricket', CRICKET_FULL: '11-a-side Cricket',
-                  };
-                  const variantLabel = t.formatConfig?.sportVariant
-                    ? SPORT_VARIANTS_MAP[t.formatConfig.sportVariant]
-                    : t.sport;
+                {tournaments.map(tour => {
+                  const variantLabel = translateVariant(tour.formatConfig?.sportVariant || tour.sport);
                   return (
-                    <div key={t.id} className="flex items-center justify-between">
+                    <div key={tour.id} className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="w-7 h-7 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center">
                           <Trophy size={14} className="text-yellow-400" />
                         </div>
                         <div>
-                          <p className="text-sm font-black text-white truncate max-w-[160px]">{t.name}</p>
+                          <p className="text-sm font-black text-white truncate max-w-[160px]">{tour.name}</p>
                           <p className="text-[10px] text-yellow-400/50 font-bold uppercase">
-                            {variantLabel} · {t.entryFee > 0 ? `BDT ${t.entryFee.toLocaleString()} entry` : 'Free'}
+                            {variantLabel} · {tour.entryFee > 0 ? t('entryFee', { fee: formatNumber(tour.entryFee) }) : t('freeEntry')}
                           </p>
                         </div>
                       </div>
                       <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full shrink-0 ${
-                        t.status === 'ACTIVE' ? 'bg-[#00ff41]/20 text-[#00ff41]' :
-                        t.status === 'REGISTRATION_OPEN' ? 'bg-blue-500/20 text-blue-400' :
+                        tour.status === 'ACTIVE' ? 'bg-[#00ff41]/20 text-[#00ff41]' :
+                        tour.status === 'REGISTRATION_OPEN' ? 'bg-blue-500/20 text-blue-400' :
                         'bg-neutral-800 text-neutral-400'
                       }`}>
-                        {t.status === 'REGISTRATION_OPEN' ? 'Open' : t.status === 'ACTIVE' ? 'Live' : t.status.replace('_', ' ')}
+                        {tour.status === 'REGISTRATION_OPEN' ? t('open') : tour.status === 'ACTIVE' ? t('liveStatus') : tour.status.replace('_', ' ')}
                       </span>
                     </div>
                   );
                 })}
               </div>
             ) : !loading ? (
-              <p className="text-xs text-yellow-400/40 font-bold text-center py-1">No active tournaments yet. Check back soon!</p>
+              <p className="text-xs text-yellow-400/40 font-bold text-center py-1">{t('noTournaments')}</p>
             ) : (
               <div className="h-6 bg-yellow-500/10 rounded animate-pulse" />
             )}
@@ -194,25 +255,29 @@ export default function ArenaPage() {
               <Shield size={18} className="text-accent" />
             </div>
             <div className="flex flex-col gap-1 flex-1">
-              <p className="font-black text-base text-white leading-tight">My Teams</p>
+              <p className="font-black text-base text-white leading-tight">{t('myTeams')}</p>
               {!loading && myTeams.length > 0 ? (
                 <div className="flex flex-col gap-1.5 mt-1">
-                  {myTeams.slice(0, 2).map((t: any) => (
-                    <div key={t.id} className="flex items-center gap-1.5">
+                  {myTeams.slice(0, 2).map((team: any) => (
+                    <div key={team.id} className="flex items-center gap-1.5">
                       <div className="w-4 h-4 rounded-full bg-neutral-800 border border-white/10 overflow-hidden flex-shrink-0">
-                        {t.logoUrl ? <img src={t.logoUrl} className="w-full h-full object-cover" alt="" /> : <Shield size={8} className="m-auto text-accent" />}
+                        {team.logoUrl ? <img src={team.logoUrl} className="w-full h-full object-cover" alt="" /> : <Shield size={8} className="m-auto text-accent" />}
                       </div>
-                      <span className="text-[11px] text-[var(--muted)] truncate font-medium">{t.name}</span>
+                      <span className="text-[11px] text-[var(--muted)] truncate font-medium">{team.name}</span>
                     </div>
                   ))}
-                  {myTeams.length > 2 && <span className="text-[10px] text-[var(--muted)] opacity-60">+{myTeams.length - 2} more</span>}
+                  {myTeams.length > 2 && (
+                    <span className="text-[10px] text-[var(--muted)] opacity-60">
+                      +{formatNumber(myTeams.length - 2)} {locale === 'bn' ? 'টি আরও' : 'more'}
+                    </span>
+                  )}
                 </div>
               ) : (
-                <p className="text-xs text-[var(--muted)] opacity-60 mt-1">Manage your squads</p>
+                <p className="text-xs text-[var(--muted)] opacity-60 mt-1">{t('manageSquads')}</p>
               )}
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-2xl font-black text-accent">{loading ? '—' : myTeams.length}</span>
+              <span className="text-2xl font-black text-accent">{loading ? '—' : formatNumber(myTeams.length)}</span>
               <ChevronRight size={16} className="text-accent/40 group-hover:text-accent transition-colors" />
             </div>
           </button>
@@ -226,11 +291,11 @@ export default function ArenaPage() {
               <Users size={18} className="text-cyan-400" />
             </div>
             <div className="flex flex-col gap-1 flex-1 relative z-10">
-              <p className="font-black text-base text-white leading-tight">Play with Friends</p>
-              <p className="text-xs text-[var(--muted)] opacity-60 mt-1">Create a group & split turf costs</p>
+              <p className="font-black text-base text-white leading-tight">{t('playWithFriends')}</p>
+              <p className="text-xs text-[var(--muted)] opacity-60 mt-1">{t('playWithFriendsDesc')}</p>
             </div>
             <div className="flex items-center justify-between relative z-10">
-              <span className="text-[11px] text-cyan-400/70 font-black bg-cyan-500/10 border border-cyan-500/20 px-2 py-1 rounded-full">New ✦</span>
+              <span className="text-[11px] text-cyan-400/70 font-black bg-cyan-500/10 border border-cyan-500/20 px-2 py-1 rounded-full">{t('newBadge')}</span>
               <ChevronRight size={16} className="text-cyan-500/40 group-hover:text-cyan-400 transition-colors" />
             </div>
           </button>
@@ -246,11 +311,11 @@ export default function ArenaPage() {
             <Video size={20} className="text-[#00ff41]" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-black text-base text-white">Highlights</p>
-            <p className="text-xs text-[var(--muted)] mt-0.5">Watch and upload global player reels</p>
+            <p className="font-black text-base text-white">{t('highlights')}</p>
+            <p className="text-xs text-[var(--muted)] mt-0.5">{t('highlightsDesc')}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[11px] text-[#00ff41]/70 font-black bg-[#00ff41]/10 border border-[#00ff41]/20 px-2 py-1 rounded-full">Watch</span>
+            <span className="text-[11px] text-[#00ff41]/70 font-black bg-[#00ff41]/10 border border-[#00ff41]/20 px-2 py-1 rounded-full">{t('watch')}</span>
             <ChevronRight size={16} className="text-[#00ff41]/40 group-hover:text-[#00ff41] transition-colors" />
           </div>
         </button>
@@ -265,11 +330,11 @@ export default function ArenaPage() {
             <ArrowLeftRight size={20} className="text-blue-400" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-black text-base text-white">Transfer Market</p>
-            <p className="text-xs text-[var(--muted)] mt-0.5">Buy and sell players between teams</p>
+            <p className="font-black text-base text-white">{t('transferMarket')}</p>
+            <p className="text-xs text-[var(--muted)] mt-0.5">{t('transferMarketDesc')}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[11px] text-blue-400/70 font-black bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded-full">Browse</span>
+            <span className="text-[11px] text-blue-400/70 font-black bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded-full">{t('browse')}</span>
             <ChevronRight size={16} className="text-blue-500/40 group-hover:text-blue-400 transition-colors" />
           </div>
         </button>
@@ -284,11 +349,11 @@ export default function ArenaPage() {
             <BarChart2 size={20} className="text-orange-400" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-black text-base text-white">Leaderboards</p>
-            <p className="text-xs text-[var(--muted)] mt-0.5">See top-ranked teams & players</p>
+            <p className="font-black text-base text-white">{t('leaderboards')}</p>
+            <p className="text-xs text-[var(--muted)] mt-0.5">{t('leaderboardsDesc')}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[11px] text-orange-400/70 font-black bg-orange-500/10 border border-orange-500/20 px-2 py-1 rounded-full">View All</span>
+            <span className="text-[11px] text-orange-400/70 font-black bg-orange-500/10 border border-orange-500/20 px-2 py-1 rounded-full">{t('viewAll')}</span>
             <ChevronRight size={16} className="text-orange-500/40 group-hover:text-orange-400 transition-colors" />
           </div>
         </button>
@@ -299,7 +364,7 @@ export default function ArenaPage() {
       <button
         onClick={() => router.push(`/${locale}/teams?create=1`)}
         className="fixed bottom-24 right-5 z-50 w-14 h-14 rounded-full bg-accent text-black flex items-center justify-center shadow-[0_0_30px_rgba(0,255,65,0.4)] hover:brightness-110 active:scale-95 transition-all"
-        title="Create New Team"
+        title={t('createTeamTitle')}
       >
         <Plus size={24} strokeWidth={3} />
       </button>

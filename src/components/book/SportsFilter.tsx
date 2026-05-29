@@ -13,7 +13,7 @@ export default function SportsFilter({
         onClick={() => setSelectedCategory('all')}
         className={`flex-shrink-0 snap-center px-5 py-2 rounded-full text-xs font-bold border transition-all ${selectedCategory === 'all' ? 'bg-accent text-black border-accent' : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:text-white'}`}
       >
-         All Sports
+         {t('all')}
       </button>
       
       {categories.map((cat) => (
