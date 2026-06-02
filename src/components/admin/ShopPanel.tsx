@@ -4,6 +4,7 @@ import {
   ImagePlus, Trash2, Loader2, Upload, CheckCircle2, X, Settings2, Gauge,
   ToggleLeft, ToggleRight, Plus, ChevronRight, ChevronDown, Tag, Package,
   ShoppingBag, FolderOpen, Eye, EyeOff, Search, Edit2, Save, ArrowLeft,
+  Copy,
 } from 'lucide-react';
 import { uploadFileToCDN } from '@/lib/supabase';
 
@@ -416,8 +417,10 @@ function ShopProductsTab({ onToast }: { onToast: (m: string) => void }) {
     return (
       <ProductForm
         categories={categories}
-        onSaved={() => { load(); setView('list'); onToast('Product saved!'); }}
-        onCancel={() => setView('list')}
+        product={selectedProduct}
+        isDuplicate={!!selectedProduct}
+        onSaved={() => { load(); setView('list'); setSelectedProduct(null); onToast(selectedProduct ? 'Product duplicated!' : 'Product saved!'); }}
+        onCancel={() => { setView('list'); setSelectedProduct(null); }}
       />
     );
   }
@@ -489,6 +492,9 @@ function ShopProductsTab({ onToast }: { onToast: (m: string) => void }) {
                           </p>
                         ) : <p className="text-[10px] text-[var(--muted)]">No sizes</p>}
                         <div className="flex gap-1 shrink-0">
+                          <button onClick={() => { setSelectedProduct(p); setView('create'); }} title="Duplicate Product" className="w-6 h-6 flex items-center justify-center rounded bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 transition-colors">
+                            <Copy size={10} />
+                          </button>
                           <button onClick={() => toggleStatus(p)} title={p.status === 'active' ? 'Set to Draft (Hide)' : 'Set to Active (Show)'} className="w-6 h-6 flex items-center justify-center rounded bg-neutral-800 border border-white/5 hover:bg-neutral-700 text-[var(--muted)] hover:text-white transition-colors">
                             {p.status === 'active' ? <Eye size={10} className="text-accent" /> : <EyeOff size={10} />}
                           </button>
@@ -513,7 +519,7 @@ function ShopProductsTab({ onToast }: { onToast: (m: string) => void }) {
 }
 
 // ── Product Form ───────────────────────────────────────────────────────────────
-function ProductForm({ categories, product, onSaved, onCancel }: { categories: Category[]; product?: any; onSaved: () => void; onCancel: () => void; }) {
+function ProductForm({ categories, product, isDuplicate, onSaved, onCancel }: { categories: Category[]; product?: any; isDuplicate?: boolean; onSaved: () => void; onCancel: () => void; }) {
   const [name, setName] = useState(product?.name || '');
   const [categoryId, setCategoryId] = useState(product?.categoryId || '');
   const [description, setDescription] = useState(product?.description || '');
@@ -522,8 +528,8 @@ function ProductForm({ categories, product, onSaved, onCancel }: { categories: C
   const [productCost, setProductCost] = useState(product?.productCost?.toString() || '');
   const [marketingCost, setMarketingCost] = useState(product?.marketingCost?.toString() || '');
   const [status, setStatus] = useState(product?.status || 'active');
-  const [mainImage, setMainImage] = useState(product?.mainImage || '');
-  const [galleryImages, setGalleryImages] = useState<string[]>(product?.galleryImages || []);
+  const [mainImage, setMainImage] = useState(isDuplicate ? '' : (product?.mainImage || ''));
+  const [galleryImages, setGalleryImages] = useState<string[]>(isDuplicate ? [] : (product?.galleryImages || []));
   const [sizes, setSizes] = useState<SizeEntry[]>(
     product?.sizes?.map((s: any) => ({
       label: s.label,
@@ -580,9 +586,9 @@ function ProductForm({ categories, product, onSaved, onCancel }: { categories: C
       return;
     }
     setSaving(true);
-    const method = product ? 'PATCH' : 'POST';
+    const method = (product && !isDuplicate) ? 'PATCH' : 'POST';
     const body = {
-      ...(product && { id: product.id }),
+      ...((product && !isDuplicate) && { id: product.id }),
       name: name.trim(), categoryId, mainImage, galleryImages,
       description, seoTitle, seoDescription,
       productCost: Number(productCost || 0), marketingCost: Number(marketingCost || 0),
@@ -625,7 +631,7 @@ function ProductForm({ categories, product, onSaved, onCancel }: { categories: C
         <div className="flex flex-col gap-5">
           {/* Basic Info */}
           <div className="glass-panel rounded-3xl border border-[var(--panel-border)] p-6 flex flex-col gap-4">
-            <h3 className="font-black text-base flex items-center gap-2"><Package size={16} className="text-accent" /> {product ? 'Edit Product Info' : 'Product Info'}</h3>
+            <h3 className="font-black text-base flex items-center gap-2"><Package size={16} className="text-accent" /> {product && !isDuplicate ? 'Edit Product Info' : 'Product Info'}</h3>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="Product name *"
               className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-accent/50" />
             <select value={categoryId} onChange={e => setCategoryId(e.target.value)}
@@ -778,7 +784,7 @@ function ProductForm({ categories, product, onSaved, onCancel }: { categories: C
           <button onClick={save} disabled={saving}
             className="w-full flex items-center justify-center gap-2 py-4 bg-accent text-black font-black rounded-2xl hover:brightness-110 disabled:opacity-50 text-base mt-4">
             {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-            {saving ? 'Saving…' : product ? 'Update Product' : 'Save Product'}
+            {saving ? 'Saving…' : product && !isDuplicate ? 'Update Product' : 'Save Product'}
           </button>
         </div>
       </div>
