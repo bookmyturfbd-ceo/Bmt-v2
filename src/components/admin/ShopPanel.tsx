@@ -392,6 +392,26 @@ function ShopProductsTab({ onToast }: { onToast: (m: string) => void }) {
     }
   };
 
+  const toggleStatus = async (p: Product) => {
+    const newStatus = p.status === 'active' ? 'draft' : 'active';
+    try {
+      const res = await fetch('/api/shop/products', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: p.id, status: newStatus }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Failed to update product status.');
+        return;
+      }
+      onToast(`Product set to ${newStatus}`);
+      await load();
+    } catch (err) {
+      alert('An error occurred while updating the product status.');
+    }
+  };
+
   if (view === 'create') {
     return (
       <ProductForm
@@ -450,9 +470,15 @@ function ShopProductsTab({ onToast }: { onToast: (m: string) => void }) {
                   <div key={p.id} className="glass-panel border border-[var(--panel-border)] rounded-2xl overflow-hidden flex flex-col group">
                     <div className="aspect-[4/5] bg-neutral-900 overflow-hidden relative">
                       <img src={p.mainImage} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                      <span className={`absolute top-2 left-2 text-[8px] font-black uppercase px-2 py-0.5 rounded-full shadow border ${p.status === 'active' ? 'bg-[#00ff41]/90 text-black border-[#00ff41]' : 'bg-neutral-800 text-[var(--muted)] border-white/10'}`}>
+                      <button
+                        onClick={() => toggleStatus(p)}
+                        title={`Click to set as ${p.status === 'active' ? 'draft' : 'active'}`}
+                        className={`absolute top-2 left-2 text-[8px] font-black uppercase px-2 py-0.5 rounded-full shadow border cursor-pointer hover:scale-105 active:scale-95 transition-all ${
+                          p.status === 'active' ? 'bg-[#00ff41]/90 text-black border-[#00ff41]' : 'bg-neutral-800 text-[var(--muted)] border-white/10'
+                        }`}
+                      >
                         {p.status}
-                      </span>
+                      </button>
                     </div>
                     <div className="p-3 flex flex-col gap-1.5 flex-1">
                       <p className="font-bold text-xs leading-tight line-clamp-2" title={p.name}>{p.name}</p>
@@ -463,6 +489,9 @@ function ShopProductsTab({ onToast }: { onToast: (m: string) => void }) {
                           </p>
                         ) : <p className="text-[10px] text-[var(--muted)]">No sizes</p>}
                         <div className="flex gap-1 shrink-0">
+                          <button onClick={() => toggleStatus(p)} title={p.status === 'active' ? 'Set to Draft (Hide)' : 'Set to Active (Show)'} className="w-6 h-6 flex items-center justify-center rounded bg-neutral-800 border border-white/5 hover:bg-neutral-700 text-[var(--muted)] hover:text-white transition-colors">
+                            {p.status === 'active' ? <Eye size={10} className="text-accent" /> : <EyeOff size={10} />}
+                          </button>
                           <button onClick={() => { setSelectedProduct(p); setView('edit'); }} className="w-6 h-6 flex items-center justify-center rounded bg-accent/10 hover:bg-accent/20 text-accent transition-colors">
                             <Edit2 size={10} />
                           </button>
