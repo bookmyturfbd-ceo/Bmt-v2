@@ -63,19 +63,19 @@ export default function ProductDetailClient({ product }: { product: any }) {
       {/* Image Gallery */}
       <div className="w-full aspect-[4/5] md:aspect-[3/4] max-h-[60vh] bg-neutral-900 relative">
         <img src={activeImage} alt={product.name} className="w-full h-full object-cover" />
-        
-        {/* Thumbnails */}
-        {allImages.length > 1 && (
-          <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 px-4 hide-scrollbar overflow-x-auto">
-            {allImages.map((img, i) => (
-              <button key={i} onClick={() => setActiveImage(img)}
-                className={`w-14 h-16 shrink-0 rounded-xl overflow-hidden border-2 transition-all ${activeImage === img ? 'border-accent scale-110 shadow-lg' : 'border-white/20 opacity-70 hover:opacity-100'}`}>
-                <img src={img} className="w-full h-full object-cover" />
-              </button>
-            ))}
-          </div>
-        )}
       </div>
+
+      {/* Thumbnails */}
+      {allImages.length > 1 && (
+        <div className="w-full py-4 bg-background border-b border-[var(--panel-border)] flex justify-center gap-2.5 px-4 hide-scrollbar overflow-x-auto">
+          {allImages.map((img, i) => (
+            <button key={i} onClick={() => setActiveImage(img)}
+              className={`w-14 h-16 shrink-0 rounded-xl overflow-hidden border-2 transition-all ${activeImage === img ? 'border-accent scale-105 shadow-md shadow-accent/25' : 'border-white/10 opacity-70 hover:opacity-100'}`}>
+              <img src={img} className="w-full h-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Product Info */}
       <div className="p-5 flex flex-col gap-6 max-w-2xl mx-auto">
