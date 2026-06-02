@@ -164,6 +164,15 @@ function rankIcon(tier: string) {
 const PODIUM_GLOW = ['rgba(255,215,0,0.3)', 'rgba(192,192,192,0.25)', 'rgba(205,127,50,0.2)'];
 const PODIUM_LABEL = ['🥇', '🥈', '🥉'];
 
+function getInitials(name: string): string {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return parts[0].slice(0, 2).toUpperCase();
+}
+
 // ─── Slide-up Sheet ──────────────────────────────────────────────────────────
 
 function Sheet({
@@ -267,7 +276,7 @@ function PlayerCard({ player, rank, locale, t }: { player: any; rank: number; lo
       <div className="w-11 h-11 rounded-full overflow-hidden bg-neutral-800 border border-white/10 shrink-0 flex items-center justify-center">
         {player.avatarUrl
           ? <img src={player.avatarUrl} className="w-full h-full object-cover" alt={name} />
-          : <span className="text-sm font-black text-accent">{initials}</span>}
+          : <span className="text-sm font-black text-accent">{getInitials(name)}</span>}
       </div>
 
       <div className="flex-1 min-w-0">
@@ -636,7 +645,7 @@ export default function LeaderboardPage() {
                       <div className="w-14 h-14 rounded-full overflow-hidden border-4 border-[#c0c0c0]/50 bg-neutral-800 flex items-center justify-center shadow-[0_0_20px_rgba(192,192,192,0.2)]">
                         {mainTab === 'teams'
                           ? (sportsData[1].logoUrl ? <img src={sportsData[1].logoUrl} className="w-full h-full object-cover" /> : <Shield size={20} className="text-neutral-500" />)
-                          : (sportsData[1].avatarUrl ? <img src={sportsData[1].avatarUrl} className="w-full h-full object-cover" /> : <span className="font-black text-lg text-neutral-400">{(sportsData[1].fullName ?? sportsData[1].name ?? '?')[0]}</span>)}
+                          : (sportsData[1].avatarUrl ? <img src={sportsData[1].avatarUrl} className="w-full h-full object-cover" /> : <span className="font-black text-lg text-neutral-400">{getInitials(sportsData[1].fullName ?? sportsData[1].name ?? '')}</span>)}
                       </div>
                       <span className="text-[10px] font-black text-neutral-400 truncate max-w-[70px] text-center">{sportsData[1].name ?? sportsData[1].fullName ?? '?'}</span>
                       <div className="bg-[#c0c0c0]/20 border border-[#c0c0c0]/30 rounded-t-xl px-3 py-3 text-center w-full">
@@ -649,7 +658,7 @@ export default function LeaderboardPage() {
                       <div className="w-[4.5rem] h-[4.5rem] rounded-full overflow-hidden border-4 border-[#ffd700]/60 bg-neutral-800 flex items-center justify-center shadow-[0_0_30px_rgba(255,215,0,0.3)]">
                         {mainTab === 'teams'
                           ? (sportsData[0].logoUrl ? <img src={sportsData[0].logoUrl} className="w-full h-full object-cover" /> : <Shield size={24} className="text-neutral-500" />)
-                          : (sportsData[0].avatarUrl ? <img src={sportsData[0].avatarUrl} className="w-full h-full object-cover" /> : <span className="font-black text-xl text-neutral-400">{(sportsData[0].fullName ?? sportsData[0].name ?? '?')[0]}</span>)}
+                          : (sportsData[0].avatarUrl ? <img src={sportsData[0].avatarUrl} className="w-full h-full object-cover" /> : <span className="font-black text-xl text-neutral-400">{getInitials(sportsData[0].fullName ?? sportsData[0].name ?? '')}</span>)}
                       </div>
                       <span className="text-[11px] font-black text-white truncate max-w-[80px] text-center">{sportsData[0].name ?? sportsData[0].fullName ?? '?'}</span>
                       <div className="bg-[#ffd700]/15 border border-[#ffd700]/30 rounded-t-xl px-3 py-4 text-center w-full">
@@ -662,7 +671,7 @@ export default function LeaderboardPage() {
                       <div className="w-12 h-12 rounded-full overflow-hidden border-4 border-[#cd7f32]/40 bg-neutral-800 flex items-center justify-center shadow-[0_0_16px_rgba(205,127,50,0.2)]">
                         {mainTab === 'teams'
                           ? (sportsData[2].logoUrl ? <img src={sportsData[2].logoUrl} className="w-full h-full object-cover" /> : <Shield size={16} className="text-neutral-500" />)
-                          : (sportsData[2].avatarUrl ? <img src={sportsData[2].avatarUrl} className="w-full h-full object-cover" /> : <span className="font-black text-base text-neutral-400">{(sportsData[2].fullName ?? sportsData[2].name ?? '?')[0]}</span>)}
+                          : (sportsData[2].avatarUrl ? <img src={sportsData[2].avatarUrl} className="w-full h-full object-cover" /> : <span className="font-black text-base text-neutral-400">{getInitials(sportsData[2].fullName ?? sportsData[2].name ?? '')}</span>)}
                       </div>
                       <span className="text-[10px] font-black text-neutral-400 truncate max-w-[65px] text-center">{sportsData[2].name ?? sportsData[2].fullName ?? '?'}</span>
                       <div className="bg-[#cd7f32]/15 border border-[#cd7f32]/30 rounded-t-xl px-3 py-2.5 text-center w-full">

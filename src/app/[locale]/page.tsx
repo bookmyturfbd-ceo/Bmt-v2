@@ -13,6 +13,15 @@ import { getTranslations } from 'next-intl/server';
 const FALLBACK_AVATAR = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200';
 const FALLBACK_TURF = 'https://images.unsplash.com/photo-1518605368461-1ee18cd30f6b?auto=format&fit=crop&q=80';
 
+function getInitials(name: string): string {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return parts[0].slice(0, 2).toUpperCase();
+}
+
 const SPORT_LABELS: Record<string, string> = {
   FUTSAL_5: '5-a-side Futsal',
   FUTSAL_6: '6-a-side Futsal',
@@ -215,7 +224,7 @@ export default async function RootPage({ params }: { params: Promise<{ locale: s
 
             <div className="flex gap-3.5 overflow-x-auto no-scrollbar pb-1.5 snap-x snap-mandatory">
               {professionals.map((pro: any) => {
-                const img = pro.imageUrls?.[0] || pro.logoUrl || FALLBACK_AVATAR;
+                const img = pro.imageUrls?.[0] || pro.logoUrl;
                 return (
                   <a
                     key={pro.id}
@@ -224,13 +233,23 @@ export default async function RootPage({ params }: { params: Promise<{ locale: s
                   >
                     <div className="glass-panel border border-white/5 rounded-2xl overflow-hidden flex flex-col shadow-lg hover:border-blue-500/30 transition-colors">
                       {/* Photo Container */}
-                      <div className="relative h-28 w-full bg-neutral-900 shrink-0">
-                        <img
-                          src={img}
-                          alt={pro.name}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+                      <div className="relative h-28 w-full bg-neutral-900 shrink-0 flex items-center justify-center">
+                        {img ? (
+                          <>
+                            <img
+                              src={img}
+                              alt={pro.name}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+                          </>
+                        ) : (
+                          <div className="w-full h-full bg-blue-500/10 flex items-center justify-center border-b border-white/5">
+                            <span className="text-xl font-black text-blue-400">
+                              {getInitials(pro.name)}
+                            </span>
+                          </div>
+                        )}
                         
                         <div className="absolute bottom-2 left-2 right-2">
                           <span className="inline-block text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-blue-500 text-white font-mono shadow-sm">
@@ -406,8 +425,14 @@ export default async function RootPage({ params }: { params: Promise<{ locale: s
                           <span className="w-6 shrink-0 text-center font-mono font-black text-xs text-neutral-400">
                             {rankLabels[idx]}
                           </span>
-                          <div className="w-7 h-7 rounded-full overflow-hidden bg-neutral-800 border border-white/10 shrink-0">
-                            <img src={player.avatarUrl || FALLBACK_AVATAR} className="w-full h-full object-cover" alt="" />
+                          <div className="w-7 h-7 rounded-full overflow-hidden bg-neutral-800 border border-white/10 shrink-0 flex items-center justify-center">
+                            {player.avatarUrl ? (
+                              <img src={player.avatarUrl} className="w-full h-full object-cover" alt="" />
+                            ) : (
+                              <span className="text-[9px] font-black text-fuchsia-400">
+                                {getInitials(player.fullName)}
+                              </span>
+                            )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-black text-xs text-white truncate leading-tight">{player.fullName}</p>
