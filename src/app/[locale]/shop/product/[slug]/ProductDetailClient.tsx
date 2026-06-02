@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronLeft, ShoppingCart, Minus, Plus, Ruler, X, CheckCircle2 } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import { useCartStore } from '@/store/useCartStore';
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
+import { trackMetaEvent } from '@/lib/meta-pixel';
 
 export default function ProductDetailClient({ product }: { product: any }) {
   const [selectedSize, setSelectedSize] = useState<any>(product.sizes[0] || null);
@@ -14,6 +15,22 @@ export default function ProductDetailClient({ product }: { product: any }) {
   const [showSizeChart, setShowSizeChart] = useState(false);
   const cart = useCartStore();
   const t = useTranslations('Shop');
+
+  useEffect(() => {
+    trackMetaEvent('ViewContent', {
+      content_name: product.name,
+      content_category: product.category?.name,
+      content_ids: [product.id],
+      content_type: 'product',
+      value: product.sizes[0]?.basePrice || 0,
+      currency: 'BDT',
+      contents: [{
+        id: product.id,
+        quantity: 1,
+        item_price: product.sizes[0]?.basePrice || 0
+      }]
+    });
+  }, [product]);
 
   const allImages = [product.mainImage, ...(product.galleryImages || [])];
   const sizeChartUrl = product.category?.sizeChartUrl || product.category?.parent?.sizeChartUrl;
@@ -32,6 +49,20 @@ export default function ProductDetailClient({ product }: { product: any }) {
       price: currentPrice,
       quantity,
       imageUrl: product.mainImage
+    });
+
+    trackMetaEvent('AddToCart', {
+      content_name: product.name,
+      content_category: product.category?.name,
+      content_ids: [product.id],
+      content_type: 'product',
+      value: currentPrice * quantity,
+      currency: 'BDT',
+      contents: [{
+        id: product.id,
+        quantity: quantity,
+        item_price: currentPrice
+      }]
     });
   };
 

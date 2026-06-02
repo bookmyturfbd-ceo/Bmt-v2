@@ -16,6 +16,7 @@ import LanguagePromptModal from '@/components/layout/LanguagePromptModal';
 import '../globals.css';
 import { Metadata, Viewport } from 'next';
 import Script from 'next/script';
+import MetaTracker from '@/components/shop/MetaTracker';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -87,6 +88,32 @@ export default async function LocaleLayout({
   return (
     <html lang={locale} className="dark antialiased" suppressHydrationWarning>
       <body className="antialiased min-h-screen flex flex-col bg-background text-foreground">
+        {/* Meta Pixel Code */}
+        {process.env.NEXT_PUBLIC_META_PIXEL_ID && (
+          <>
+            <Script id="meta-pixel-init" strategy="afterInteractive">
+              {`
+                !function(f,b,e,v,n,t,s)
+                {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+                n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+                if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+                n.queue=[];t=b.createElement(e);t.async=!0;
+                t.src=v;s=b.getElementsByTagName(e)[0];
+                s.parentNode.insertBefore(t,s)}(window, document,'script',
+                'https://connect.facebook.net/en_US/fbevents.js');
+                fbq('init', '${process.env.NEXT_PUBLIC_META_PIXEL_ID}');
+              `}
+            </Script>
+            <noscript>
+              <img
+                height="1"
+                width="1"
+                style={{ display: 'none' }}
+                src={`https://www.facebook.com/tr?id=${process.env.NEXT_PUBLIC_META_PIXEL_ID}&ev=PageView&noscript=1`}
+              />
+            </noscript>
+          </>
+        )}
         {/* Google Tag (gtag.js) */}
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-782RVX0TV4"
@@ -118,6 +145,7 @@ export default async function LocaleLayout({
               <MatchResultModal />
               <LanguagePromptModal />
               <MadeInBangladesh />
+              <MetaTracker />
               <main className="flex-1 flex flex-col relative pb-16">
                 {children}
                 <Signature />

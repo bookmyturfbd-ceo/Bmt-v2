@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useCartStore } from '@/store/useCartStore';
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
+import { trackMetaEvent } from '@/lib/meta-pixel';
 
 const DHAKA_METRO = ["Dhaka (Metropolitan)"];
 const DHAKA_SUBURBS = ["Dhaka (Suburbs - Savar, Keraniganj, etc)", "Gazipur", "Narayanganj"];
@@ -56,6 +57,20 @@ export default function CheckoutClient() {
   useEffect(() => { 
     setMounted(true); 
     setIsGuest(!document.cookie.includes('bmt_player_id='));
+
+    // Track InitiateCheckout event on checkout page load
+    const subtotal = cart.getCartTotal();
+    trackMetaEvent('InitiateCheckout', {
+      value: subtotal,
+      currency: 'BDT',
+      content_type: 'product',
+      contents: cart.items.map(item => ({
+        id: item.productId,
+        quantity: item.quantity,
+        item_price: item.price
+      })),
+      content_ids: cart.items.map(item => item.productId)
+    });
   }, []);
 
   if (!mounted) return null;
@@ -131,6 +146,24 @@ export default function CheckoutClient() {
       });
 
       if (!res.ok) throw new Error(await res.text());
+
+      // Track Purchase event with cart details and customer matching identifiers before clearing cart
+      trackMetaEvent('Purchase', {
+        value: total,
+        currency: 'BDT',
+        content_type: 'product',
+        contents: cart.items.map(item => ({
+          id: item.productId,
+          quantity: item.quantity,
+          item_price: item.price
+        })),
+        content_ids: cart.items.map(item => item.productId)
+      }, {
+        email: form.email || undefined,
+        phone: form.phone,
+        name: form.name
+      });
+
       cart.clearCart();
       setSuccess(true);
       window.scrollTo(0,0);
