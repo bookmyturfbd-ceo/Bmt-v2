@@ -357,7 +357,8 @@ function ShopCategoriesTab({ onToast }: { onToast: (m: string) => void }) {
 // PRODUCTS TAB
 // ══════════════════════════════════════════════════════════════════════════════
 function ShopProductsTab({ onToast }: { onToast: (m: string) => void }) {
-  const [view, setView] = useState<'list' | 'create'>('list');
+  const [view, setView] = useState<'list' | 'create' | 'edit'>('list');
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -397,6 +398,17 @@ function ShopProductsTab({ onToast }: { onToast: (m: string) => void }) {
         categories={categories}
         onSaved={() => { load(); setView('list'); onToast('Product saved!'); }}
         onCancel={() => setView('list')}
+      />
+    );
+  }
+
+  if (view === 'edit') {
+    return (
+      <ProductForm
+        categories={categories}
+        product={selectedProduct}
+        onSaved={() => { load(); setView('list'); setSelectedProduct(null); onToast('Product updated!'); }}
+        onCancel={() => { setView('list'); setSelectedProduct(null); }}
       />
     );
   }
@@ -450,9 +462,14 @@ function ShopProductsTab({ onToast }: { onToast: (m: string) => void }) {
                             ৳{Math.min(...p.sizes.map((s: any) => s.salePrice ?? s.basePrice)).toLocaleString()}
                           </p>
                         ) : <p className="text-[10px] text-[var(--muted)]">No sizes</p>}
-                        <button onClick={() => del(p.id)} className="w-6 h-6 flex items-center justify-center rounded bg-red-500/10 hover:bg-red-500/20 text-red-500 transition-colors">
-                          <Trash2 size={10} />
-                        </button>
+                        <div className="flex gap-1 shrink-0">
+                          <button onClick={() => { setSelectedProduct(p); setView('edit'); }} className="w-6 h-6 flex items-center justify-center rounded bg-accent/10 hover:bg-accent/20 text-accent transition-colors">
+                            <Edit2 size={10} />
+                          </button>
+                          <button onClick={() => del(p.id)} className="w-6 h-6 flex items-center justify-center rounded bg-red-500/10 hover:bg-red-500/20 text-red-500 transition-colors">
+                            <Trash2 size={10} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -467,18 +484,25 @@ function ShopProductsTab({ onToast }: { onToast: (m: string) => void }) {
 }
 
 // ── Product Form ───────────────────────────────────────────────────────────────
-function ProductForm({ categories, onSaved, onCancel }: { categories: Category[]; onSaved: () => void; onCancel: () => void; }) {
-  const [name, setName] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [description, setDescription] = useState('');
-  const [seoTitle, setSeoTitle] = useState('');
-  const [seoDescription, setSeoDescription] = useState('');
-  const [productCost, setProductCost] = useState('');
-  const [marketingCost, setMarketingCost] = useState('');
-  const [status, setStatus] = useState('active');
-  const [mainImage, setMainImage] = useState('');
-  const [galleryImages, setGalleryImages] = useState<string[]>([]);
-  const [sizes, setSizes] = useState<SizeEntry[]>([]);
+function ProductForm({ categories, product, onSaved, onCancel }: { categories: Category[]; product?: any; onSaved: () => void; onCancel: () => void; }) {
+  const [name, setName] = useState(product?.name || '');
+  const [categoryId, setCategoryId] = useState(product?.categoryId || '');
+  const [description, setDescription] = useState(product?.description || '');
+  const [seoTitle, setSeoTitle] = useState(product?.seoTitle || '');
+  const [seoDescription, setSeoDescription] = useState(product?.seoDescription || '');
+  const [productCost, setProductCost] = useState(product?.productCost?.toString() || '');
+  const [marketingCost, setMarketingCost] = useState(product?.marketingCost?.toString() || '');
+  const [status, setStatus] = useState(product?.status || 'active');
+  const [mainImage, setMainImage] = useState(product?.mainImage || '');
+  const [galleryImages, setGalleryImages] = useState<string[]>(product?.galleryImages || []);
+  const [sizes, setSizes] = useState<SizeEntry[]>(
+    product?.sizes?.map((s: any) => ({
+      label: s.label,
+      basePrice: s.basePrice?.toString() || '',
+      salePrice: s.salePrice?.toString() || '',
+      quantity: s.quantity?.toString() || '',
+    })) || []
+  );
   const [sizeInput, setSizeInput] = useState('');
   const [selectedSize, setSelectedSize] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
@@ -527,21 +551,38 @@ function ProductForm({ categories, onSaved, onCancel }: { categories: Category[]
       return;
     }
     setSaving(true);
-    await fetch('/api/shop/products', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: name.trim(), categoryId, mainImage, galleryImages,
-        description, seoTitle, seoDescription,
-        productCost: Number(productCost || 0), marketingCost: Number(marketingCost || 0),
-        status,
-        sizes: sizes.map(s => ({
-          label: s.label, basePrice: Number(s.basePrice || 0),
-          salePrice: s.salePrice ? Number(s.salePrice) : null,
-          quantity: Number(s.quantity || 0),
-        })),
-      }),
-    });
-    setSaving(false); onSaved();
+    const method = product ? 'PATCH' : 'POST';
+    const body = {
+      ...(product && { id: product.id }),
+      name: name.trim(), categoryId, mainImage, galleryImages,
+      description, seoTitle, seoDescription,
+      productCost: Number(productCost || 0), marketingCost: Number(marketingCost || 0),
+      status,
+      sizes: sizes.map(s => ({
+        label: s.label, basePrice: Number(s.basePrice || 0),
+        salePrice: s.salePrice ? Number(s.salePrice) : null,
+        quantity: Number(s.quantity || 0),
+      })),
+    };
+
+    try {
+      const res = await fetch('/api/shop/products', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to save product.');
+        setSaving(false);
+        return;
+      }
+      setSaving(false);
+      onSaved();
+    } catch (err) {
+      alert('An error occurred while saving the product.');
+      setSaving(false);
+    }
   };
 
   return (
@@ -555,7 +596,7 @@ function ProductForm({ categories, onSaved, onCancel }: { categories: Category[]
         <div className="flex flex-col gap-5">
           {/* Basic Info */}
           <div className="glass-panel rounded-3xl border border-[var(--panel-border)] p-6 flex flex-col gap-4">
-            <h3 className="font-black text-base flex items-center gap-2"><Package size={16} className="text-accent" /> Product Info</h3>
+            <h3 className="font-black text-base flex items-center gap-2"><Package size={16} className="text-accent" /> {product ? 'Edit Product Info' : 'Product Info'}</h3>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="Product name *"
               className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-accent/50" />
             <select value={categoryId} onChange={e => setCategoryId(e.target.value)}
@@ -708,7 +749,7 @@ function ProductForm({ categories, onSaved, onCancel }: { categories: Category[]
           <button onClick={save} disabled={saving}
             className="w-full flex items-center justify-center gap-2 py-4 bg-accent text-black font-black rounded-2xl hover:brightness-110 disabled:opacity-50 text-base mt-4">
             {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-            {saving ? 'Saving…' : 'Save Product'}
+            {saving ? 'Saving…' : product ? 'Update Product' : 'Save Product'}
           </button>
         </div>
       </div>

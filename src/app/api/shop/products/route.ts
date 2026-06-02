@@ -63,27 +63,52 @@ export async function POST(req: NextRequest) {
 
 // PATCH — update product details
 export async function PATCH(req: NextRequest) {
-  const body = await req.json();
-  const { id, sizes, ...rest } = body;
-  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+  try {
+    const body = await req.json();
+    const { id, sizes, ...rest } = body;
+    if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
-  const updated = await prisma.shopProduct.update({
-    where: { id },
-    data: {
-      ...(rest.name && { name: rest.name }),
-      ...(rest.status && { status: rest.status }),
-      ...(rest.description !== undefined && { description: rest.description }),
-      ...(rest.mainImage && { mainImage: rest.mainImage }),
-      ...(rest.galleryImages && { galleryImages: rest.galleryImages }),
-      ...(rest.seoTitle !== undefined && { seoTitle: rest.seoTitle }),
-      ...(rest.seoDescription !== undefined && { seoDescription: rest.seoDescription }),
-      ...(rest.productCost !== undefined && { productCost: Number(rest.productCost) }),
-      ...(rest.marketingCost !== undefined && { marketingCost: Number(rest.marketingCost) }),
-      ...(rest.categoryId && { categoryId: rest.categoryId }),
-    },
-    include: { category: true, sizes: true },
-  });
-  return NextResponse.json(updated);
+    // Update product fields
+    const updated = await prisma.shopProduct.update({
+      where: { id },
+      data: {
+        ...(rest.name && { name: rest.name }),
+        ...(rest.status && { status: rest.status }),
+        ...(rest.description !== undefined && { description: rest.description }),
+        ...(rest.mainImage && { mainImage: rest.mainImage }),
+        ...(rest.galleryImages && { galleryImages: rest.galleryImages }),
+        ...(rest.seoTitle !== undefined && { seoTitle: rest.seoTitle }),
+        ...(rest.seoDescription !== undefined && { seoDescription: rest.seoDescription }),
+        ...(rest.productCost !== undefined && { productCost: Number(rest.productCost) }),
+        ...(rest.marketingCost !== undefined && { marketingCost: Number(rest.marketingCost) }),
+        ...(rest.categoryId && { categoryId: rest.categoryId }),
+      },
+    });
+
+    // Update sizes if provided
+    if (sizes && Array.isArray(sizes)) {
+      await prisma.shopProductSize.deleteMany({ where: { productId: id } });
+      await prisma.shopProductSize.createMany({
+        data: sizes.map((s: any) => ({
+          productId: id,
+          label: s.label,
+          basePrice: Number(s.basePrice || 0),
+          salePrice: s.salePrice ? Number(s.salePrice) : null,
+          quantity: Number(s.quantity || 0),
+        })),
+      });
+    }
+
+    const finalProduct = await prisma.shopProduct.findUnique({
+      where: { id },
+      include: { category: true, sizes: { orderBy: { basePrice: 'asc' } } },
+    });
+
+    return NextResponse.json(finalProduct);
+  } catch (error: any) {
+    console.error('Error in PATCH product:', error);
+    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+  }
 }
 
 // DELETE — remove a product
