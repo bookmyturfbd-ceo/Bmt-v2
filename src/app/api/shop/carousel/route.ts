@@ -61,7 +61,27 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE — remove a slide
 export async function DELETE(req: NextRequest) {
-  const { id } = await req.json();
-  await prisma.shopCarouselSlide.delete({ where: { id } });
-  return NextResponse.json({ ok: true });
+  try {
+    let id;
+    try {
+      const body = await req.json();
+      id = body.id;
+    } catch (e) {
+      // Body may be stripped in live environment
+    }
+    if (!id) {
+      const { searchParams } = new URL(req.url);
+      id = searchParams.get('id');
+    }
+
+    if (!id) {
+      return NextResponse.json({ error: 'Slide ID is required' }, { status: 400 });
+    }
+
+    await prisma.shopCarouselSlide.delete({ where: { id } });
+    return NextResponse.json({ ok: true });
+  } catch (error: any) {
+    console.error('Error in DELETE slide:', error);
+    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+  }
 }

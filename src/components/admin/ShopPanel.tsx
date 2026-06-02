@@ -110,8 +110,18 @@ function ShopCarouselTab({ onToast }: { onToast: (m: string) => void }) {
 
   const deleteSlide = async (id: string) => {
     if (!confirm('Delete slide?')) return;
-    await fetch('/api/shop/carousel', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
-    onToast('Deleted'); await load();
+    try {
+      const res = await fetch(`/api/shop/carousel?id=${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to delete slide.');
+        return;
+      }
+      onToast('Deleted');
+      await load();
+    } catch (err) {
+      alert('An error occurred while deleting the slide.');
+    }
   };
 
   const toggleSlide = async (s: CarouselSlide) => {
@@ -258,8 +268,18 @@ function ShopCategoriesTab({ onToast }: { onToast: (m: string) => void }) {
 
   const del = async (id: string) => {
     if (!confirm('Delete this category? All products will be affected.')) return;
-    await fetch('/api/shop/categories', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
-    onToast('Deleted'); await load();
+    try {
+      const res = await fetch(`/api/shop/categories?id=${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to delete category.');
+        return;
+      }
+      onToast('Deleted');
+      await load();
+    } catch (err) {
+      alert('An error occurred while deleting the category.');
+    }
   };
 
   return (
@@ -357,8 +377,18 @@ function ShopProductsTab({ onToast }: { onToast: (m: string) => void }) {
 
   const del = async (id: string) => {
     if (!confirm('Delete this product?')) return;
-    await fetch('/api/shop/products', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
-    onToast('Product deleted'); await load();
+    try {
+      const res = await fetch(`/api/shop/products?id=${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to delete product.');
+        return;
+      }
+      onToast('Product deleted');
+      await load();
+    } catch (err) {
+      alert('An error occurred while deleting the product.');
+    }
   };
 
   if (view === 'create') {

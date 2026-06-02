@@ -88,7 +88,39 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE — remove a product
 export async function DELETE(req: NextRequest) {
-  const { id } = await req.json();
-  await prisma.shopProduct.delete({ where: { id } });
-  return NextResponse.json({ ok: true });
+  try {
+    let id;
+    try {
+      const body = await req.json();
+      id = body.id;
+    } catch (e) {
+      // Body may be stripped in live environment
+    }
+    if (!id) {
+      const { searchParams } = new URL(req.url);
+      id = searchParams.get('id');
+    }
+
+    if (!id) {
+      return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
+    }
+
+    // Check if the product has been ordered
+    const orderItemsCount = await prisma.shopOrderItem.count({
+      where: { productId: id },
+    });
+
+    if (orderItemsCount > 0) {
+      return NextResponse.json(
+        { error: 'This product cannot be deleted because it is linked to existing customer orders. Please set its status to Draft to hide it from the store instead.' },
+        { status: 400 }
+      );
+    }
+
+    await prisma.shopProduct.delete({ where: { id } });
+    return NextResponse.json({ ok: true });
+  } catch (error: any) {
+    console.error('Error in DELETE product:', error);
+    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+  }
 }
