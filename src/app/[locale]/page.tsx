@@ -180,6 +180,28 @@ export default async function RootPage({ params }: { params: Promise<{ locale: s
           settings={carouselSettings ?? { autoSlide: true, intervalMs: 3500 }}
         />
 
+        {/* FIFA Merch Banner Button */}
+        <div className="px-4">
+          <Link 
+            href={`/${locale}/shop`}
+            className="group relative block w-full rounded-2xl transition-all duration-300 transform active:scale-95 active:translate-y-[1px] hover:-translate-y-[1px] cursor-pointer"
+          >
+            {/* Ambient Glow */}
+            <div className="absolute inset-2 bg-[#00ff41]/25 blur-[15px] rounded-2xl -z-10 group-hover:bg-[#00ff41]/35 transition-all duration-300" />
+            
+            {/* Button Border for 3D Effect */}
+            <div className="relative rounded-2xl border border-white/20 border-b-[6px] border-b-[#00ff41]/50 overflow-hidden shadow-[0_4px_15px_rgba(0,0,0,0.6),0_0_12px_rgba(0,255,65,0.12)] group-hover:shadow-[0_6px_25px_rgba(0,0,0,0.7),0_0_20px_rgba(0,255,65,0.25)] transition-all duration-300">
+              <img 
+                src="/fifa-merch-btn.png" 
+                alt="FIFA 2026 Merch" 
+                className="w-full h-auto object-cover group-hover:scale-[1.01] transition-transform duration-300"
+              />
+              {/* Subtle Overlay Highlight on hover */}
+              <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+            </div>
+          </Link>
+        </div>
+
         {/* 3. Sponsors Bar (As it was before, outside banner) */}
         <SponsorsBar 
           sponsors={sponsors} 
