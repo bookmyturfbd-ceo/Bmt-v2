@@ -27,6 +27,7 @@ export default function ProductDetailClient({ product }: { product: any }) {
       contents: [{
         id: product.id,
         quantity: 1,
+        price: product.sizes[0]?.basePrice || 0,
         item_price: product.sizes[0]?.basePrice || 0
       }]
     });
@@ -61,6 +62,7 @@ export default function ProductDetailClient({ product }: { product: any }) {
       contents: [{
         id: product.id,
         quantity: quantity,
+        price: currentPrice,
         item_price: currentPrice
       }]
     });

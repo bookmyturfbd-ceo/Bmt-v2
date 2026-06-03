@@ -67,6 +67,7 @@ export default function CheckoutClient() {
       contents: cart.items.map(item => ({
         id: item.productId,
         quantity: item.quantity,
+        price: item.price,
         item_price: item.price
       })),
       content_ids: cart.items.map(item => item.productId)
@@ -155,6 +156,7 @@ export default function CheckoutClient() {
         contents: cart.items.map(item => ({
           id: item.productId,
           quantity: item.quantity,
+          price: item.price,
           item_price: item.price
         })),
         content_ids: cart.items.map(item => item.productId)
