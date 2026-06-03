@@ -7,6 +7,7 @@ import { useCartStore } from '@/store/useCartStore';
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import { trackMetaEvent } from '@/lib/meta-pixel';
+import { getCookie } from '@/lib/cookies';
 
 export default function ProductDetailClient({ product }: { product: any }) {
   const [selectedSize, setSelectedSize] = useState<any>(product.sizes[0] || null);
@@ -17,6 +18,7 @@ export default function ProductDetailClient({ product }: { product: any }) {
   const t = useTranslations('Shop');
 
   useEffect(() => {
+    const playerId = getCookie('bmt_player_id');
     trackMetaEvent('ViewContent', {
       content_name: product.name,
       content_category: product.category?.name,
@@ -30,6 +32,8 @@ export default function ProductDetailClient({ product }: { product: any }) {
         price: product.sizes[0]?.basePrice || 0,
         item_price: product.sizes[0]?.basePrice || 0
       }]
+    }, {
+      externalId: playerId || undefined
     });
   }, [product]);
 
@@ -52,6 +56,7 @@ export default function ProductDetailClient({ product }: { product: any }) {
       imageUrl: product.mainImage
     });
 
+    const playerId = getCookie('bmt_player_id');
     trackMetaEvent('AddToCart', {
       content_name: product.name,
       content_category: product.category?.name,
@@ -65,6 +70,8 @@ export default function ProductDetailClient({ product }: { product: any }) {
         price: currentPrice,
         item_price: currentPrice
       }]
+    }, {
+      externalId: playerId || undefined
     });
   };
 

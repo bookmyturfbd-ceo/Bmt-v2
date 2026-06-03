@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
     const phoneHash = hashValue(phoneCleaned);
     const firstNameHash = hashValue(userData.firstName || userData.name?.split(' ')[0]);
     const lastNameHash = hashValue(userData.lastName || userData.name?.split(' ').slice(1).join(' '));
+    const externalIdHash = hashValue(userData.externalId || userData.external_id);
 
     const metaUserData: any = {
       client_ip_address: ip,
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest) {
     if (phoneHash) metaUserData.ph = [phoneHash];
     if (firstNameHash) metaUserData.fn = [firstNameHash];
     if (lastNameHash) metaUserData.ln = [lastNameHash];
+    if (externalIdHash) metaUserData.external_id = [externalIdHash];
 
     // Build standard payload format for Meta Events endpoint
     const metaPayload: any = {

@@ -56,7 +56,9 @@ export default function CheckoutClient() {
 
   useEffect(() => { 
     setMounted(true); 
-    setIsGuest(!document.cookie.includes('bmt_player_id='));
+    const hasPlayerCookie = document.cookie.includes('bmt_player_id=');
+    setIsGuest(!hasPlayerCookie);
+    const playerId = document.cookie.split('; ').find(row => row.startsWith('bmt_player_id='))?.split('=')[1] || null;
 
     // Track InitiateCheckout event on checkout page load
     const subtotal = cart.getCartTotal();
@@ -71,6 +73,8 @@ export default function CheckoutClient() {
         item_price: item.price
       })),
       content_ids: cart.items.map(item => item.productId)
+    }, {
+      externalId: playerId || undefined
     });
   }, []);
 
@@ -164,7 +168,8 @@ export default function CheckoutClient() {
       }, {
         email: form.email || undefined,
         phone: form.phone,
-        name: form.name
+        name: form.name,
+        externalId: playerId || undefined
       }, data.orderId);
 
       cart.clearCart();
