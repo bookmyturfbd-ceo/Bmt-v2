@@ -147,6 +147,7 @@ export default function CheckoutClient() {
       });
 
       if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
 
       // Track Purchase event with cart details and customer matching identifiers before clearing cart
       trackMetaEvent('Purchase', {
@@ -164,7 +165,7 @@ export default function CheckoutClient() {
         email: form.email || undefined,
         phone: form.phone,
         name: form.name
-      });
+      }, data.orderId);
 
       cart.clearCart();
       setSuccess(true);

@@ -11,13 +11,14 @@
 export const trackMetaEvent = async (
   eventName: string,
   customData: any = {},
-  userData: any = {}
+  userData: any = {},
+  eventIdOverride?: string
 ) => {
   const pixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
   if (!pixelId) return;
 
-  // Generate a unique event ID for deduplication
-  const eventId = `${eventName.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+  // Use the custom event ID if provided, otherwise generate a unique one
+  const eventId = eventIdOverride || `${eventName.toLowerCase()}_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 
   // 1. Client-Side tracking (Meta Pixel)
   if (typeof window !== 'undefined' && (window as any).fbq) {
