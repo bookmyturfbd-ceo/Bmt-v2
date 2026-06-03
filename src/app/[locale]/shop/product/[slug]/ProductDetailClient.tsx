@@ -145,8 +145,12 @@ export default function ProductDetailClient({ product }: { product: any }) {
             <div className="flex items-center justify-between">
               <h3 className="font-black text-sm uppercase tracking-widest text-[var(--muted)]">{t('selectSize')}</h3>
               {sizeChartUrl && (
-                <button onClick={() => setShowSizeChart(true)} className="flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors">
-                  <Ruler size={14} /> {t('sizeChart')}
+                <button 
+                  onClick={() => setShowSizeChart(true)} 
+                  className="flex items-center gap-1.5 text-xs font-black text-accent bg-accent/10 border border-accent/30 px-3 py-1.5 rounded-full hover:bg-accent/20 hover:border-accent active:scale-95 transition-all shadow-[0_0_10px_rgba(0,255,65,0.1)] hover:shadow-[0_0_15px_rgba(0,255,65,0.2)]"
+                >
+                  <Ruler size={13} className="text-accent" /> 
+                  {t('sizeChart')}
                 </button>
               )}
             </div>
