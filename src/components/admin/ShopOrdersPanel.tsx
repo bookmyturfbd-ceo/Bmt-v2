@@ -7,11 +7,32 @@ import {
 } from 'lucide-react';
 
 const STATUS_STYLES: Record<string, string> = {
-  pending:   'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-  confirmed: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  shipped:   'bg-purple-500/20 text-purple-400 border-purple-500/30',
-  delivered: 'bg-accent/20 text-accent border-accent/30',
-  cancelled: 'bg-red-500/20 text-red-400 border-red-500/30',
+  new:        'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  ready:      'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  on_the_way: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  delivered:  'bg-accent/20 text-accent border-accent/30',
+  canceled:   'bg-red-500/20 text-red-400 border-red-500/30',
+  exchange:   'bg-orange-500/20 text-orange-400 border-orange-500/30',
+  returned:   'bg-zinc-500/20 text-zinc-400 border-zinc-500/30',
+};
+
+const TRANSITIONS: Record<string, { label: string; status: string; style: string }[]> = {
+  new: [
+    { label: 'Start Preparing 👨‍🍳', status: 'ready', style: 'bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20' },
+    { label: 'Cancel ❌', status: 'canceled', style: 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20' }
+  ],
+  ready: [
+    { label: 'Dispatch 🚚', status: 'on_the_way', style: 'bg-purple-500/10 border-purple-500/20 text-purple-400 hover:bg-purple-500/20' },
+    { label: 'Cancel ❌', status: 'canceled', style: 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20' }
+  ],
+  on_the_way: [
+    { label: 'Mark Delivered ✅', status: 'delivered', style: 'bg-accent/10 border-accent/20 text-accent hover:bg-accent/20' },
+    { label: 'Cancel ❌', status: 'canceled', style: 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20' }
+  ],
+  delivered: [
+    { label: 'Exchange Requested 🔄', status: 'exchange', style: 'bg-orange-500/10 border-orange-500/20 text-orange-400 hover:bg-orange-500/20' },
+    { label: 'Returned ↩️', status: 'returned', style: 'bg-zinc-500/10 border-zinc-500/20 text-zinc-400 hover:bg-zinc-500/20' }
+  ]
 };
 
 export default function ShopOrdersPanel() {
@@ -58,12 +79,12 @@ export default function ShopOrdersPanel() {
   const todayStr = new Date().toISOString().split('T')[0];
   const viewDay = sortedDays[historyDayOffset] ?? todayStr;
   const viewOrders = byDay[viewDay] ?? [];
-  const viewRevenue = viewOrders.filter(o => o.status !== 'cancelled').reduce((s: number, o: any) => s + (o.total ?? 0), 0);
-  const viewCount = viewOrders.filter(o => o.status !== 'cancelled').length;
+  const viewRevenue = viewOrders.filter(o => o.status !== 'canceled' && o.status !== 'cancelled').reduce((s: number, o: any) => s + (o.total ?? 0), 0);
+  const viewCount = viewOrders.filter(o => o.status !== 'canceled' && o.status !== 'cancelled').length;
 
   const todayOrders = byDay[todayStr] ?? [];
-  const todayRevenue = todayOrders.filter(o => o.status !== 'cancelled').reduce((s: number, o: any) => s + (o.total ?? 0), 0);
-  const lifetimeRevenue = orders.filter(o => o.status !== 'cancelled').reduce((s: number, o: any) => s + (o.total ?? 0), 0);
+  const todayRevenue = todayOrders.filter(o => o.status !== 'canceled' && o.status !== 'cancelled').reduce((s: number, o: any) => s + (o.total ?? 0), 0);
+  const lifetimeRevenue = orders.filter(o => o.status !== 'canceled' && o.status !== 'cancelled').reduce((s: number, o: any) => s + (o.total ?? 0), 0);
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 size={32} className="animate-spin text-accent" /></div>;
 
@@ -73,8 +94,8 @@ export default function ShopOrdersPanel() {
       {/* ── Stats Row ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Lifetime Revenue" value={`৳${lifetimeRevenue.toLocaleString()}`} sub={`${orders.length} total orders`} color="text-accent" bg="bg-accent/10" border="border-accent/20" icon={TrendingUp} />
-        <StatCard label="Today's Revenue" value={`৳${todayRevenue.toLocaleString()}`} sub={`${todayOrders.filter(o => o.status !== 'cancelled').length} orders today`} color="text-emerald-400" bg="bg-emerald-400/10" border="border-emerald-400/20" icon={Calendar} />
-        <StatCard label="Pending Orders" value={orders.filter(o => o.status === 'pending').length.toString()} sub="Awaiting action" color="text-yellow-400" bg="bg-yellow-400/10" border="border-yellow-400/20" icon={Clock} />
+        <StatCard label="Today's Revenue" value={`৳${todayRevenue.toLocaleString()}`} sub={`${todayOrders.filter(o => o.status !== 'canceled' && o.status !== 'cancelled').length} orders today`} color="text-emerald-400" bg="bg-emerald-400/10" border="border-emerald-400/20" icon={Calendar} />
+        <StatCard label="Pending Orders" value={orders.filter(o => o.status === 'new' || o.status === 'pending').length.toString()} sub="Awaiting action" color="text-yellow-400" bg="bg-yellow-400/10" border="border-yellow-400/20" icon={Clock} />
         <StatCard label="Delivered" value={orders.filter(o => o.status === 'delivered').length.toString()} sub="Completed orders" color="text-blue-400" bg="bg-blue-400/10" border="border-blue-400/20" icon={Truck} />
       </div>
 
@@ -209,18 +230,16 @@ export default function ShopOrdersPanel() {
 
                       {/* Status actions */}
                       <div className="flex flex-wrap gap-2 pt-2 border-t border-[var(--panel-border)]/50">
-                        {['confirmed', 'shipped', 'delivered', 'cancelled'].map(s => (
-                          <button key={s} onClick={() => updateStatus(order.id, s)} disabled={order.status === s || isUpdating}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-all disabled:opacity-40 flex items-center gap-1.5 ${
-                              s === 'cancelled' ? 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20'
-                              : s === 'delivered' ? 'bg-accent/10 border-accent/20 text-accent hover:bg-accent/20'
-                              : 'bg-white/5 border-white/10 text-[var(--muted)] hover:bg-white/10 hover:text-white'
-                            }`}>
+                        {TRANSITIONS[order.status]?.map(t => (
+                          <button key={t.status} onClick={() => updateStatus(order.id, t.status)} disabled={isUpdating}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-all disabled:opacity-40 flex items-center gap-1.5 ${t.style}`}>
                             {isUpdating ? <Loader2 size={12} className="animate-spin" /> : null}
-                            {s.charAt(0).toUpperCase() + s.slice(1)}
-                            {order.status === s && <CheckCircle2 size={12} />}
+                            {t.label}
                           </button>
                         ))}
+                        {(!TRANSITIONS[order.status] || TRANSITIONS[order.status].length === 0) && (
+                          <span className="text-xs text-[var(--muted)] italic font-bold">Terminal status ({order.status}) - No transitions available</span>
+                        )}
                       </div>
                     </div>
                   )}

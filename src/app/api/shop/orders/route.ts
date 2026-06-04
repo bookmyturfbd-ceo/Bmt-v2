@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { evaluateCartDiscounts } from '@/lib/shopDiscountEvaluator';
+import { sendOrder, moveOrder } from '../../../../../telegram-bot';
 
 const DHAKA_METRO = ["Dhaka (Metropolitan)"];
 const DHAKA_SUBURBS = ["Dhaka (Suburbs - Savar, Keraniganj, etc)", "Gazipur", "Narayanganj"];
@@ -11,38 +12,14 @@ function getBaseDeliveryCharge(districtId: string): number {
   return 150;
 }
 
-async function sendTelegramNotification(order: any, items: any[], total: number) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return;
-
-  const itemDetails = items.map(item => `• ${item.name} (${item.sizeLabel}) x ${item.quantity}`).join('\n');
-  const message = `🛍️ <b>New BMT Shop Order!</b>\n\n` +
-    `<b>Order ID:</b> #${order.id.slice(0, 8).toUpperCase()}\n` +
-    `<b>Customer:</b> ${order.customerName}\n` +
-    `<b>Phone:</b> ${order.customerPhone}\n` +
-    `<b>Email:</b> ${order.customerEmail || 'N/A'}\n` +
-    `<b>Address:</b> ${order.address}, ${order.district}\n` +
-    `<b>Payment Method:</b> ${order.paymentMethod.toUpperCase()}\n\n` +
-    `<b>Items:</b>\n${itemDetails}\n\n` +
-    `<b>Total Amount:</b> ৳${total.toLocaleString()}`;
-
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: message,
-        parse_mode: 'HTML'
-      })
-    });
-    if (!res.ok) {
-      console.error('Failed to send Telegram notification:', await res.text());
-    }
-  } catch (err) {
-    console.error('Telegram notification error:', err);
-  }
+// Helper to serialize BigInt fields to String to prevent JSON serialization errors
+function serializeOrder(order: any) {
+  if (!order) return null;
+  return {
+    ...order,
+    telegramMessageId: order.telegramMessageId ? order.telegramMessageId.toString() : null,
+    lastActorTelegramId: order.lastActorTelegramId ? order.lastActorTelegramId.toString() : null,
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -125,7 +102,7 @@ export async function POST(req: NextRequest) {
         deliveryCharge: evaluation.deliveryCharge,
         subtotal: evaluation.subtotalAfterDiscount,
         total: evaluation.total,
-        status: 'pending',
+        status: 'new', // default to new status for the telegram Kanban board
         items: {
           create: evaluation.items.map((item: any) => ({
             productId: item.productId,
@@ -149,7 +126,7 @@ export async function POST(req: NextRequest) {
     }));
 
     // Send Telegram Notification (if configured)
-    await sendTelegramNotification(order, evaluation.items, evaluation.total);
+    await sendOrder(order);
 
     return NextResponse.json({ success: true, orderId: order.id });
   } catch (error: any) {
@@ -162,50 +139,14 @@ export async function PATCH(req: NextRequest) {
   try {
     const { id, status } = await req.json();
 
-    const existingOrder = await prisma.shopOrder.findUnique({
-      where: { id },
-      include: { items: true }
-    });
+    // Call moveOrder to handle Telegram message updates, stock levels, and DB status update in one place
+    const order = await moveOrder(id, status, null);
 
-    if (!existingOrder) {
-      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    if (!order) {
+      return NextResponse.json({ error: 'Order not found or update failed' }, { status: 404 });
     }
 
-    const statusChanged = existingOrder.status !== status;
-
-    if (statusChanged) {
-      // Transition to cancelled: Restores stock quantity
-      if (status === 'cancelled' && existingOrder.status !== 'cancelled') {
-        await Promise.all(existingOrder.items.map(async (item: any) => {
-          const dbSizes = await prisma.shopProductSize.findMany({
-            where: { productId: item.productId, label: item.sizeLabel }
-          });
-          if (dbSizes.length > 0) {
-            await prisma.shopProductSize.update({
-              where: { id: dbSizes[0].id },
-              data: { quantity: dbSizes[0].quantity + item.quantity }
-            });
-          }
-        }));
-      }
-      // Transition away from cancelled: Re-deducts stock quantity
-      else if (existingOrder.status === 'cancelled' && status !== 'cancelled') {
-        await Promise.all(existingOrder.items.map(async (item: any) => {
-          const dbSizes = await prisma.shopProductSize.findMany({
-            where: { productId: item.productId, label: item.sizeLabel }
-          });
-          if (dbSizes.length > 0) {
-            await prisma.shopProductSize.update({
-              where: { id: dbSizes[0].id },
-              data: { quantity: Math.max(0, dbSizes[0].quantity - item.quantity) }
-            });
-          }
-        }));
-      }
-    }
-
-    const order = await prisma.shopOrder.update({ where: { id }, data: { status } });
-    return NextResponse.json(order);
+    return NextResponse.json(serializeOrder(order));
   } catch (error: any) {
     console.error('Order status update error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -236,8 +177,11 @@ export async function GET(req: NextRequest) {
         }
       }
     });
-    return NextResponse.json(orders);
+
+    const serializedOrders = orders.map((o: any) => serializeOrder(o));
+    return NextResponse.json(serializedOrders);
   } catch (error: any) {
+    console.error('Order get error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

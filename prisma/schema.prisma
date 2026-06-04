@@ -1427,6 +1427,9 @@ model ShopOrder {
   total           Float
   status          String   @default("pending") // pending, confirmed, shipped, delivered, cancelled
   createdAt       DateTime @default(now())
+  telegramMessageId   BigInt?  @map("telegram_message_id")
+  lastActorTelegramId BigInt?  @map("last_actor_telegram_id")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
 
   items           ShopOrderItem[]
   player          Player?  @relation(fields: [playerId], references: [id], onDelete: SetNull)
