@@ -81,48 +81,6 @@ export default function CheckoutClient() {
     });
   }, []);
 
-  if (!mounted) return null;
-  if (cart.items.length === 0 && !success) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4">
-        <ShoppingCart size={40} className="text-[var(--muted)] opacity-50 mb-4" />
-        <h2 className="font-black text-xl mb-2">{t('cartEmpty')}</h2>
-        <Link href="/shop" className="text-accent underline text-sm font-bold">{t('returnToShop')}</Link>
-      </div>
-    );
-  }
-
-  if (success) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
-        <div className="w-16 h-16 bg-accent/20 rounded-full flex items-center justify-center mb-6">
-          <CheckCircle2 size={32} className="text-accent" />
-        </div>
-        <h2 className="font-black text-2xl mb-2 text-center text-accent">{t('orderPlaced')}</h2>
-        <p className="text-[var(--muted)] mb-8 text-center text-sm max-w-sm">
-          {locale === 'bn' 
-            ? `কেনাকাটা করার জন্য ধন্যবাদ। ডেলিভারির বিষয়ে আমরা খুব শীঘ্রই আপনার সাথে ${form.phone} নম্বরে যোগাযোগ করব।`
-            : `Thank you for your purchase. We will contact you at ${form.phone} soon regarding delivery.`}
-        </p>
-
-        {isGuest && (
-          <div className="mb-8 p-5 bg-white/5 border border-white/10 rounded-2xl max-w-sm w-full flex flex-col items-center text-center gap-3 animate-in slide-in-from-bottom-4">
-            <h3 className="font-black text-sm">{t('trackEasy')}</h3>
-            <p className="text-xs text-[var(--muted)] leading-relaxed">{t('trackEasyDesc')}</p>
-            <div className="flex gap-2 w-full mt-2">
-              <Link href="/register" className="flex-1 py-2.5 rounded-xl bg-accent text-black font-black text-xs hover:brightness-110 transition-colors">{t('signUp')}</Link>
-              <Link href="/login" className="flex-1 py-2.5 rounded-xl bg-white/10 text-white font-black text-xs hover:bg-white/20 transition-colors">{t('login')}</Link>
-            </div>
-          </div>
-        )}
-
-        <Link href="/shop" className={`px-6 py-3 rounded-xl font-black text-sm transition-all ${isGuest ? 'text-[var(--muted)] hover:text-white hover:bg-white/5' : 'bg-accent text-black hover:brightness-110 shadow-[0_0_20px_rgba(0,255,65,0.2)]'}`}>
-          {t('continueShopping')}
-        </Link>
-      </div>
-    );
-  }
-
   const selectedZone = BD_DISTRICTS.find(z => z.id === form.districtId);
   const actualDeliveryCharge = selectedZone?.charge || 0;
 
@@ -238,6 +196,48 @@ export default function CheckoutClient() {
       setPlacing(false);
     }
   };
+
+  if (!mounted) return null;
+  if (cart.items.length === 0 && !success) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4">
+        <ShoppingCart size={40} className="text-[var(--muted)] opacity-50 mb-4" />
+        <h2 className="font-black text-xl mb-2">{t('cartEmpty')}</h2>
+        <Link href="/shop" className="text-accent underline text-sm font-bold">{t('returnToShop')}</Link>
+      </div>
+    );
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
+        <div className="w-16 h-16 bg-accent/20 rounded-full flex items-center justify-center mb-6">
+          <CheckCircle2 size={32} className="text-accent" />
+        </div>
+        <h2 className="font-black text-2xl mb-2 text-center text-accent">{t('orderPlaced')}</h2>
+        <p className="text-[var(--muted)] mb-8 text-center text-sm max-w-sm">
+          {locale === 'bn' 
+            ? `কেনাকাটা করার জন্য ধন্যবাদ। ডেলিভারির বিষয়ে আমরা খুব শীঘ্রই আপনার সাথে ${form.phone} নম্বরে যোগাযোগ করব।`
+            : `Thank you for your purchase. We will contact you at ${form.phone} soon regarding delivery.`}
+        </p>
+
+        {isGuest && (
+          <div className="mb-8 p-5 bg-white/5 border border-white/10 rounded-2xl max-w-sm w-full flex flex-col items-center text-center gap-3 animate-in slide-in-from-bottom-4">
+            <h3 className="font-black text-sm">{t('trackEasy')}</h3>
+            <p className="text-xs text-[var(--muted)] leading-relaxed">{t('trackEasyDesc')}</p>
+            <div className="flex gap-2 w-full mt-2">
+              <Link href="/register" className="flex-1 py-2.5 rounded-xl bg-accent text-black font-black text-xs hover:brightness-110 transition-colors">{t('signUp')}</Link>
+              <Link href="/login" className="flex-1 py-2.5 rounded-xl bg-white/10 text-white font-black text-xs hover:bg-white/20 transition-colors">{t('login')}</Link>
+            </div>
+          </div>
+        )}
+
+        <Link href="/shop" className={`px-6 py-3 rounded-xl font-black text-sm transition-all ${isGuest ? 'text-[var(--muted)] hover:text-white hover:bg-white/5' : 'bg-accent text-black hover:brightness-110 shadow-[0_0_20px_rgba(0,255,65,0.2)]'}`}>
+          {t('continueShopping')}
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground pb-24">
