@@ -11,6 +11,40 @@ function getBaseDeliveryCharge(districtId: string): number {
   return 150;
 }
 
+async function sendTelegramNotification(order: any, items: any[], total: number) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return;
+
+  const itemDetails = items.map(item => `• ${item.name} (${item.sizeLabel}) x ${item.quantity}`).join('\n');
+  const message = `🛍️ <b>New BMT Shop Order!</b>\n\n` +
+    `<b>Order ID:</b> #${order.id.slice(0, 8).toUpperCase()}\n` +
+    `<b>Customer:</b> ${order.customerName}\n` +
+    `<b>Phone:</b> ${order.customerPhone}\n` +
+    `<b>Email:</b> ${order.customerEmail || 'N/A'}\n` +
+    `<b>Address:</b> ${order.address}, ${order.district}\n` +
+    `<b>Payment Method:</b> ${order.paymentMethod.toUpperCase()}\n\n` +
+    `<b>Items:</b>\n${itemDetails}\n\n` +
+    `<b>Total Amount:</b> ৳${total.toLocaleString()}`;
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message,
+        parse_mode: 'HTML'
+      })
+    });
+    if (!res.ok) {
+      console.error('Failed to send Telegram notification:', await res.text());
+    }
+  } catch (err) {
+    console.error('Telegram notification error:', err);
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const data = await req.json();
@@ -113,6 +147,9 @@ export async function POST(req: NextRequest) {
         });
       }
     }));
+
+    // Send Telegram Notification (if configured)
+    await sendTelegramNotification(order, evaluation.items, evaluation.total);
 
     return NextResponse.json({ success: true, orderId: order.id });
   } catch (error: any) {
