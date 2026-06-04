@@ -124,9 +124,53 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const { id, status } = await req.json();
+
+    const existingOrder = await prisma.shopOrder.findUnique({
+      where: { id },
+      include: { items: true }
+    });
+
+    if (!existingOrder) {
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    }
+
+    const statusChanged = existingOrder.status !== status;
+
+    if (statusChanged) {
+      // Transition to cancelled: Restores stock quantity
+      if (status === 'cancelled' && existingOrder.status !== 'cancelled') {
+        await Promise.all(existingOrder.items.map(async (item: any) => {
+          const dbSizes = await prisma.shopProductSize.findMany({
+            where: { productId: item.productId, label: item.sizeLabel }
+          });
+          if (dbSizes.length > 0) {
+            await prisma.shopProductSize.update({
+              where: { id: dbSizes[0].id },
+              data: { quantity: dbSizes[0].quantity + item.quantity }
+            });
+          }
+        }));
+      }
+      // Transition away from cancelled: Re-deducts stock quantity
+      else if (existingOrder.status === 'cancelled' && status !== 'cancelled') {
+        await Promise.all(existingOrder.items.map(async (item: any) => {
+          const dbSizes = await prisma.shopProductSize.findMany({
+            where: { productId: item.productId, label: item.sizeLabel }
+          });
+          if (dbSizes.length > 0) {
+            await prisma.shopProductSize.update({
+              where: { id: dbSizes[0].id },
+              data: { quantity: Math.max(0, dbSizes[0].quantity - item.quantity) }
+            });
+          }
+        }));
+      }
+    }
+
     const order = await prisma.shopOrder.update({ where: { id }, data: { status } });
     return NextResponse.json(order);
   } catch (error: any) {
+    console.error('Order status update error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
