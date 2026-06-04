@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { uploadFileToCDN } from '@/lib/supabase';
 
+import ShopDiscountsTab from '@/components/admin/ShopDiscountsTab';
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface CarouselSlide { id: string; imageUrl: string; ctaText?: string | null; ctaLink?: string | null; order: number; active: boolean; }
 interface CarouselSettings { autoSlide: boolean; intervalMs: number; slideType: string; }
@@ -15,7 +17,7 @@ interface Category { id: string; name: string; parentId: string | null; children
 interface SizeEntry { label: string; basePrice: string; salePrice: string; quantity: string; }
 interface Product { id: string; name: string; status: string; mainImage: string; category: { name: string; parentId: string | null }; sizes: any[]; }
 
-type SubTab = 'carousel' | 'categories' | 'products';
+type SubTab = 'carousel' | 'categories' | 'products' | 'discounts';
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function useToast() {
@@ -43,6 +45,7 @@ export default function ShopPanel() {
           { key: 'carousel',   label: '🎠 Carousel',   },
           { key: 'categories', label: '🗂 Categories',  },
           { key: 'products',   label: '📦 Products',    },
+          { key: 'discounts',  label: '🏷 Discounts',   },
         ] as { key: SubTab; label: string }[]).map(t => (
           <button key={t.key} onClick={() => setSubTab(t.key)}
             className={`px-5 py-2.5 rounded-xl text-sm font-black transition-all ${
@@ -56,6 +59,7 @@ export default function ShopPanel() {
       {subTab === 'carousel'   && <ShopCarouselTab onToast={show} />}
       {subTab === 'categories' && <ShopCategoriesTab onToast={show} />}
       {subTab === 'products'   && <ShopProductsTab onToast={show} />}
+      {subTab === 'discounts'  && <ShopDiscountsTab onToast={show} />}
     </div>
   );
 }

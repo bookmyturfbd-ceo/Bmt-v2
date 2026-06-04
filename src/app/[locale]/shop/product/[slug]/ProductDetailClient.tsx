@@ -9,7 +9,7 @@ import { useParams } from 'next/navigation';
 import { trackMetaEvent } from '@/lib/meta-pixel';
 import { getCookie } from '@/lib/cookies';
 
-export default function ProductDetailClient({ product }: { product: any }) {
+export default function ProductDetailClient({ product, activeDiscounts = [] }: { product: any; activeDiscounts?: any[] }) {
   const [selectedSize, setSelectedSize] = useState<any>(product.sizes[0] || null);
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(product.mainImage);
@@ -45,13 +45,68 @@ export default function ProductDetailClient({ product }: { product: any }) {
   const hasDiscount = selectedSize && selectedSize.salePrice && selectedSize.salePrice < selectedSize.basePrice;
   const savings = currentBase - currentPrice;
 
+  // Find active discount campaigns matching this product
+  const matchingDiscounts = (activeDiscounts || []).filter(discount => {
+    let isMatch = false;
+    if (discount.categoryScope === 'ALL') {
+      isMatch = true;
+    } else if (discount.categoryScope === 'PARENT') {
+      const parentId = product.category?.parentId;
+      isMatch = parentId ? discount.targetCategoryIds.includes(parentId) : false;
+    } else if (discount.categoryScope === 'SUB') {
+      isMatch = discount.targetCategoryIds.includes(product.categoryId);
+    }
+    return isMatch;
+  }).map(d => {
+    let parsedTiers: any[] = [];
+    try {
+      if (typeof d.tiers === 'string') {
+        parsedTiers = JSON.parse(d.tiers);
+      } else if (Array.isArray(d.tiers)) {
+        parsedTiers = d.tiers;
+      }
+    } catch (e) {}
+    return { ...d, tiers: parsedTiers };
+  });
+
+  // Calculate discount for current quantity
+  let discountAdjustedPrice = currentPrice;
+  let activeTierName = '';
+  let activeTierFreeDelivery = false;
+
+  for (const discount of matchingDiscounts) {
+    const sortedTiers = [...discount.tiers].sort((a, b) => b.minQty - a.minQty);
+    const matchingTier = sortedTiers.find(t => quantity >= t.minQty);
+    if (matchingTier) {
+      let tierPrice = currentPrice;
+      if (matchingTier.discountType === 'fixed') {
+        tierPrice = matchingTier.discountValue;
+      } else if (matchingTier.discountType === 'flat') {
+        tierPrice = Math.max(0, currentPrice - matchingTier.discountValue);
+      } else if (matchingTier.discountType === 'percent') {
+        tierPrice = Math.max(0, currentPrice * (1 - matchingTier.discountValue / 100));
+      }
+
+      if (tierPrice < discountAdjustedPrice) {
+        discountAdjustedPrice = tierPrice;
+        activeTierName = discount.name;
+        activeTierFreeDelivery = matchingTier.freeDelivery;
+      } else if (tierPrice === discountAdjustedPrice && matchingTier.freeDelivery) {
+        activeTierFreeDelivery = true;
+        activeTierName = discount.name;
+      }
+    }
+  }
+
+  const isBulkDiscountApplied = discountAdjustedPrice < currentPrice;
+
   const handleAddToCart = () => {
     if (!selectedSize) return;
     cart.addItem({
       productId: product.id,
       name: product.name,
       sizeLabel: selectedSize.label,
-      price: currentPrice,
+      price: discountAdjustedPrice,
       quantity,
       imageUrl: product.mainImage
     });
@@ -62,13 +117,13 @@ export default function ProductDetailClient({ product }: { product: any }) {
       content_category: product.category?.name,
       content_ids: [product.id],
       content_type: 'product',
-      value: currentPrice * quantity,
+      value: discountAdjustedPrice * quantity,
       currency: 'BDT',
       contents: [{
         id: product.id,
         quantity: quantity,
-        price: currentPrice,
-        item_price: currentPrice
+        price: discountAdjustedPrice,
+        item_price: discountAdjustedPrice
       }]
     }, {
       externalId: playerId || undefined
@@ -124,17 +179,30 @@ export default function ProductDetailClient({ product }: { product: any }) {
             <h1 className="text-xl sm:text-3xl font-black leading-tight">{product.name}</h1>
           </div>
           
-          <div className="flex items-end gap-3 mt-1">
+          <div className="flex items-end flex-wrap gap-3 mt-1">
             <p className="text-3xl font-black text-accent flex items-start gap-1">
-              <span className="text-lg mt-1">৳</span>{currentPrice.toLocaleString()}
+              <span className="text-lg mt-1">৳</span>{discountAdjustedPrice.toLocaleString()}
             </p>
-            {hasDiscount && (
-              <>
-                <p className="text-lg text-[var(--muted)] line-through font-semibold mb-1">৳{currentBase.toLocaleString()}</p>
-                <span className="bg-accent/20 border border-accent/30 text-accent text-[10px] font-black uppercase px-2 py-1 rounded-md mb-1.5 flex items-center gap-1">
-                  {t('save')} ৳{savings.toLocaleString()}
-                </span>
-              </>
+            {isBulkDiscountApplied && (
+              <p className="text-lg text-[var(--muted)] line-through font-semibold mb-1">৳{currentPrice.toLocaleString()}</p>
+            )}
+            {!isBulkDiscountApplied && hasDiscount && (
+              <p className="text-lg text-[var(--muted)] line-through font-semibold mb-1">৳{currentBase.toLocaleString()}</p>
+            )}
+            {isBulkDiscountApplied && (
+              <span className="bg-purple-500/20 border border-purple-500/30 text-purple-300 text-[10px] font-black uppercase px-2 py-1 rounded-md mb-1.5 flex items-center gap-1">
+                Bulk Discount: Save ৳{(currentPrice - discountAdjustedPrice).toLocaleString()} / item
+              </span>
+            )}
+            {!isBulkDiscountApplied && hasDiscount && (
+              <span className="bg-accent/20 border border-accent/30 text-accent text-[10px] font-black uppercase px-2 py-1 rounded-md mb-1.5 flex items-center gap-1">
+                {t('save')} ৳{savings.toLocaleString()}
+              </span>
+            )}
+            {activeTierFreeDelivery && (
+              <span className="bg-blue-500/20 border border-blue-500/30 text-blue-300 text-[10px] font-black uppercase px-2 py-1 rounded-md mb-1.5 flex items-center gap-1">
+                🚀 Free Delivery
+              </span>
             )}
           </div>
         </div>
@@ -177,6 +245,31 @@ export default function ProductDetailClient({ product }: { product: any }) {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Bulk Discount Tiers list */}
+        {matchingDiscounts.some(d => d.tiers.length > 0) && (
+          <div className="p-4 bg-purple-500/5 border border-purple-500/20 rounded-2xl flex flex-col gap-2.5">
+            <h4 className="font-black text-xs uppercase tracking-wider text-purple-300 flex items-center gap-1.5">
+              🔥 Special Offer Available
+            </h4>
+            <div className="flex flex-col gap-1.5">
+              {matchingDiscounts.flatMap(d => d.tiers).sort((a, b) => a.minQty - b.minQty).map((tier, idx) => {
+                const isCurrentTier = quantity >= tier.minQty;
+                return (
+                  <div key={idx} className={`flex items-center justify-between text-xs py-1.5 px-3 rounded-xl border transition-all ${isCurrentTier ? 'bg-purple-500/15 border-purple-500/40 text-white' : 'bg-black/10 border-white/5 opacity-60 text-[var(--muted)]'}`}>
+                    <span className="font-bold">{tier.minQty}+ pieces:</span>
+                    <span className="font-black">
+                      {tier.discountType === 'fixed' && `৳${tier.discountValue.toLocaleString()} each`}
+                      {tier.discountType === 'flat' && `৳${tier.discountValue.toLocaleString()} Off each`}
+                      {tier.discountType === 'percent' && `${tier.discountValue}% Off each`}
+                      {tier.freeDelivery && <span className="ml-2 text-[9px] bg-blue-500/20 border border-blue-500/30 text-blue-300 px-1.5 py-0.5 rounded font-black uppercase tracking-wider">Free Delivery</span>}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 

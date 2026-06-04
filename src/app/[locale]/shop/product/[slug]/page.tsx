@@ -26,5 +26,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
   if (!product) return notFound();
 
-  return <ProductDetailClient product={product} />
+  // Fetch active discount campaigns
+  const activeDiscounts = await (prisma as any).shopDiscount.findMany({
+    where: { active: true }
+  });
+
+  return <ProductDetailClient product={product} activeDiscounts={activeDiscounts} />
 }

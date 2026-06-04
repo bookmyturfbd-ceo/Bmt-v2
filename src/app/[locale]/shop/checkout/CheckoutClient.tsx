@@ -54,6 +54,9 @@ export default function CheckoutClient() {
   const [districtSearch, setDistrictSearch] = useState('');
   const [showDistricts, setShowDistricts] = useState(false);
 
+  const [evaluatedCart, setEvaluatedCart] = useState<any>(null);
+  const [evaluating, setEvaluating] = useState(false);
+
   useEffect(() => { 
     setMounted(true); 
     const hasPlayerCookie = document.cookie.includes('bmt_player_id=');
@@ -122,8 +125,52 @@ export default function CheckoutClient() {
 
   const selectedZone = BD_DISTRICTS.find(z => z.id === form.districtId);
   const actualDeliveryCharge = selectedZone?.charge || 0;
-  const subtotal = cart.getCartTotal();
-  const total = subtotal + actualDeliveryCharge;
+
+  useEffect(() => {
+    if (cart.items.length === 0) {
+      setEvaluatedCart(null);
+      return;
+    }
+
+    let active = true;
+    const fetchDiscount = async () => {
+      setEvaluating(true);
+      try {
+        const res = await fetch('/api/shop/discounts/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: cart.items.map(item => ({
+              productId: item.productId,
+              name: item.name,
+              sizeLabel: item.sizeLabel,
+              price: item.price,
+              quantity: item.quantity,
+              imageUrl: item.imageUrl
+            })),
+            deliveryCharge: actualDeliveryCharge
+          })
+        });
+        if (res.ok && active) {
+          const data = await res.json();
+          setEvaluatedCart(data);
+        }
+      } catch (err) {
+        console.error('Error evaluating cart discounts:', err);
+      } finally {
+        if (active) setEvaluating(false);
+      }
+    };
+
+    fetchDiscount();
+    return () => {
+      active = false;
+    };
+  }, [cart.items, actualDeliveryCharge]);
+
+  const subtotal = evaluatedCart ? evaluatedCart.subtotalAfterDiscount : cart.getCartTotal();
+  const deliveryChargeValue = evaluatedCart ? evaluatedCart.deliveryCharge : actualDeliveryCharge;
+  const total = evaluatedCart ? evaluatedCart.total : (cart.getCartTotal() + actualDeliveryCharge);
 
   const placeOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,8 +190,18 @@ export default function CheckoutClient() {
           ...form,
           playerId,
           paymentMethod,
-          items: cart.items,
-          deliveryCharge: actualDeliveryCharge,
+          items: evaluatedCart ? evaluatedCart.items.map((ei: any) => ({
+            productId: ei.productId,
+            sizeLabel: ei.sizeLabel,
+            quantity: ei.quantity,
+            price: ei.discountedPrice
+          })) : cart.items.map(item => ({
+            productId: item.productId,
+            sizeLabel: item.sizeLabel,
+            quantity: item.quantity,
+            price: item.price
+          })),
+          deliveryCharge: deliveryChargeValue,
           subtotal,
           total
         })
@@ -312,31 +369,75 @@ export default function CheckoutClient() {
             <h2 className="font-black flex items-center gap-2"><PackageCheck size={18} className="text-purple-400" /> {t('orderSummary')}</h2>
             
             <div className="flex flex-col gap-3 max-h-[30vh] overflow-y-auto pr-2 hide-scrollbar">
-              {cart.items.map(item => (
-                <div key={item.id} className="flex items-center gap-3">
-                  <img src={item.imageUrl} className="w-12 h-12 object-cover rounded-md bg-neutral-900 border border-white/5" />
-                  <div className="flex flex-col flex-1 min-w-0">
-                    <p className="font-bold text-xs truncate">{item.name}</p>
-                    <p className="text-[10px] text-[var(--muted)] pr-2">{t('size')}: {item.sizeLabel} <span className="text-white/60 mx-1">x</span> {item.quantity}</p>
+              {cart.items.map(item => {
+                const evaluatedItem = evaluatedCart?.items?.find(
+                  (ei: any) => ei.productId === item.productId && ei.sizeLabel.toUpperCase() === item.sizeLabel.toUpperCase()
+                );
+                const hasItemDiscount = evaluatedItem?.hasDiscount;
+                const displayPrice = evaluatedItem ? evaluatedItem.discountedPrice : item.price;
+                return (
+                  <div key={item.id} className="flex items-center gap-3 animate-in fade-in-20">
+                    <img src={item.imageUrl} className="w-12 h-12 object-cover rounded-md bg-neutral-900 border border-white/5 animate-in zoom-in-95" />
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <p className="font-bold text-xs truncate">{item.name}</p>
+                      <p className="text-[10px] text-[var(--muted)] pr-2">{t('size')}: {item.sizeLabel} <span className="text-white/60 mx-1">x</span> {item.quantity}</p>
+                      {evaluatedItem?.appliedDiscountName && (
+                        <span className="text-[8px] bg-purple-500/15 border border-purple-500/30 text-purple-300 px-1 rounded font-black w-fit mt-0.5">
+                          {evaluatedItem.appliedDiscountName}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end shrink-0">
+                      <p className="font-black text-sm text-right">৳{(displayPrice * item.quantity).toLocaleString()}</p>
+                      {hasItemDiscount && (
+                        <p className="text-[10px] text-[var(--muted)] line-through">৳{(item.price * item.quantity).toLocaleString()}</p>
+                      )}
+                    </div>
                   </div>
-                  <p className="font-black text-sm text-right shrink-0">৳{(item.price * item.quantity).toLocaleString()}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="h-px bg-[var(--panel-border)] w-full my-1" />
 
             <div className="flex flex-col gap-2 text-sm">
-              <div className="flex justify-between"><span className="text-[var(--muted)]">{t('subtotal')} ({cart.items.reduce((s,i)=>s+i.quantity,0)} {cart.items.reduce((s,i)=>s+i.quantity,0) === 1 ? t('product') : t('products')})</span><span className="font-bold">৳{subtotal.toLocaleString()}</span></div>
+              <div className="flex justify-between">
+                <span className="text-[var(--muted)]">{t('subtotal')} ({cart.items.reduce((s,i)=>s+i.quantity,0)} {cart.items.reduce((s,i)=>s+i.quantity,0) === 1 ? t('product') : t('products')})</span>
+                <span className="font-bold">৳{(evaluatedCart ? evaluatedCart.subtotalBeforeDiscount : cart.getCartTotal()).toLocaleString()}</span>
+              </div>
+              
+              {evaluatedCart && evaluatedCart.savings > 0 && (
+                <div className="flex justify-between text-purple-400">
+                  <span className="font-bold flex items-center gap-1">🏷 Discount Savings</span>
+                  <span className="font-black">-৳{evaluatedCart.savings.toLocaleString()}</span>
+                </div>
+              )}
+
               <div className="flex justify-between">
                 <span className="text-[var(--muted)] flex items-center gap-1"><Truck size={14} /> {t('deliveryBase')}</span>
-                <span className="font-bold transition-all">{actualDeliveryCharge > 0 ? `৳${actualDeliveryCharge}` : (locale === 'bn' ? 'জোন নির্বাচন করুন' : 'Select Zone')}</span>
+                <span className="font-bold transition-all">
+                  {form.districtId ? (
+                    evaluatedCart?.hasFreeDelivery ? (
+                      <span className="text-accent font-black">FREE Shipping</span>
+                    ) : (
+                      `৳${actualDeliveryCharge}`
+                    )
+                  ) : (
+                    locale === 'bn' ? 'জোন নির্বাচন করুন' : 'Select Zone'
+                  )}
+                </span>
               </div>
             </div>
 
             <div className="flex justify-between items-center pt-3 border-t border-[var(--panel-border)]">
               <span className="font-black uppercase tracking-wider text-sm">{t('total')}</span>
-              <span className="font-black text-accent text-2xl">৳{total.toLocaleString()}</span>
+              <span className="font-black text-accent text-2xl">
+                {evaluating ? (
+                  <Loader2 size={18} className="animate-spin text-accent" />
+                ) : (
+                  `৳${total.toLocaleString()}`
+                )}
+              </span>
             </div>
 
             <button type="submit" disabled={placing}

@@ -2324,3 +2324,26 @@ model TeamInvitation {
   @@unique([teamId, playerId])
   @@map("team_invitations")
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SHOP DISCOUNTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ShopDiscount {
+  id                    String   @id @default(cuid())
+  name                  String
+  active                Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  categoryScope         String   // "ALL" | "PARENT" | "SUB"
+  targetCategoryIds     String[] @default([]) // List of parent or subcategory IDs
+
+  // Tiers: Json array of { minQty: number, discountType: 'fixed' | 'flat' | 'percent', discountValue: number, freeDelivery: boolean }
+  tiers                 Json     @default("[]")
+
+  // General delivery charge threshold (optional)
+  freeDeliveryThreshold Float?   // null = not set, or threshold value (e.g., 3000)
+
+  @@map("shop_discounts")
+}
