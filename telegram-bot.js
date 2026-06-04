@@ -306,13 +306,13 @@ function initBot() {
       deleteMessage: async () => {},
       answerCallbackQuery: async () => {},
       on: () => {},
-      deleteWebhook: async () => {}
+      deleteWebHook: async () => {}
     };
   }
 
   const botInstance = new TelegramBot(token, { polling: true });
 
-  botInstance.deleteWebhook()
+  botInstance.deleteWebHook()
     .then(() => {
       botInstance.on('callback_query', handleCallbackQuery);
     })
