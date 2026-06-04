@@ -371,7 +371,7 @@ export default function CheckoutClient() {
             <div className="flex flex-col gap-3 max-h-[30vh] overflow-y-auto pr-2 hide-scrollbar">
               {cart.items.map(item => {
                 const evaluatedItem = evaluatedCart?.items?.find(
-                  (ei: any) => ei.productId === item.productId && ei.sizeLabel.toUpperCase() === item.sizeLabel.toUpperCase()
+                  (ei: any) => ei.productId === item.productId && ei.sizeLabel?.toUpperCase() === item.sizeLabel?.toUpperCase()
                 );
                 const hasItemDiscount = evaluatedItem?.hasDiscount;
                 const displayPrice = evaluatedItem ? evaluatedItem.discountedPrice : item.price;

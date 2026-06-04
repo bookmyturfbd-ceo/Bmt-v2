@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       // Resolve original price from DB based on size label
       let resolvedPrice = Number(item.price);
       if (details) {
-        const dbSize = details.sizes.find(s => s.label.toUpperCase() === item.sizeLabel.toUpperCase());
+        const dbSize = details.sizes.find(s => s.label?.toUpperCase() === item.sizeLabel?.toUpperCase());
         if (dbSize) {
           resolvedPrice = dbSize.salePrice ?? dbSize.basePrice;
         }

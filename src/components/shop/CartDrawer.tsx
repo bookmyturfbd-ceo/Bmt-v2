@@ -79,7 +79,7 @@ export default function CartDrawer() {
           ) : (
             items.map(item => {
               const evaluatedItem = evaluatedCart?.items?.find(
-                (ei: any) => ei.productId === item.productId && ei.sizeLabel.toUpperCase() === item.sizeLabel.toUpperCase()
+                (ei: any) => ei.productId === item.productId && ei.sizeLabel?.toUpperCase() === item.sizeLabel?.toUpperCase()
               );
               const hasItemDiscount = evaluatedItem?.hasDiscount;
               const displayPrice = evaluatedItem ? evaluatedItem.discountedPrice : item.price;

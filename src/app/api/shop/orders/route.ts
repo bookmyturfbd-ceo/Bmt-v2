@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       const details = productMap.get(item.productId);
       let originalPrice = 0;
       if (details) {
-        const dbSize = details.sizes.find(s => s.label.toUpperCase() === item.sizeLabel.toUpperCase());
+        const dbSize = details.sizes.find(s => s.label?.toUpperCase() === item.sizeLabel?.toUpperCase());
         if (dbSize) {
           originalPrice = dbSize.salePrice ?? dbSize.basePrice;
         }
