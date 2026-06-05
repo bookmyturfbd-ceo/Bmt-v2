@@ -243,6 +243,9 @@ function ShopCategoriesTab({ onToast }: { onToast: (m: string) => void }) {
   const sfRef = useRef<HTMLInputElement>(null);
   const [editingCat, setEditingCat] = useState<Category | null>(null);
 
+  const formRef = useRef<HTMLDivElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     const d = await fetch('/api/shop/categories').then(r => r.json());
@@ -266,6 +269,12 @@ function ShopCategoriesTab({ onToast }: { onToast: (m: string) => void }) {
     setNewName(cat.name);
     setNewParent(cat.parentId || '');
     setSizeChartUrl(cat.sizeChartUrl || '');
+
+    // Smooth scroll to the form card and focus input
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      nameInputRef.current?.focus();
+    }, 50);
   };
 
   const cancelEdit = () => {
@@ -350,7 +359,9 @@ function ShopCategoriesTab({ onToast }: { onToast: (m: string) => void }) {
   return (
     <div className="flex flex-col gap-6">
       {/* Create / Edit category */}
-      <div className="glass-panel rounded-3xl border border-[var(--panel-border)] p-6 flex flex-col gap-4">
+      <div ref={formRef} className={`glass-panel rounded-3xl border transition-all duration-300 p-6 flex flex-col gap-4 ${
+        editingCat ? 'border-purple-500/50 shadow-[0_0_20px_rgba(168,85,247,0.15)] bg-purple-500/3' : 'border-[var(--panel-border)]'
+      }`}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
             {editingCat ? <Edit2 size={18} className="text-purple-400" /> : <FolderOpen size={18} className="text-purple-400" />}
@@ -361,9 +372,9 @@ function ShopCategoriesTab({ onToast }: { onToast: (m: string) => void }) {
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <input value={newName} onChange={e => setNewName(e.target.value)}
+          <input ref={nameInputRef} value={newName} onChange={e => setNewName(e.target.value)}
             placeholder="Category name (e.g. Jerseys)"
-            className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-accent/50" />
+            className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/50" />
           <select value={newParent} onChange={e => setNewParent(e.target.value)}
             className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-accent/50 text-[var(--muted)]">
             <option value="">— Parent Category</option>
