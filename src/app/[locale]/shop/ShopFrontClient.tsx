@@ -5,7 +5,7 @@ import { Link } from '@/i18n/routing';
 import { useCartStore } from '@/store/useCartStore';
 import { useTranslations } from 'next-intl';
 
-interface Slide { id: string; imageUrl: string; ctaText?: string; ctaLink?: string; }
+interface Slide { id: string; imageUrl: string; ctaText?: string | null; ctaLink?: string | null; }
 interface Settings { autoSlide: boolean; intervalMs: number; slideType: string; }
 interface Category { id: string; name: string; parentId: string | null; children?: Category[]; }
 interface Product { id: string; name: string; slug: string; mainImage: string; sizes: any[]; categoryId: string; }

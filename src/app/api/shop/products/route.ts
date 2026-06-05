@@ -49,7 +49,6 @@ export async function POST(req: NextRequest) {
       seoTitle: resolvedSeoTitle,
       seoDescription: resolvedSeoDescription,
       productCost: Number(productCost),
-      productCost: Number(productCost),
       marketingCost: Number(marketingCost),
       status,
       sizes: {
