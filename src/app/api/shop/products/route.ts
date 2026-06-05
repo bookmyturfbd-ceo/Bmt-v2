@@ -36,14 +36,19 @@ export async function POST(req: NextRequest) {
   }
 
   const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') + '-' + Date.now();
+  const resolvedSeoTitle = seoTitle || name;
+  const resolvedSeoDescription =
+    seoDescription ||
+    (description ? description.slice(0, 160) : `Buy ${name} from BMT Shop. Official sports merchandise and gear in Bangladesh.`);
 
   const product = await prisma.shopProduct.create({
     data: {
       name, slug, categoryId, mainImage,
       galleryImages,
       description: description || null,
-      seoTitle: seoTitle || null,
-      seoDescription: seoDescription || null,
+      seoTitle: resolvedSeoTitle,
+      seoDescription: resolvedSeoDescription,
+      productCost: Number(productCost),
       productCost: Number(productCost),
       marketingCost: Number(marketingCost),
       status,

@@ -14,6 +14,8 @@ export default function robots(): MetadataRoute.Robots {
         '/bn/dashboard/',
         '/en/profile/',
         '/bn/profile/',
+        '/en/shop/checkout',
+        '/bn/shop/checkout',
       ],
     },
     sitemap: `${baseUrl}/sitemap.xml`,

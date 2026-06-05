@@ -2,34 +2,93 @@ import prisma from '@/lib/prisma';
 import { notFound } from 'next/navigation';
 import ProductDetailClient from './ProductDetailClient';
 import { Metadata } from 'next';
+import {
+  absoluteUrl,
+  buildProductBreadcrumbJsonLd,
+  buildProductJsonLd,
+  localeAlternates,
+  localePath,
+  productDescription,
+  productTitle,
+  resolveImageUrl,
+} from '@/lib/seo';
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
-  const resolvedParams = await params;
-  const p = await prisma.shopProduct.findUnique({ where: { slug: resolvedParams.slug } });
-  if (!p) return { title: 'Not Found' };
+type PageParams = Promise<{ slug: string; locale: string }>;
+
+export async function generateMetadata({ params }: { params: PageParams }): Promise<Metadata> {
+  const { slug, locale } = await params;
+  const product = await prisma.shopProduct.findFirst({
+    where: { slug, status: 'active' },
+    include: { sizes: true },
+  });
+
+  if (!product) {
+    return {
+      title: 'Product Not Found',
+      robots: { index: false, follow: false },
+    };
+  }
+
+  const title = productTitle(product);
+  const description = productDescription(product);
+  const canonical = absoluteUrl(localePath(locale, `/shop/product/${product.slug}`));
+  const images = [resolveImageUrl(product.mainImage)];
+
   return {
-    title: p.seoTitle || p.name,
-    description: p.seoDescription || p.description?.slice(0, 150),
-    openGraph: { images: [p.mainImage] }
+    title,
+    description,
+    alternates: {
+      canonical,
+      languages: localeAlternates(`/shop/product/${product.slug}`),
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+      siteName: 'Book My Turf BD',
+      images: images.map((url) => ({ url })),
+      locale: locale === 'bn' ? 'bn_BD' : 'en_US',
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images,
+    },
   };
 }
 
-export default async function ProductPage({ params }: { params: Promise<{ slug: string, locale: string }> }) {
-  const resolvedParams = await params;
+export default async function ProductPage({ params }: { params: PageParams }) {
+  const { slug, locale } = await params;
   const product = await prisma.shopProduct.findUnique({
-    where: { slug: resolvedParams.slug, status: 'active' },
+    where: { slug, status: 'active' },
     include: {
       category: { include: { parent: true } },
-      sizes: true
-    }
+      sizes: true,
+    },
   });
 
   if (!product) return notFound();
 
-  // Fetch active discount campaigns
   const activeDiscounts = await (prisma as any).shopDiscount.findMany({
-    where: { active: true }
+    where: { active: true },
   });
 
-  return <ProductDetailClient product={product} activeDiscounts={activeDiscounts} />
+  const productJsonLd = buildProductJsonLd(product, locale);
+  const breadcrumbJsonLd = buildProductBreadcrumbJsonLd(product, locale);
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
+      <ProductDetailClient product={product} activeDiscounts={activeDiscounts} />
+    </>
+  );
 }

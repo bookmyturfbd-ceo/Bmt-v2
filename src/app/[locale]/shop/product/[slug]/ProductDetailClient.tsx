@@ -166,7 +166,7 @@ export default function ProductDetailClient({ product, activeDiscounts = [] }: {
           {allImages.map((img, i) => (
             <button key={i} onClick={() => setActiveImage(img)}
               className={`w-14 h-16 shrink-0 rounded-xl overflow-hidden border-2 transition-all ${activeImage === img ? 'border-accent scale-105 shadow-md shadow-accent/25' : 'border-white/10 opacity-70 hover:opacity-100'}`}>
-              <img src={img} className="w-full h-full object-cover" />
+              <img src={img} alt={`${product.name} - image ${i + 1}`} className="w-full h-full object-cover" />
             </button>
           ))}
         </div>

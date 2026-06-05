@@ -1,13 +1,17 @@
 import { MetadataRoute } from 'next';
 import prisma from '@/lib/prisma';
+import { getActiveShopProductsForSitemap } from '@/lib/shop-data';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://bookmyturfbd.com';
 
-  const turfs = await prisma.turf.findMany({
-    where: { status: 'published' },
-    select: { id: true, updatedAt: true }
-  });
+  const [turfs, shopProducts] = await Promise.all([
+    prisma.turf.findMany({
+      where: { status: 'published' },
+      select: { id: true, updatedAt: true },
+    }),
+    getActiveShopProductsForSitemap(),
+  ]);
 
   const locales = ['en', 'bn'];
 
@@ -44,6 +48,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         lastModified: turf.updatedAt,
         changeFrequency: 'weekly',
         priority: 0.9,
+      });
+    });
+
+    shopProducts.forEach(product => {
+      sitemapEntries.push({
+        url: `${baseUrl}/${locale}/shop/product/${product.slug}`,
+        lastModified: product.updatedAt,
+        changeFrequency: 'weekly',
+        priority: 0.85,
       });
     });
   });
