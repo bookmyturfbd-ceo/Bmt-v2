@@ -12,9 +12,20 @@ export default function LanguagePromptModal() {
   const locale = params.locale as string;
 
   useEffect(() => {
-    // Check if preference already selected
+    // Check if preference already selected or if user is in an ad traffic session
     const selected = localStorage.getItem('bmt_language_selected');
-    if (!selected) {
+    const isAdSession = sessionStorage.getItem('bmt_ad_session');
+
+    // Detection logic for paid-traffic parameters
+    const searchParams = new URLSearchParams(window.location.search);
+    const adParams = ['fbclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'gclid'];
+    const hasAdParam = adParams.some(param => searchParams.has(param));
+
+    if (hasAdParam) {
+      sessionStorage.setItem('bmt_ad_session', 'true');
+    }
+
+    if (!selected && !isAdSession && !hasAdParam) {
       setIsOpen(true);
     }
   }, []);

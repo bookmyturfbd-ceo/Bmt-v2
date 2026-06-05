@@ -9,6 +9,7 @@ import { useCartStore } from '@/store/useCartStore';
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import { trackMetaEvent } from '@/lib/meta-pixel';
+import { getAttribution } from '@/lib/tracking';
 
 const DHAKA_METRO = ["Dhaka (Metropolitan)"];
 const DHAKA_SUBURBS = ["Dhaka (Suburbs - Savar, Keraniganj, etc)", "Gazipur", "Narayanganj"];
@@ -139,6 +140,9 @@ export default function CheckoutClient() {
     // Get player id if available
     const playerId = document.cookie.split('; ').find(row => row.startsWith('bmt_player_id='))?.split('=')[1] || null;
 
+    // Get marketing attribution data
+    const attribution = getAttribution();
+
     setPlacing(true);
     try {
       const res = await fetch('/api/shop/orders', {
@@ -148,6 +152,8 @@ export default function CheckoutClient() {
           ...form,
           playerId,
           paymentMethod,
+          firstTouchSource: attribution.first_touch,
+          lastTouchSource: attribution.last_touch,
           items: evaluatedCart ? evaluatedCart.items.map((ei: any) => ({
             productId: ei.productId,
             sizeLabel: ei.sizeLabel,

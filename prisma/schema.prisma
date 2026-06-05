@@ -1430,6 +1430,8 @@ model ShopOrder {
   telegramMessageId   BigInt?  @map("telegram_message_id")
   lastActorTelegramId BigInt?  @map("last_actor_telegram_id")
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
+  firstTouchSource    Json?    @map("first_touch_source")
+  lastTouchSource     Json?    @map("last_touch_source")
 
   items           ShopOrderItem[]
   player          Player?  @relation(fields: [playerId], references: [id], onDelete: SetNull)

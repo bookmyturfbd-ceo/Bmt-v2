@@ -25,7 +25,7 @@ function serializeOrder(order: any) {
 export async function POST(req: NextRequest) {
   try {
     const data = await req.json();
-    const { name, phone, email, address, districtId, paymentMethod, items, playerId } = data;
+    const { name, phone, email, address, districtId, paymentMethod, items, playerId, firstTouchSource, lastTouchSource } = data;
 
     // 1. Fetch product records for the items in the order to get category and original price details
     const productIds = items.map((i: any) => i.productId);
@@ -103,6 +103,8 @@ export async function POST(req: NextRequest) {
         subtotal: evaluation.subtotalAfterDiscount,
         total: evaluation.total,
         status: 'new', // default to new status for the telegram Kanban board
+        firstTouchSource: firstTouchSource || null,
+        lastTouchSource: lastTouchSource || null,
         items: {
           create: evaluation.items.map((item: any) => ({
             productId: item.productId,
