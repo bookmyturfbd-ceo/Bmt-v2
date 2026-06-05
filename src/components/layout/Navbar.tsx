@@ -57,7 +57,8 @@ export default function Navbar() {
             <button 
               onClick={() => {
                 if (locale !== 'en') {
-                  router.replace(pathname, { locale: 'en' });
+                  const search = typeof window !== 'undefined' ? window.location.search : '';
+                  router.replace(pathname + search, { locale: 'en' });
                 }
               }}
               className={`relative z-10 w-[35px] h-full text-center font-black text-[10px] tracking-wide transition-colors duration-300 cursor-pointer flex items-center justify-center ${
@@ -73,7 +74,8 @@ export default function Navbar() {
             <button 
               onClick={() => {
                 if (locale !== 'bn') {
-                  router.replace(pathname, { locale: 'bn' });
+                  const search = typeof window !== 'undefined' ? window.location.search : '';
+                  router.replace(pathname + search, { locale: 'bn' });
                 }
               }}
               className={`relative z-10 w-[35px] h-full text-center font-black text-[10px] tracking-wide transition-colors duration-300 cursor-pointer flex items-center justify-center ${

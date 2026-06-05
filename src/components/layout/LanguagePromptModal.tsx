@@ -25,7 +25,8 @@ export default function LanguagePromptModal() {
     
     // Redirect if selected locale is different from current URL locale
     if (locale !== selectedLocale) {
-      router.replace(pathname, { locale: selectedLocale });
+      const search = typeof window !== 'undefined' ? window.location.search : '';
+      router.replace(pathname + search, { locale: selectedLocale });
     }
   };
 
