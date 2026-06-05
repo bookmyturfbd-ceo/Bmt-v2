@@ -148,7 +148,7 @@ function ShopCarouselTab({ onToast }: { onToast: (m: string) => void }) {
           <input value={newCtaText} onChange={e => setNewCtaText(e.target.value)} placeholder="CTA Text (optional)" className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-accent/50" />
           <input value={newCtaLink} onChange={e => setNewCtaLink(e.target.value)} placeholder="CTA Link (optional)" className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-accent/50" />
         </div>
-        <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={e => handleUpload(e.target.files)} />
+        <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={e => { if (e.target.files) handleUpload(e.target.files); e.target.value = ''; }} />
         <button onClick={() => fileRef.current?.click()} disabled={uploading}
           className="group w-full h-28 rounded-2xl border-2 border-dashed border-[var(--panel-border)] hover:border-accent/50 transition-all flex flex-col items-center justify-center gap-2 bg-[var(--panel-bg)] hover:bg-accent/3 disabled:opacity-50">
           {uploading ? <><Loader2 size={22} className="animate-spin text-accent" /><p className="text-sm font-bold text-accent">Uploading…</p></> : <><Upload size={22} className="text-[var(--muted)] group-hover:text-accent transition-colors" /><p className="text-sm font-bold text-[var(--muted)] group-hover:text-accent">Click to upload images</p></>}
@@ -241,6 +241,7 @@ function ShopCategoriesTab({ onToast }: { onToast: (m: string) => void }) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const sfRef = useRef<HTMLInputElement>(null);
+  const [editingCat, setEditingCat] = useState<Category | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -260,15 +261,74 @@ function ShopCategoriesTab({ onToast }: { onToast: (m: string) => void }) {
     setUploading(false);
   };
 
-  const create = async () => {
+  const startEdit = (cat: Category) => {
+    setEditingCat(cat);
+    setNewName(cat.name);
+    setNewParent(cat.parentId || '');
+    setSizeChartUrl(cat.sizeChartUrl || '');
+  };
+
+  const cancelEdit = () => {
+    setEditingCat(null);
+    setNewName('');
+    setNewParent('');
+    setSizeChartUrl('');
+    if (sfRef.current) sfRef.current.value = '';
+  };
+
+  const saveCategory = async () => {
     if (!newName.trim()) return;
     setSaving(true);
-    await fetch('/api/shop/categories', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName.trim(), parentId: newParent || null, sizeChartUrl: sizeChartUrl || null }),
-    });
-    setNewName(''); setNewParent(''); setSizeChartUrl('');
-    await load(); setSaving(false); onToast('Category created!');
+
+    try {
+      if (editingCat) {
+        const res = await fetch('/api/shop/categories', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editingCat.id,
+            name: newName.trim(),
+            parentId: newParent || null,
+            sizeChartUrl: sizeChartUrl || null
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          alert(data.error || 'Failed to update category.');
+          setSaving(false);
+          return;
+        }
+        onToast('Category updated!');
+      } else {
+        const res = await fetch('/api/shop/categories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: newName.trim(),
+            parentId: newParent || null,
+            sizeChartUrl: sizeChartUrl || null
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          alert(data.error || 'Failed to create category.');
+          setSaving(false);
+          return;
+        }
+        onToast('Category created!');
+      }
+
+      setNewName('');
+      setNewParent('');
+      setSizeChartUrl('');
+      setEditingCat(null);
+      if (sfRef.current) sfRef.current.value = '';
+      await load();
+    } catch (err) {
+      alert('An error occurred while saving the category.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const del = async (id: string) => {
@@ -289,11 +349,16 @@ function ShopCategoriesTab({ onToast }: { onToast: (m: string) => void }) {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Create category */}
+      {/* Create / Edit category */}
       <div className="glass-panel rounded-3xl border border-[var(--panel-border)] p-6 flex flex-col gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center"><FolderOpen size={18} className="text-purple-400" /></div>
-          <div><h3 className="font-black text-base">Create Category</h3><p className="text-xs text-[var(--muted)]">Add parent or sub-categories for your shop</p></div>
+          <div className="w-10 h-10 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+            {editingCat ? <Edit2 size={18} className="text-purple-400" /> : <FolderOpen size={18} className="text-purple-400" />}
+          </div>
+          <div>
+            <h3 className="font-black text-base">{editingCat ? 'Edit Category' : 'Create Category'}</h3>
+            <p className="text-xs text-[var(--muted)]">{editingCat ? 'Update name, parent category, or size chart' : 'Add parent or sub-categories for your shop'}</p>
+          </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <input value={newName} onChange={e => setNewName(e.target.value)}
@@ -302,20 +367,38 @@ function ShopCategoriesTab({ onToast }: { onToast: (m: string) => void }) {
           <select value={newParent} onChange={e => setNewParent(e.target.value)}
             className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-accent/50 text-[var(--muted)]">
             <option value="">— Parent Category</option>
-            {parentCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {parentCats.filter(c => c.id !== editingCat?.id).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
-          <div className="relative">
-            <input ref={sfRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && handleUpload(e.target.files[0])} />
-            <button onClick={() => sfRef.current?.click()} className="w-full bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-2.5 text-sm flex items-center justify-between text-[var(--muted)] outline-none hover:border-accent/50 transition-colors">
+          <div className="relative flex items-center gap-2">
+            <input ref={sfRef} type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files?.[0]) handleUpload(e.target.files[0]); e.target.value = ''; }} />
+            <button onClick={() => sfRef.current?.click()} className="flex-1 bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-2.5 text-sm flex items-center justify-between text-[var(--muted)] outline-none hover:border-accent/50 transition-colors">
               <span className="truncate">{sizeChartUrl ? '✅ Size Chart Attached' : 'Attach Size Chart (Opt)'}</span>
               {uploading ? <Loader2 size={16} className="animate-spin text-accent shrink-0" /> : <ImagePlus size={16} className="shrink-0" />}
             </button>
+            {sizeChartUrl && (
+              <button onClick={() => setSizeChartUrl('')} className="p-2.5 rounded-xl border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors shrink-0" title="Remove Size Chart">
+                <X size={16} />
+              </button>
+            )}
           </div>
         </div>
-        <button onClick={create} disabled={saving || uploading || !newName.trim()}
-          className="flex items-center justify-center gap-2 py-3 bg-accent text-black font-black rounded-xl hover:brightness-110 disabled:opacity-50">
-          {saving ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} Create Category
-        </button>
+        
+        {editingCat ? (
+          <div className="flex gap-3">
+            <button onClick={saveCategory} disabled={saving || uploading || !newName.trim()}
+              className="flex-1 flex items-center justify-center gap-2 py-3 bg-accent text-black font-black rounded-xl hover:brightness-110 disabled:opacity-50">
+              {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save Changes
+            </button>
+            <button onClick={cancelEdit} className="px-5 py-3 bg-neutral-800 border border-white/5 text-[var(--muted)] hover:text-white font-bold rounded-xl transition-colors">
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button onClick={saveCategory} disabled={saving || uploading || !newName.trim()}
+            className="flex items-center justify-center gap-2 py-3 bg-accent text-black font-black rounded-xl hover:brightness-110 disabled:opacity-50">
+            {saving ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} Create Category
+          </button>
+        )}
       </div>
 
       {/* Category tree */}
@@ -330,10 +413,16 @@ function ShopCategoriesTab({ onToast }: { onToast: (m: string) => void }) {
                 <FolderOpen size={16} className="text-accent" />
                 <span className="font-bold text-sm">{parent.name}</span>
                 <span className="text-[10px] bg-accent/10 text-accent px-2 py-0.5 rounded-full font-black">PARENT</span>
+                {parent.sizeChartUrl && <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full font-black">📏 Size Chart</span>}
               </div>
-              <button onClick={() => del(parent.id)} className="w-7 h-7 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center hover:bg-red-500/20">
-                <Trash2 size={12} className="text-red-400" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => startEdit(parent)} className="w-7 h-7 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center hover:bg-accent/20" title="Edit Category">
+                  <Edit2 size={12} className="text-accent" />
+                </button>
+                <button onClick={() => del(parent.id)} className="w-7 h-7 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center hover:bg-red-500/20" title="Delete Category">
+                  <Trash2 size={12} className="text-red-400" />
+                </button>
+              </div>
             </div>
             {(parent.children || []).length > 0 && (
               <div className="p-3 flex flex-col gap-2">
@@ -343,10 +432,16 @@ function ShopCategoriesTab({ onToast }: { onToast: (m: string) => void }) {
                       <ChevronRight size={12} className="text-[var(--muted)]" />
                       <Tag size={13} className="text-purple-400" />
                       <span className="text-sm">{child.name}</span>
+                      {child.sizeChartUrl && <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full font-black">📏 Size Chart</span>}
                     </div>
-                    <button onClick={() => del(child.id)} className="w-6 h-6 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center hover:bg-red-500/20">
-                      <Trash2 size={11} className="text-red-400" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => startEdit(child)} className="w-6 h-6 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center hover:bg-accent/20" title="Edit Category">
+                        <Edit2 size={11} className="text-accent" />
+                      </button>
+                      <button onClick={() => del(child.id)} className="w-6 h-6 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center hover:bg-red-500/20" title="Delete Category">
+                        <Trash2 size={11} className="text-red-400" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -654,8 +749,8 @@ function ProductForm({ categories, product, isDuplicate, onSaved, onCancel }: { 
           {/* Images */}
           <div className="glass-panel rounded-3xl border border-[var(--panel-border)] p-6 flex flex-col gap-4">
             <h3 className="font-black text-base flex items-center gap-2"><ImagePlus size={16} className="text-accent" /> Images</h3>
-            <input ref={mainImgRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && uploadMain(e.target.files[0])} />
-            <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={e => e.target.files && uploadGallery(e.target.files)} />
+            <input ref={mainImgRef} type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files?.[0]) uploadMain(e.target.files[0]); e.target.value = ''; }} />
+            <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={e => { if (e.target.files) uploadGallery(e.target.files); e.target.value = ''; }} />
 
             <button onClick={() => mainImgRef.current?.click()} disabled={uploading}
               className="relative group w-full h-36 rounded-2xl border-2 border-dashed border-[var(--panel-border)] hover:border-accent/50 overflow-hidden transition-all">
