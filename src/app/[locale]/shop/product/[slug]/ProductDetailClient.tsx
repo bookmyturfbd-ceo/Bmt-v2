@@ -8,9 +8,11 @@ import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import { trackMetaEvent } from '@/lib/meta-pixel';
 import { getCookie } from '@/lib/cookies';
+import { sortSizes } from '@/lib/sizeSorter';
 
 export default function ProductDetailClient({ product, activeDiscounts = [] }: { product: any; activeDiscounts?: any[] }) {
-  const [selectedSize, setSelectedSize] = useState<any>(product.sizes[0] || null);
+  const sortedSizes = sortSizes(product.sizes || [], (s: any) => s.label);
+  const [selectedSize, setSelectedSize] = useState<any>(sortedSizes[0] || null);
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(product.mainImage);
   const [showSizeChart, setShowSizeChart] = useState(false);
@@ -24,18 +26,18 @@ export default function ProductDetailClient({ product, activeDiscounts = [] }: {
       content_category: product.category?.name,
       content_ids: [product.id],
       content_type: 'product',
-      value: product.sizes[0]?.basePrice || 0,
+      value: sortedSizes[0]?.basePrice || 0,
       currency: 'BDT',
       contents: [{
         id: product.id,
         quantity: 1,
-        price: product.sizes[0]?.basePrice || 0,
-        item_price: product.sizes[0]?.basePrice || 0
+        price: sortedSizes[0]?.basePrice || 0,
+        item_price: sortedSizes[0]?.basePrice || 0
       }]
     }, {
       externalId: playerId || undefined
     });
-  }, [product]);
+  }, [product, sortedSizes]);
 
   const allImages = [product.mainImage, ...(product.galleryImages || [])];
   const sizeChartUrl = product.category?.sizeChartUrl || product.category?.parent?.sizeChartUrl;
@@ -208,7 +210,7 @@ export default function ProductDetailClient({ product, activeDiscounts = [] }: {
         </div>
 
         {/* Size Selector */}
-        {product.sizes.length > 0 && (
+        {sortedSizes.length > 0 && (
           <div className="flex flex-col gap-3 pt-6 border-t border-[var(--panel-border)]">
             <div className="flex items-center justify-between">
               <h3 className="font-black text-sm uppercase tracking-widest text-[var(--muted)]">{t('selectSize')}</h3>
@@ -223,7 +225,7 @@ export default function ProductDetailClient({ product, activeDiscounts = [] }: {
               )}
             </div>
             <div className="flex flex-wrap gap-3">
-              {product.sizes.map((s: any) => (
+              {sortedSizes.map((s: any) => (
                 <button key={s.id} onClick={() => setSelectedSize(s)}
                   className={`min-w-[4rem] px-4 py-3 rounded-xl font-black transition-all ${
                     selectedSize?.id === s.id 

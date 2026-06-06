@@ -80,12 +80,6 @@ export function evaluateCartDiscounts(
     let appliedDiscountName: string | null = null;
     let itemGrantsFreeDelivery = false;
 
-    // The user requirement: "i can set x product and get x amount off from the price, for example 1 product 950 taka, 2 pcs 900 each, 3 pcs 900 each also gets delivery charge free"
-    // Count of this specific product ID in the cart (aggregating across different size variants if any)
-    const productQuantity = cartItems
-      .filter(i => i.productId === item.productId)
-      .reduce((sum, i) => sum + i.quantity, 0);
-
     for (const discount of parsedDiscounts) {
       let isMatch = false;
 
@@ -99,9 +93,23 @@ export function evaluateCartDiscounts(
       }
 
       if (isMatch) {
-        // Find the highest tier that is met by productQuantity
+        // Calculate total quantity of items in the cart that match this discount's scope
+        const scopeQuantity = cartItems.reduce((sum, cartItem) => {
+          let itemMatchesDiscount = false;
+          if (discount.categoryScope === 'ALL') {
+            itemMatchesDiscount = true;
+          } else if (discount.categoryScope === 'PARENT') {
+            const pId = cartItem.parentCategoryId;
+            itemMatchesDiscount = pId ? discount.targetCategoryIds.includes(pId) : false;
+          } else if (discount.categoryScope === 'SUB') {
+            itemMatchesDiscount = cartItem.categoryId ? discount.targetCategoryIds.includes(cartItem.categoryId) : false;
+          }
+          return sum + (itemMatchesDiscount ? cartItem.quantity : 0);
+        }, 0);
+
+        // Find the highest tier that is met by scopeQuantity
         const sortedTiers = [...discount.tiers].sort((a, b) => b.minQty - a.minQty);
-        const matchingTier = sortedTiers.find(t => productQuantity >= t.minQty);
+        const matchingTier = sortedTiers.find(t => scopeQuantity >= t.minQty);
 
         if (matchingTier) {
           let calculatedUnitPrice = item.price;

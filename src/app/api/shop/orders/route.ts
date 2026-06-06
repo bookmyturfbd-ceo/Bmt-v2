@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { evaluateCartDiscounts } from '@/lib/shopDiscountEvaluator';
@@ -139,16 +140,223 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { id, status } = await req.json();
+    const data = await req.json();
+    const { 
+      id, 
+      status, 
+      customerName, 
+      customerPhone, 
+      customerEmail, 
+      address, 
+      district, 
+      paymentMethod,
+      items // Array of { productId, sizeLabel, quantity }
+    } = data;
 
-    // Call moveOrder to handle Telegram message updates, stock levels, and DB status update in one place
-    const order = await moveOrder(id, status, null);
-
-    if (!order) {
-      return NextResponse.json({ error: 'Order not found or update failed' }, { status: 404 });
+    if (!id) {
+      return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
     }
 
-    return NextResponse.json(serializeOrder(order));
+    // 1. Fetch current order with its items to understand the original state
+    const originalOrder = await prisma.shopOrder.findUnique({
+      where: { id },
+      include: { items: true }
+    });
+
+    if (!originalOrder) {
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    }
+
+    const oldIsCanceled = originalOrder.status === 'canceled' || originalOrder.status === 'cancelled';
+    const newStatus = status ?? originalOrder.status;
+    const newIsCanceled = newStatus === 'canceled' || newStatus === 'cancelled';
+
+    // 2. If editing items
+    if (items && Array.isArray(items)) {
+      // A. Revert stock levels for original items (only if the order was NOT canceled)
+      if (!oldIsCanceled) {
+        await Promise.all(originalOrder.items.map(async (item) => {
+          const dbSizes = await prisma.shopProductSize.findMany({
+            where: { productId: item.productId, label: item.sizeLabel }
+          });
+          if (dbSizes.length > 0) {
+            await prisma.shopProductSize.update({
+              where: { id: dbSizes[0].id },
+              data: { quantity: dbSizes[0].quantity + item.quantity }
+            });
+          }
+        }));
+      }
+
+      // B. Resolve base price for new items
+      const productIds = items.map((i: any) => i.productId);
+      const dbProducts = await prisma.shopProduct.findMany({
+        where: { id: { in: productIds } },
+        select: {
+          id: true,
+          mainImage: true,
+          categoryId: true,
+          category: { select: { parentId: true } },
+          sizes: { select: { label: true, basePrice: true, salePrice: true } }
+        }
+      });
+
+      const productMap = new Map<string, any>();
+      dbProducts.forEach(p => {
+        productMap.set(p.id, {
+          mainImage: p.mainImage,
+          categoryId: p.categoryId,
+          parentId: p.category?.parentId || null,
+          sizes: p.sizes
+        });
+      });
+
+      const itemsWithCategories = items.map((item: any) => {
+        const details = productMap.get(item.productId);
+        let originalPrice = 0;
+        if (details) {
+          const dbSize = details.sizes.find((s: any) => s.label?.toUpperCase() === item.sizeLabel?.toUpperCase());
+          if (dbSize) {
+            originalPrice = dbSize.salePrice ?? dbSize.basePrice;
+          }
+        }
+        return {
+          productId: item.productId,
+          name: item.name || '',
+          sizeLabel: item.sizeLabel || '',
+          price: originalPrice,
+          quantity: Number(item.quantity),
+          imageUrl: details?.mainImage || '',
+          categoryId: details?.categoryId || '',
+          parentCategoryId: details?.parentId || null
+        };
+      });
+
+      // C. Evaluate discounts & calculate totals
+      const activeDiscounts = await (prisma as any).shopDiscount.findMany({
+        where: { active: true }
+      });
+      const resolvedDistrict = district ?? originalOrder.district;
+      const baseDelivery = getBaseDeliveryCharge(resolvedDistrict);
+      const evaluation = evaluateCartDiscounts(itemsWithCategories, baseDelivery, activeDiscounts);
+
+      // D. Deduct new stock levels (only if the new status is NOT canceled)
+      if (!newIsCanceled) {
+        await Promise.all(items.map(async (item: any) => {
+          const dbSizes = await prisma.shopProductSize.findMany({
+            where: { productId: item.productId, label: item.sizeLabel }
+          });
+          if (dbSizes.length > 0) {
+            await prisma.shopProductSize.update({
+              where: { id: dbSizes[0].id },
+              data: { quantity: Math.max(0, dbSizes[0].quantity - item.quantity) }
+            });
+          }
+        }));
+      }
+
+      // E. Update database: delete old items and create new ones
+      await prisma.shopOrderItem.deleteMany({
+        where: { orderId: id }
+      });
+
+      await prisma.shopOrderItem.createMany({
+        data: items.map((item: any, idx: number) => ({
+          orderId: id,
+          productId: item.productId,
+          sizeLabel: item.sizeLabel,
+          quantity: Number(item.quantity),
+          price: evaluation.items[idx]?.discountedPrice ?? item.price
+        }))
+      });
+
+      // F. Update order details in DB
+      await prisma.shopOrder.update({
+        where: { id },
+        data: {
+          customerName: customerName ?? originalOrder.customerName,
+          customerPhone: customerPhone ?? originalOrder.customerPhone,
+          customerEmail: customerEmail ?? originalOrder.customerEmail,
+          address: address ?? originalOrder.address,
+          district: resolvedDistrict,
+          paymentMethod: paymentMethod ?? originalOrder.paymentMethod,
+          deliveryCharge: evaluation.deliveryCharge,
+          subtotal: evaluation.subtotalAfterDiscount,
+          total: evaluation.total,
+          status: newStatus
+        }
+      });
+
+    } else {
+      // If NOT editing items, just status/details update
+      // Stock adjustment for simple status transition (if transitioning to/from canceled)
+      if (newIsCanceled && !oldIsCanceled) {
+        // Revert stock (cancel)
+        await Promise.all(originalOrder.items.map(async (item) => {
+          const dbSizes = await prisma.shopProductSize.findMany({
+            where: { productId: item.productId, label: item.sizeLabel }
+          });
+          if (dbSizes.length > 0) {
+            await prisma.shopProductSize.update({
+              where: { id: dbSizes[0].id },
+              data: { quantity: dbSizes[0].quantity + item.quantity }
+            });
+          }
+        }));
+      } else if (oldIsCanceled && !newIsCanceled) {
+        // Re-deduct stock (uncancel)
+        await Promise.all(originalOrder.items.map(async (item) => {
+          const dbSizes = await prisma.shopProductSize.findMany({
+            where: { productId: item.productId, label: item.sizeLabel }
+          });
+          if (dbSizes.length > 0) {
+            await prisma.shopProductSize.update({
+              where: { id: dbSizes[0].id },
+              data: { quantity: Math.max(0, dbSizes[0].quantity - item.quantity) }
+            });
+          }
+        }));
+      }
+
+      await prisma.shopOrder.update({
+        where: { id },
+        data: {
+          customerName: customerName ?? originalOrder.customerName,
+          customerPhone: customerPhone ?? originalOrder.customerPhone,
+          customerEmail: customerEmail ?? originalOrder.customerEmail,
+          address: address ?? originalOrder.address,
+          district: district ?? originalOrder.district,
+          paymentMethod: paymentMethod ?? originalOrder.paymentMethod,
+          status: newStatus
+        }
+      });
+    }
+
+    // 3. Move Telegram order card to corresponding topic & trigger updates
+    await moveOrder(id, newStatus, null);
+
+    // Fetch updated order to return
+    const updatedOrder = await prisma.shopOrder.findUnique({
+      where: { id },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: {
+                mainImage: true,
+                name: true,
+                productCost: true,
+                marketingCost: true,
+                category: { select: { id: true, name: true, parentId: true } },
+                sizes: { select: { label: true, basePrice: true, salePrice: true } }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    return NextResponse.json(serializeOrder(updatedOrder));
   } catch (error: any) {
     console.error('Order status update error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -172,7 +380,14 @@ export async function GET(req: NextRequest) {
                 name: true,
                 productCost: true,
                 marketingCost: true,
-                category: { select: { id: true, name: true, parentId: true } }
+                category: { select: { id: true, name: true, parentId: true } },
+                sizes: {
+                  select: {
+                    label: true,
+                    basePrice: true,
+                    salePrice: true
+                  }
+                }
               }
             }
           }

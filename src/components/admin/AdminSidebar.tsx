@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LayoutDashboard, Building2, UserCircle2, Settings, ChevronLeft, ChevronRight, Zap, Menu, X, Banknote, ChevronDown, ChevronUp, Users, Wallet, KeyRound, Monitor, Trophy, Swords, ShoppingBag, PackageCheck, BarChart3, Globe2, PhoneCall } from 'lucide-react';
 
 export type AdminPage = 'overview' | 'platformSettings' | 'manageTurfs' | 'managePros' | 'payouts' | 'walletRecharge' | 'players' | 'frontend' | 'competitiveTeams' | 'challengeMarket' | 'openWbt' | 'shop' | 'shopOrders' | 'shopIncome' | 'tournaments' | 'bmtTournaments' | 'organizers' | 'orgRecharge' | 'orgPayouts' | 'interested';
@@ -72,6 +72,28 @@ interface AdminSidebarProps {
 export default function AdminSidebar({ activePage, onNavigate }: AdminSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [newOrdersCount, setNewOrdersCount] = useState(0);
+
+  useEffect(() => {
+    const fetchCount = async () => {
+      try {
+        const res = await fetch('/api/shop/orders');
+        if (res.ok) {
+          const orders = await res.json();
+          if (Array.isArray(orders)) {
+            const count = orders.filter((o: any) => o.status === 'new' || o.status === 'pending').length;
+            setNewOrdersCount(count);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch orders count for sidebar', err);
+      }
+    };
+    fetchCount();
+    // Poll every 30 seconds for live badge updates
+    const interval = setInterval(fetchCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Auto-expand group if its child is active
   const getDefaultOpen = () => {
@@ -161,7 +183,7 @@ export default function AdminSidebar({ activePage, onNavigate }: AdminSidebarPro
                   <button
                     key={child.key}
                     onClick={() => { onNavigate(child.key); setMobileOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-3 md:px-4 py-2 md:py-2.5 rounded-xl transition-all text-left active:scale-[0.98]
+                    className={`relative w-full flex items-center gap-3 px-3 md:px-4 py-2 md:py-2.5 rounded-xl transition-all text-left active:scale-[0.98]
                       ${!collapsed ? 'ml-4 w-[calc(100%-1rem)]' : 'justify-center'}
                       ${isActive
                         ? 'bg-accent/15 border border-accent/30 text-accent'
@@ -171,7 +193,21 @@ export default function AdminSidebar({ activePage, onNavigate }: AdminSidebarPro
                   >
                     <ChildIcon size={15} className="shrink-0 md:hidden" />
                     <ChildIcon size={17} className="shrink-0 hidden md:block" />
-                    {!collapsed && <span className="text-sm font-semibold truncate">{child.label}</span>}
+                    {!collapsed && (
+                      <span className="text-sm font-semibold truncate flex-1 flex items-center justify-between">
+                        <span>{child.label}</span>
+                        {child.key === 'shopOrders' && newOrdersCount > 0 && (
+                          <span className="bg-red-500 text-white font-black text-[10px] h-4.5 min-w-[18px] px-1 rounded-full flex items-center justify-center animate-pulse shrink-0">
+                            {newOrdersCount}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                    {collapsed && child.key === 'shopOrders' && newOrdersCount > 0 && (
+                      <div className="absolute top-1 right-1 bg-red-500 text-white font-black text-[8px] h-3.5 min-w-[14px] rounded-full flex items-center justify-center px-0.5">
+                        {newOrdersCount}
+                      </div>
+                    )}
                   </button>
                 );
               })}
