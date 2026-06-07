@@ -1,6 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AdminSidebar, { type AdminPage } from '@/components/admin/AdminSidebar';
+import { getCookie } from '@/lib/cookies';
 import AdminHeader from '@/components/admin/AdminHeader';
 import AdminStatsGrid from '@/components/admin/AdminStatsGrid';
 import PlatformSettingsPanel from '@/components/admin/PlatformSettingsPanel';
@@ -49,24 +50,36 @@ const PAGE_TITLES: Record<AdminPage, string> = {
 export default function AdminPage() {
   const [activePage, setActivePage] = useState<AdminPage>('overview');
   const [frontendTab, setFrontendTab] = useState<'carousel' | 'sponsors'>('carousel');
+  const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    const r = getCookie('bmt_role');
+    setRole(r);
+    if (r === 'shop_manager') {
+      setActivePage('shopOrders');
+    }
+  }, []);
+
+  const isShopManager = role === 'shop_manager';
+  const displayPage = isShopManager ? 'shopOrders' : activePage;
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      <AdminSidebar activePage={activePage} onNavigate={setActivePage} />
+      <AdminSidebar activePage={displayPage} onNavigate={setActivePage} />
 
       <div className="flex-1 flex flex-col min-w-0">
-        <AdminHeader breadcrumb={PAGE_TITLES[activePage]} />
+        <AdminHeader breadcrumb={PAGE_TITLES[displayPage]} />
 
         <main className="flex-1 p-5 md:p-10 flex flex-col gap-7 md:gap-10 overflow-y-auto">
 
-          {activePage === 'overview' && (
+          {displayPage === 'overview' && (
             <section>
               <h2 className="text-[11px] md:text-xs font-bold uppercase tracking-widest text-[var(--muted)] mb-5">Platform Overview</h2>
               <AdminStatsGrid />
             </section>
           )}
 
-          {activePage === 'platformSettings' && (
+          {displayPage === 'platformSettings' && (
             <section>
               <div className="mb-5 md:mb-7">
                 <h2 className="text-lg md:text-2xl font-black">Platform Settings</h2>
@@ -76,7 +89,7 @@ export default function AdminPage() {
             </section>
           )}
 
-          {activePage === 'manageTurfs' && (
+          {displayPage === 'manageTurfs' && (
             <section>
               <div className="mb-5 md:mb-7">
                 <h2 className="text-lg md:text-2xl font-black">Owners & Turfs</h2>
@@ -86,11 +99,11 @@ export default function AdminPage() {
             </section>
           )}
 
-          {activePage === 'players' && (
+          {displayPage === 'players' && (
             <section><PlayersPanel /></section>
           )}
 
-          {activePage === 'payouts' && (
+          {displayPage === 'payouts' && (
             <section>
               <div className="mb-5 md:mb-7">
                 <h2 className="text-lg md:text-2xl font-black">Payouts & Ledger</h2>
@@ -100,11 +113,11 @@ export default function AdminPage() {
             </section>
           )}
 
-          {activePage === 'walletRecharge' && (
+          {displayPage === 'walletRecharge' && (
             <section><WalletRechargePanel /></section>
           )}
 
-          {activePage === 'managePros' && (
+          {displayPage === 'managePros' && (
             <section>
               <div className="mb-5 md:mb-7">
                 <h2 className="text-lg md:text-2xl font-black">Coaches & Pros</h2>
@@ -114,7 +127,7 @@ export default function AdminPage() {
             </section>
           )}
 
-          {activePage === 'frontend' && (
+          {displayPage === 'frontend' && (
             <section className="flex flex-col h-full">
               <div className="mb-5 md:mb-7 flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
@@ -132,7 +145,7 @@ export default function AdminPage() {
             </section>
           )}
 
-          {activePage === 'competitiveTeams' && (
+          {displayPage === 'competitiveTeams' && (
             <section className="h-full">
               <div className="mb-5 md:mb-7">
                 <h2 className="text-lg md:text-2xl font-black">Competitive Ecosystem</h2>
@@ -142,35 +155,35 @@ export default function AdminPage() {
             </section>
           )}
 
-          {activePage === 'challengeMarket' && (
+          {displayPage === 'challengeMarket' && (
             <section className="h-full">
               <ChallengeMarketPanel />
             </section>
           )}
 
-          {activePage === 'openWbt' && (
+          {displayPage === 'openWbt' && (
             <section>
               <OpenWbtPanel />
             </section>
           )}
 
-          {activePage === 'bmtTournaments' && (
+          {displayPage === 'bmtTournaments' && (
             <section className="h-full">
               <TournamentListTab />
             </section>
           )}
 
-          {activePage === 'organizers' && (
+          {displayPage === 'organizers' && (
             <section className="h-full">
               <OrganizerListTab />
             </section>
           )}
 
-          {activePage === 'orgRecharge' && (
+          {displayPage === 'orgRecharge' && (
             <section><OrganizerRechargePanel /></section>
           )}
 
-          {activePage === 'orgPayouts' && (
+          {displayPage === 'orgPayouts' && (
             <section className="h-full">
               <div className="mb-5 md:mb-7">
                 <h2 className="text-lg md:text-2xl font-black">Organizer Payouts</h2>
@@ -180,7 +193,7 @@ export default function AdminPage() {
             </section>
           )}
 
-          {activePage === 'shop' && (
+          {displayPage === 'shop' && (
             <section>
               <div className="mb-5 md:mb-7">
                 <h2 className="text-lg md:text-2xl font-black">Shop Front</h2>
@@ -190,7 +203,7 @@ export default function AdminPage() {
             </section>
           )}
 
-          {activePage === 'shopOrders' && (
+          {displayPage === 'shopOrders' && (
             <section>
               <div className="mb-5 md:mb-7">
                 <h2 className="text-lg md:text-2xl font-black">Shop Orders</h2>
@@ -200,7 +213,7 @@ export default function AdminPage() {
             </section>
           )}
 
-          {activePage === 'shopIncome' && (
+          {displayPage === 'shopIncome' && (
             <section>
               <div className="mb-5 md:mb-7">
                 <h2 className="text-lg md:text-2xl font-black">Shop Income</h2>
@@ -210,7 +223,7 @@ export default function AdminPage() {
             </section>
           )}
 
-          {activePage === 'interested' && (
+          {displayPage === 'interested' && (
             <section className="h-full">
               <InterestedPanel />
             </section>

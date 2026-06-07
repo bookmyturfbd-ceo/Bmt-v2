@@ -1,7 +1,9 @@
 'use client';
+import { useState, useEffect } from 'react';
 import { Search, Shield, LogOut } from 'lucide-react';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import { useRouter } from 'next/navigation';
+import { getCookie } from '@/lib/cookies';
 
 interface AdminHeaderProps {
   breadcrumb: string;
@@ -9,6 +11,14 @@ interface AdminHeaderProps {
 
 export default function AdminHeader({ breadcrumb }: AdminHeaderProps) {
   const router = useRouter();
+  const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    setRole(getCookie('bmt_role'));
+  }, []);
+
+  const displayRole = role === 'shop_manager' ? 'Shop Manager' : 'Super Admin';
+  const displayEmail = role === 'shop_manager' ? 'sm@bmt.com' : 'admin@bmt.com';
 
   const handleSignOut = () => {
     document.cookie = 'bmt_auth=; Max-Age=0; path=/';
@@ -46,8 +56,8 @@ export default function AdminHeader({ breadcrumb }: AdminHeaderProps) {
             <Shield size={17} className="text-accent hidden md:block" />
           </div>
           <div className="hidden sm:flex flex-col leading-none gap-0.5">
-            <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-accent">Super Admin</span>
-            <span className="text-[11px] md:text-xs text-[var(--muted)] font-medium">admin@bmt.com</span>
+            <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-accent">{displayRole}</span>
+            <span className="text-[11px] md:text-xs text-[var(--muted)] font-medium">{displayEmail}</span>
           </div>
         </div>
 

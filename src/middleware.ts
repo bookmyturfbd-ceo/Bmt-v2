@@ -17,13 +17,13 @@ const PROTECTED_PREFIXES = [
 // Routes requiring admin role
 const ADMIN_PREFIXES = ['/en/admin', '/bn/admin'];
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // --- Admin guard ---
   if (ADMIN_PREFIXES.some(p => pathname.startsWith(p))) {
     const role = request.cookies.get('bmt_role');
-    if (role?.value !== 'admin') {
+    if (role?.value !== 'admin' && role?.value !== 'shop_manager') {
       const loginUrl = new URL('/en/login', request.url);
       loginUrl.searchParams.set('next', pathname);
       return NextResponse.redirect(loginUrl);

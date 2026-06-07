@@ -48,6 +48,15 @@ export async function POST(request: NextRequest) {
     return response;
   }
 
+  // ── Shop Manager (Sub Admin) ──────────────────────────────────────────────────
+  if (cred === 'sm@bmt.com' && pw === 'Cristianoronaldo01!$') {
+    const response = NextResponse.json({ ok: true, redirect: '/en/admin' });
+    response.cookies.set('bmt_auth',  '1',            cookieOpts);
+    response.cookies.set('bmt_role',  'shop_manager', cookieOpts);
+    response.cookies.set('bmt_name',  'Shop Manager', cookieOpts);
+    return response;
+  }
+
   // ── Turf Owner ───────────────────────────────────────────────────────────────
   const owner = await prisma.owner.findFirst({
     where: {

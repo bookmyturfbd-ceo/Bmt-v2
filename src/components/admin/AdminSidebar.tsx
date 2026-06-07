@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { LayoutDashboard, Building2, UserCircle2, Settings, ChevronLeft, ChevronRight, Zap, Menu, X, Banknote, ChevronDown, ChevronUp, Users, Wallet, KeyRound, Monitor, Trophy, Swords, ShoppingBag, PackageCheck, BarChart3, Globe2, PhoneCall } from 'lucide-react';
+import { getCookie } from '@/lib/cookies';
 
 export type AdminPage = 'overview' | 'platformSettings' | 'manageTurfs' | 'managePros' | 'payouts' | 'walletRecharge' | 'players' | 'frontend' | 'competitiveTeams' | 'challengeMarket' | 'openWbt' | 'shop' | 'shopOrders' | 'shopIncome' | 'tournaments' | 'bmtTournaments' | 'organizers' | 'orgRecharge' | 'orgPayouts' | 'interested';
 
@@ -73,6 +74,28 @@ export default function AdminSidebar({ activePage, onNavigate }: AdminSidebarPro
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [newOrdersCount, setNewOrdersCount] = useState(0);
+  const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    setRole(getCookie('bmt_role'));
+  }, []);
+
+  const filteredStandalone = STANDALONE_ITEMS.filter(item => {
+    if (role === 'shop_manager') {
+      return false;
+    }
+    return true;
+  });
+
+  const filteredGroups = NAV_GROUPS.map(group => {
+    const children = group.children.filter(child => {
+      if (role === 'shop_manager') {
+        return child.key === 'shopOrders';
+      }
+      return true;
+    });
+    return { ...group, children };
+  }).filter(group => group.children.length > 0);
 
   useEffect(() => {
     const fetchCount = async () => {
@@ -98,13 +121,19 @@ export default function AdminSidebar({ activePage, onNavigate }: AdminSidebarPro
   // Auto-expand group if its child is active
   const getDefaultOpen = () => {
     const open: Record<string, boolean> = {};
-    NAV_GROUPS.forEach(g => {
+    const groupsToProcess = role === 'shop_manager' ? filteredGroups : NAV_GROUPS;
+    groupsToProcess.forEach(g => {
       if (g.children.some(c => c.key === activePage)) open[g.label] = true;
       else open[g.label] = true; // default all open
     });
     return open;
   };
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(getDefaultOpen);
+
+  // Re-initialize openGroups when role is fetched to expand correctly
+  useEffect(() => {
+    setOpenGroups(getDefaultOpen());
+  }, [role, activePage]);
 
   const toggleGroup = (label: string) => setOpenGroups(prev => ({ ...prev, [label]: !prev[label] }));
 
@@ -125,7 +154,7 @@ export default function AdminSidebar({ activePage, onNavigate }: AdminSidebarPro
 
       <nav className="flex-1 px-2 md:px-3 py-4 md:py-5 flex flex-col gap-1 md:gap-1.5 overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {/* Standalone items */}
-        {STANDALONE_ITEMS.map(item => {
+        {filteredStandalone.map(item => {
           const IconObj = item.icon;
           const isActive = activePage === item.key;
           return (
@@ -148,7 +177,7 @@ export default function AdminSidebar({ activePage, onNavigate }: AdminSidebarPro
         })}
 
         {/* Grouped items */}
-        {NAV_GROUPS.map(group => {
+        {filteredGroups.map(group => {
           const GroupIcon = group.icon;
           const isGroupOpen = openGroups[group.label] ?? true;
           const hasActiveChild = group.children.some(c => c.key === activePage);
