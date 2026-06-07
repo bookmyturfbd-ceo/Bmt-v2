@@ -26,19 +26,28 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, status } = body;
+    const { id, status, adminNotes } = body;
 
-    if (!id || !status) {
-      return NextResponse.json({ error: 'id and status are required.' }, { status: 400 });
+    if (!id) {
+      return NextResponse.json({ error: 'id is required.' }, { status: 400 });
     }
 
-    if (!['PENDING', 'REVIEWED', 'CONTACTED'].includes(status)) {
-      return NextResponse.json({ error: 'Invalid status.' }, { status: 400 });
+    const updateData: any = {};
+
+    if (status !== undefined) {
+      if (!['PENDING', 'REVIEWED', 'CONTACTED', 'ONBOARDED', 'DECLINED'].includes(status)) {
+        return NextResponse.json({ error: 'Invalid status.' }, { status: 400 });
+      }
+      updateData.status = status;
+    }
+
+    if (adminNotes !== undefined) {
+      updateData.adminNotes = adminNotes;
     }
 
     const updated = await prisma.joinRequest.update({
       where: { id },
-      data: { status },
+      data: updateData,
     });
 
     return NextResponse.json({ ok: true, request: updated });

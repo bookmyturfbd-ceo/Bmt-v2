@@ -2288,18 +2288,21 @@ enum JoinRequestStatus {
   PENDING
   REVIEWED
   CONTACTED
+  ONBOARDED
+  DECLINED
 }
 
 model JoinRequest {
-  id        String            @id @default(cuid())
-  type      JoinRequestType
-  name      String
-  phone     String
-  email     String?
-  location  String
-  message   String?
-  status    JoinRequestStatus @default(PENDING)
-  createdAt DateTime          @default(now())
+  id         String            @id @default(cuid())
+  type       JoinRequestType
+  name       String
+  phone      String
+  email      String?
+  location   String
+  message    String?
+  status     JoinRequestStatus @default(PENDING)
+  adminNotes String?
+  createdAt  DateTime          @default(now())
 
   @@map("join_requests")
 }

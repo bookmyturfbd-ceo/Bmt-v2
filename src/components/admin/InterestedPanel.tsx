@@ -2,11 +2,12 @@
 import { useState, useEffect } from 'react';
 import {
   Loader2, Building2, Briefcase, GraduationCap, Phone,
-  Mail, MapPin, MessageSquare, Clock, CheckCircle2, PhoneCall, RefreshCw
+  Mail, MapPin, MessageSquare, Clock, CheckCircle2, PhoneCall, RefreshCw,
+  UserCheck, XCircle
 } from 'lucide-react';
 
 type JoinRequestType = 'TURF_OWNER' | 'PROFESSIONAL' | 'COACH';
-type JoinRequestStatus = 'PENDING' | 'REVIEWED' | 'CONTACTED';
+type JoinRequestStatus = 'PENDING' | 'REVIEWED' | 'CONTACTED' | 'ONBOARDED' | 'DECLINED';
 
 interface JoinRequest {
   id: string;
@@ -17,6 +18,7 @@ interface JoinRequest {
   location: string;
   message: string | null;
   status: JoinRequestStatus;
+  adminNotes: string | null;
   createdAt: string;
 }
 
@@ -26,10 +28,12 @@ const TYPE_TABS: { key: JoinRequestType; label: string; icon: typeof Building2; 
   { key: 'COACH',        label: 'Coaches / Refs / Trainers', icon: GraduationCap, color: 'text-fuchsia-400', bg: 'bg-fuchsia-500/20 border-fuchsia-500/30' },
 ];
 
-const STATUS_OPTIONS: { value: JoinRequestStatus; label: string; icon: typeof Clock; color: string }[] = [
+const STATUS_OPTIONS: { value: JoinRequestStatus; label: string; icon: any; color: string }[] = [
   { value: 'PENDING',   label: 'Pending',   icon: Clock,         color: 'text-amber-400 bg-amber-500/15 border-amber-500/30' },
   { value: 'REVIEWED',  label: 'Reviewed',  icon: CheckCircle2,  color: 'text-blue-400 bg-blue-500/15 border-blue-500/30' },
   { value: 'CONTACTED', label: 'Contacted', icon: PhoneCall,     color: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30' },
+  { value: 'ONBOARDED', label: 'Onboarded', icon: UserCheck,     color: 'text-green-400 bg-green-500/15 border-green-500/30' },
+  { value: 'DECLINED',  label: 'Declined',  icon: XCircle,       color: 'text-red-400 bg-red-500/15 border-red-500/30' },
 ];
 
 function StatusBadge({ status }: { status: JoinRequestStatus }) {
@@ -47,6 +51,9 @@ export default function InterestedPanel() {
   const [data, setData] = useState<JoinRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  
+  const [notesState, setNotesState] = useState<Record<string, string>>({});
+  const [updatingNotesId, setUpdatingNotesId] = useState<string | null>(null);
 
   const reload = (tab: JoinRequestType = activeTab) => {
     setLoading(true);
@@ -67,6 +74,27 @@ export default function InterestedPanel() {
     });
     setUpdatingId(null);
     reload();
+  };
+
+  const handleNotesSave = async (id: string, adminNotes: string) => {
+    setUpdatingNotesId(id);
+    try {
+      await fetch('/api/admin/join-requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, adminNotes }),
+      });
+      setNotesState(prev => {
+        const copy = { ...prev };
+        delete copy[id];
+        return copy;
+      });
+      reload();
+    } catch (err) {
+      console.error('Failed to save notes:', err);
+    } finally {
+      setUpdatingNotesId(null);
+    }
   };
 
   const activeTabInfo = TYPE_TABS.find(t => t.key === activeTab)!;
@@ -180,6 +208,32 @@ export default function InterestedPanel() {
                       <p className="italic">{req.message}</p>
                     </div>
                   )}
+
+                  {/* Admin Notes Section */}
+                  <div className="mt-2 flex flex-col gap-1.5">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Admin Notes</p>
+                    <div className="flex flex-col gap-2">
+                      <textarea
+                        value={notesState[req.id] !== undefined ? notesState[req.id] : (req.adminNotes || '')}
+                        onChange={(e) => setNotesState(prev => ({ ...prev, [req.id]: e.target.value }))}
+                        placeholder="Add note from our end..."
+                        className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent text-white resize-none"
+                        rows={2}
+                      />
+                      {(notesState[req.id] !== undefined && notesState[req.id] !== (req.adminNotes || '')) && (
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() => handleNotesSave(req.id, notesState[req.id])}
+                            disabled={updatingNotesId === req.id}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-black text-xs font-black rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
+                          >
+                            {updatingNotesId === req.id ? <Loader2 size={10} className="animate-spin" /> : null}
+                            Save Note
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Action Buttons */}
