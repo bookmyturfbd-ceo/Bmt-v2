@@ -122,103 +122,112 @@ export default function HomeHeader({ initialAuth = false }: { initialAuth?: bool
   };
 
   return (
-    <>
-      <header className="flex items-start justify-between px-4 py-1.5 pt-2">
-        <div className="flex flex-col">
-          <div 
-            onClick={fetchLocation}
-            className="flex items-center gap-1 text-xs font-medium opacity-80 mb-0.5 cursor-pointer hover:text-accent transition-colors"
-            title="Click to detect location"
-          >
-            <MapPin size={14} className="text-accent" />
-            <span>{userLocation || t('location')}</span>
-          </div>
-          <div className="mt-0.5">
-            <img src="/bmt-logo.png" alt="Book My Turf" className="h-14 md:h-16 object-contain object-left drop-shadow-lg" />
-          </div>
+    <div className="flex flex-col w-full bg-[#080808]">
+      {/* 1. Slim Top Utility Bar (Location & Language Toggle) */}
+      <div className="flex items-center justify-between px-4 py-1.5 border-b border-white/5 bg-white/[0.01]">
+        {/* Clickable Geo Location */}
+        <div 
+          onClick={fetchLocation}
+          className="flex items-center gap-1.5 text-[10px] font-black text-neutral-400 hover:text-accent transition-colors cursor-pointer select-none"
+          title="Click to detect location"
+        >
+          <MapPin size={11} className="text-accent" />
+          <span>{userLocation || t('location')}</span>
         </div>
 
-        <div className="flex flex-col items-end gap-2 pt-0.5">
-          <div className="flex items-center gap-2.5">
+        {/* Language Toggler */}
+        <div className="flex items-center gap-2">
+          <Globe size={11} className="text-neutral-500" />
+          <div 
+            className="relative flex items-center p-[2px] rounded-full bg-slate-900/10 dark:bg-white/5 border border-slate-900/5 dark:border-white/5 font-mono select-none w-[60px] h-[22px] shadow-inner"
+            aria-label="Select Language"
+          >
+            {/* Sliding background pill */}
             <div 
-              className="relative flex items-center p-[2px] rounded-full bg-slate-900/10 dark:bg-white/5 border border-slate-900/5 dark:border-white/5 font-mono select-none w-[78px] h-[32px] shadow-inner pointer-events-auto z-10 shrink-0"
-              aria-label="Select Language"
+              className="absolute top-[2px] bottom-[2px] left-[2px] w-[27px] rounded-full bg-accent transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-sm"
+              style={{
+                transform: locale === 'bn' ? 'translateX(28px)' : 'translateX(0px)'
+              }}
+            />
+            
+            {/* Option 'EN' */}
+            <button 
+              onClick={() => {
+                if (locale !== 'en') {
+                  router.replace(pathname, { locale: 'en' });
+                }
+              }}
+              className={`relative z-10 w-[27px] h-full text-center font-black text-[9px] tracking-wide transition-colors duration-300 cursor-pointer flex items-center justify-center ${
+                locale === 'en' 
+                  ? 'text-black dark:text-black' 
+                  : 'text-slate-500 dark:text-neutral-400 hover:text-slate-800 dark:hover:text-white'
+              }`}
             >
-              {/* Sliding background pill */}
-              <div 
-                className="absolute top-[2px] bottom-[2px] left-[2px] w-[35px] rounded-full bg-accent transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-sm"
-                style={{
-                  transform: locale === 'bn' ? 'translateX(35px)' : 'translateX(0px)'
-                }}
-              />
-              
-              {/* Option 'EN' */}
-              <button 
-                onClick={() => {
-                  if (locale !== 'en') {
-                    router.replace(pathname, { locale: 'en' });
-                  }
-                }}
-                className={`relative z-10 w-[35px] h-full text-center font-black text-[10px] tracking-wide transition-colors duration-300 cursor-pointer flex items-center justify-center ${
-                  locale === 'en' 
-                    ? 'text-black dark:text-black' 
-                    : 'text-slate-500 dark:text-neutral-400 hover:text-slate-800 dark:hover:text-white'
-                }`}
-              >
-                EN
-              </button>
-              
-              {/* Option 'BN' */}
-              <button 
-                onClick={() => {
-                  if (locale !== 'bn') {
-                    router.replace(pathname, { locale: 'bn' });
-                  }
-                }}
-                className={`relative z-10 w-[35px] h-full text-center font-black text-[10px] tracking-wide transition-colors duration-300 cursor-pointer flex items-center justify-center ${
-                  locale === 'bn' 
-                    ? 'text-black dark:text-black' 
-                    : 'text-slate-500 dark:text-neutral-400 hover:text-slate-800 dark:hover:text-white'
-                }`}
-              >
-                BN
-              </button>
-            </div>
-
-            {isAuthed ? (
-              <>
-                <button className="relative p-2 rounded-full glass hover:border-accent/50 transition-colors">
-                  <Bell size={20} />
-                  <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-black" />
-                </button>
-
-                <Link href="/profile">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-accent to-blue-500 p-[2px] hover:scale-105 transition-transform active:scale-95">
-                    <div className="w-full h-full rounded-full bg-black flex items-center justify-center overflow-hidden">
-                      {avatar
-                        ? <img src={avatar} alt="profile" className="w-full h-full object-cover" />
-                        : <span className="text-sm font-black text-accent">{initials}</span>
-                      }
-                    </div>
-                  </div>
-                </Link>
-              </>
-            ) : (
-              <Link href="/login" className="px-5 py-2 rounded-xl bg-accent text-black font-black text-sm tracking-wide hover:brightness-110 active:scale-95 transition-all shadow-md">
-                {t('login')}
-              </Link>
-            )}
+              EN
+            </button>
+            
+            {/* Option 'BN' */}
+            <button 
+              onClick={() => {
+                if (locale !== 'bn') {
+                  router.replace(pathname, { locale: 'bn' });
+                }
+              }}
+              className={`relative z-10 w-[27px] h-full text-center font-black text-[9px] tracking-wide transition-colors duration-300 cursor-pointer flex items-center justify-center ${
+                locale === 'bn' 
+                  ? 'text-black dark:text-black' 
+                  : 'text-slate-500 dark:text-neutral-400 hover:text-slate-800 dark:hover:text-white'
+              }`}
+            >
+              BN
+            </button>
           </div>
+        </div>
+      </div>
 
-          {/* Contact Us Button */}
+      {/* 2. Main Branding & Actions Bar */}
+      <div className="flex items-center justify-between px-4 py-3">
+        {/* Brand Logo */}
+        <div>
+          <img src="/bmt-logo.png" alt="Book My Turf" className="h-10 md:h-12 object-contain object-left drop-shadow-lg" />
+        </div>
+
+        {/* Header Actions */}
+        <div className="flex items-center gap-2">
+          {/* Outlined Contact Us Button */}
           <button 
             onClick={() => setShowContactModal(true)}
-            className="px-3.5 py-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-[11px] font-black uppercase tracking-wider text-white hover:text-accent hover:border-accent/30 flex items-center gap-1.5 shadow-sm"
+            className="px-3.5 py-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-[10px] font-black uppercase tracking-wider text-neutral-300 hover:text-accent hover:border-accent/30 flex items-center gap-1.5 shadow-sm cursor-pointer"
           >
-            {t('contactUs')}
+            {t('contact')}
           </button>
+
+          {/* Login or Profile Avatar / Notification */}
+          {isAuthed ? (
+            <div className="flex items-center gap-2">
+              <button className="relative p-1.5 rounded-full glass hover:border-accent/50 transition-colors">
+                <Bell size={16} />
+                <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full border-2 border-black" />
+              </button>
+
+              <Link href="/profile">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-accent to-blue-500 p-[2px] hover:scale-105 transition-transform active:scale-95">
+                  <div className="w-full h-full rounded-full bg-black flex items-center justify-center overflow-hidden">
+                    {avatar
+                      ? <img src={avatar} alt="profile" className="w-full h-full object-cover" />
+                      : <span className="text-xs font-black text-accent">{initials}</span>
+                    }
+                  </div>
+                </div>
+              </Link>
+            </div>
+          ) : (
+            <Link href="/login" className="px-4.5 py-1.5 rounded-xl bg-accent text-black font-black text-[10px] uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all shadow-md">
+              {t('login')}
+            </Link>
+          )}
         </div>
-      </header>
+      </div>
 
       {/* Contact Us Modal Overlay */}
       {showContactModal && (
@@ -311,6 +320,6 @@ export default function HomeHeader({ initialAuth = false }: { initialAuth?: bool
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
