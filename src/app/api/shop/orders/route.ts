@@ -28,11 +28,20 @@ export async function POST(req: NextRequest) {
     const data = await req.json();
     const { name, phone, email, address, districtId, paymentMethod, items, playerId, firstTouchSource, lastTouchSource } = data;
 
-    // Check for an existing order with status 'new' or 'pending' for the same customer phone number
+    // Check for an existing order with status 'new' or 'pending' that matches name, phone, or email
+    const conditions: any[] = [
+      { customerPhone: phone },
+      { customerName: { equals: name, mode: 'insensitive' } }
+    ];
+
+    if (email && email.trim()) {
+      conditions.push({ customerEmail: { equals: email.trim().toLowerCase(), mode: 'insensitive' } });
+    }
+
     const existingOrder = await prisma.shopOrder.findFirst({
       where: {
-        customerPhone: phone,
-        status: { in: ['new', 'pending'] }
+        status: { in: ['new', 'pending'] },
+        OR: conditions
       },
       include: {
         items: true
