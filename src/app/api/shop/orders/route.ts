@@ -342,37 +342,38 @@ export async function PATCH(req: NextRequest) {
         }));
       }
 
-      // E. Update database: delete old items and create new ones
-      await prisma.shopOrderItem.deleteMany({
-        where: { orderId: id }
-      });
-
-      await prisma.shopOrderItem.createMany({
-        data: items.map((item: any, idx: number) => ({
-          orderId: id,
-          productId: item.productId,
-          sizeLabel: item.sizeLabel,
-          quantity: Number(item.quantity),
-          price: evaluation.items[idx]?.discountedPrice ?? item.price
-        }))
-      });
-
-      // F. Update order details in DB
-      await prisma.shopOrder.update({
-        where: { id },
-        data: {
-          customerName: customerName ?? originalOrder.customerName,
-          customerPhone: customerPhone ?? originalOrder.customerPhone,
-          customerEmail: customerEmail ?? originalOrder.customerEmail,
-          address: address ?? originalOrder.address,
-          district: resolvedDistrict,
-          paymentMethod: paymentMethod ?? originalOrder.paymentMethod,
-          deliveryCharge: evaluation.deliveryCharge,
-          subtotal: evaluation.subtotalAfterDiscount,
-          total: evaluation.total,
-          status: newStatus
-        }
-      });
+      // E. Update database: delete old items, create new ones with auto-generated cuids, and update order in a single transaction
+      await prisma.$transaction([
+        prisma.shopOrderItem.deleteMany({
+          where: { orderId: id }
+        }),
+        ...items.map((item: any, idx: number) =>
+          prisma.shopOrderItem.create({
+            data: {
+              orderId: id,
+              productId: item.productId,
+              sizeLabel: item.sizeLabel,
+              quantity: Number(item.quantity),
+              price: evaluation.items[idx]?.discountedPrice ?? item.price
+            }
+          })
+        ),
+        prisma.shopOrder.update({
+          where: { id },
+          data: {
+            customerName: customerName ?? originalOrder.customerName,
+            customerPhone: customerPhone ?? originalOrder.customerPhone,
+            customerEmail: customerEmail ?? originalOrder.customerEmail,
+            address: address ?? originalOrder.address,
+            district: resolvedDistrict,
+            paymentMethod: paymentMethod ?? originalOrder.paymentMethod,
+            deliveryCharge: evaluation.deliveryCharge,
+            subtotal: evaluation.subtotalAfterDiscount,
+            total: evaluation.total,
+            status: newStatus
+          }
+        })
+      ]);
 
     } else {
       // If NOT editing items, just status/details update
