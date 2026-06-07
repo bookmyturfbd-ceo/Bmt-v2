@@ -64,22 +64,50 @@ export default function CheckoutClient() {
     setIsGuest(!hasPlayerCookie);
     const playerId = document.cookie.split('; ').find(row => row.startsWith('bmt_player_id='))?.split('=')[1] || null;
 
-    // Track InitiateCheckout event on checkout page load
     const subtotal = cart.getCartTotal();
-    trackMetaEvent('InitiateCheckout', {
-      value: subtotal,
-      currency: 'BDT',
-      content_type: 'product',
-      contents: cart.items.map(item => ({
-        id: item.productId,
-        quantity: item.quantity,
-        price: item.price,
-        item_price: item.price
-      })),
-      content_ids: cart.items.map(item => item.productId)
-    }, {
-      externalId: playerId || undefined
-    });
+    
+    const trackInitCheckout = (email?: string, phone?: string) => {
+      trackMetaEvent('InitiateCheckout', {
+        value: subtotal,
+        currency: 'BDT',
+        content_type: 'product',
+        contents: cart.items.map(item => ({
+          id: item.productId,
+          quantity: item.quantity,
+          price: item.price,
+          item_price: item.price
+        })),
+        content_ids: cart.items.map(item => item.productId)
+      }, {
+        email,
+        phone,
+        externalId: playerId || undefined
+      });
+    };
+
+    if (playerId) {
+      fetch(`/api/bmt/players/${playerId}`)
+        .then(r => r.json())
+        .then(playerData => {
+          if (playerData) {
+            setForm(prev => ({
+              ...prev,
+              name: playerData.fullName || prev.name,
+              phone: playerData.phone || prev.phone,
+              email: playerData.email || prev.email,
+            }));
+            trackInitCheckout(playerData.email, playerData.phone);
+          } else {
+            trackInitCheckout();
+          }
+        })
+        .catch(err => {
+          console.warn('Failed to fetch player profile for checkout:', err);
+          trackInitCheckout();
+        });
+    } else {
+      trackInitCheckout();
+    }
   }, []);
 
   const selectedZone = BD_DISTRICTS.find(z => z.id === form.districtId);

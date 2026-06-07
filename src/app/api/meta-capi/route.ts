@@ -9,15 +9,20 @@ function hashValue(val: any): string | null {
   return crypto.createHash('sha256').update(str).digest('hex');
 }
 
-// Phone cleaning helper: keep digits only and normalize Bangladesh prefix
-function cleanPhone(phone: any): string | null {
+// Phone normalization helper matching client-side logic
+function normalizePhone(phone: any): string | null {
   if (phone === undefined || phone === null) return null;
-  let str = String(phone).replace(/\D/g, ''); // keep digits only
-  // If it starts with 01 (11 digits, typical Bangladeshi mobile), prepend 88 (country code)
-  if (str.startsWith('01') && str.length === 11) {
-    str = '88' + str;
+  const digits = String(phone).replace(/\D/g, ''); // keep digits only
+  if (digits.startsWith('0')) {
+    return '880' + digits.slice(1);
   }
-  return str;
+  return digits;
+}
+
+// Email normalization helper matching client-side logic
+function normalizeEmail(email: any): string | null {
+  if (email === undefined || email === null) return null;
+  return String(email).trim().toLowerCase();
 }
 
 export async function POST(req: NextRequest) {
@@ -41,24 +46,18 @@ export async function POST(req: NextRequest) {
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 
                req.headers.get('x-real-ip') || 
                '127.0.0.1';
-               
+                
     // Resolve client User-Agent
     const userAgent = req.headers.get('user-agent') || '';
 
-    // Try to get fbp and fbc cookies
+    // Retrieve fbp, fbc, and bmt_external_id cookies from request headers
     const cookieFbp = req.cookies.get('_fbp')?.value;
     const cookieFbc = req.cookies.get('_fbc')?.value;
+    const cookieExtId = req.cookies.get('bmt_external_id')?.value;
     
     const fbp = userData.fbp || cookieFbp || '';
     const fbc = userData.fbc || cookieFbc || '';
-
-    // Clean and cryptographically hash user match identifiers
-    const emailHash = hashValue(userData.email);
-    const phoneCleaned = cleanPhone(userData.phone);
-    const phoneHash = hashValue(phoneCleaned);
-    const firstNameHash = hashValue(userData.firstName || userData.name?.split(' ')[0]);
-    const lastNameHash = hashValue(userData.lastName || userData.name?.split(' ').slice(1).join(' '));
-    const externalIdHash = hashValue(userData.externalId || userData.external_id);
+    const externalId = cookieExtId || userData.externalId || '';
 
     const metaUserData: any = {
       client_ip_address: ip,
@@ -67,11 +66,43 @@ export async function POST(req: NextRequest) {
 
     if (fbp) metaUserData.fbp = fbp;
     if (fbc) metaUserData.fbc = fbc;
-    if (emailHash) metaUserData.em = [emailHash];
-    if (phoneHash) metaUserData.ph = [phoneHash];
-    if (firstNameHash) metaUserData.fn = [firstNameHash];
-    if (lastNameHash) metaUserData.ln = [lastNameHash];
-    if (externalIdHash) metaUserData.external_id = [externalIdHash];
+    
+    // Send external_id RAW (do NOT hash it, per Meta schema/specs)
+    if (externalId) {
+      metaUserData.external_id = [externalId];
+    }
+
+    // Attach email and phone ONLY to Purchase, InitiateCheckout, and Lead events
+    const allowContactInfo = ['Purchase', 'InitiateCheckout', 'Lead'].includes(eventName);
+    if (allowContactInfo) {
+      if (userData.email) {
+        const normEmail = normalizeEmail(userData.email);
+        const emailHash = hashValue(normEmail);
+        if (emailHash) metaUserData.em = [emailHash];
+      }
+      if (userData.phone) {
+        const normPhone = normalizePhone(userData.phone);
+        const phoneHash = hashValue(normPhone);
+        if (phoneHash) metaUserData.ph = [phoneHash];
+      }
+
+      // Add name properties if provided
+      if (userData.firstName) {
+        const firstNameHash = hashValue(userData.firstName);
+        if (firstNameHash) metaUserData.fn = [firstNameHash];
+      } else if (userData.name) {
+        const firstNameHash = hashValue(userData.name.split(' ')[0]);
+        if (firstNameHash) metaUserData.fn = [firstNameHash];
+      }
+
+      if (userData.lastName) {
+        const lastNameHash = hashValue(userData.lastName);
+        if (lastNameHash) metaUserData.ln = [lastNameHash];
+      } else if (userData.name) {
+        const lastNameHash = hashValue(userData.name.split(' ').slice(1).join(' '));
+        if (lastNameHash) metaUserData.ln = [lastNameHash];
+      }
+    }
 
     // Build standard payload format for Meta Events endpoint
     const metaPayload: any = {
