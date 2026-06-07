@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
+import { getCookie } from '@/lib/cookies';
 import {
   Loader2, Package, MapPin, Phone, Banknote, User, CheckCircle2, XCircle,
   ChevronDown, ChevronUp, TrendingUp, Calendar, ChevronLeft, ChevronRight,
@@ -63,6 +64,12 @@ export default function ShopOrdersPanel() {
   const [categories, setCategories] = useState<any[]>([]);
   const [allProducts, setAllProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    setRole(getCookie('bmt_role'));
+  }, []);
+
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [historyDayOffset, setHistoryDayOffset] = useState(0); // 0=today, 1=yesterday, etc.
@@ -802,19 +809,23 @@ export default function ShopOrdersPanel() {
       {activeTab === 'list' ? (
         <>
           {/* ── Stats Row ── */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Lifetime Revenue" value={`৳${lifetimeRevenue.toLocaleString()}`} sub={`${orders.filter(o => o.status !== 'canceled' && o.status !== 'cancelled').length} non-cancelled orders`} color="text-accent" bg="bg-accent/10" border="border-accent/20" icon={TrendingUp} />
-            <StatCard label="Today's Revenue" value={`৳${todayRevenue.toLocaleString()}`} sub={`${todayOrders.filter(o => o.status !== 'canceled' && o.status !== 'cancelled').length} orders today`} color="text-emerald-400" bg="bg-emerald-400/10" border="border-emerald-400/20" icon={Calendar} />
+          <div className={`grid grid-cols-2 ${role === 'shop_manager' ? 'lg:grid-cols-2' : 'lg:grid-cols-4'} gap-4`}>
+            {role !== 'shop_manager' && (
+              <>
+                <StatCard label="Lifetime Revenue" value={`৳${lifetimeRevenue.toLocaleString()}`} sub={`${orders.filter(o => o.status !== 'canceled' && o.status !== 'cancelled').length} non-cancelled orders`} color="text-accent" bg="bg-accent/10" border="border-accent/20" icon={TrendingUp} />
+                <StatCard label="Today's Revenue" value={`৳${todayRevenue.toLocaleString()}`} sub={`${todayOrders.filter(o => o.status !== 'canceled' && o.status !== 'cancelled').length} orders today`} color="text-emerald-400" bg="bg-emerald-400/10" border="border-emerald-400/20" icon={Calendar} />
+              </>
+            )}
             <StatCard label="Pending Orders" value={orders.filter(o => o.status === 'new' || o.status === 'pending').length.toString()} sub="Awaiting action" color="text-yellow-400" bg="bg-yellow-400/10" border="border-yellow-400/20" icon={Clock} />
             <StatCard label="Delivered" value={orders.filter(o => o.status === 'delivered').length.toString()} sub="Completed orders" color="text-blue-400" bg="bg-blue-400/10" border="border-blue-400/20" icon={Truck} />
           </div>
 
-          {/* ── Daily Revenue History ── */}
+          {/* ── Daily Revenue/Orders History ── */}
           <div className="glass-panel border border-[var(--panel-border)] rounded-3xl p-5 flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Calendar size={16} className="text-accent" />
-                <h2 className="font-black">Daily Revenue</h2>
+                <h2 className="font-black">{role === 'shop_manager' ? 'Daily Orders' : 'Daily Revenue'}</h2>
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={() => setHistoryDayOffset(d => d + 1)} disabled={historyDayOffset >= sortedDays.length - 1}
@@ -831,11 +842,13 @@ export default function ShopOrdersPanel() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-2xl p-4 flex flex-col gap-1">
-                <p className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Revenue</p>
-                <p className="text-2xl font-black text-accent">৳{viewRevenue.toLocaleString()}</p>
-              </div>
+            <div className={`grid ${role === 'shop_manager' ? 'grid-cols-1' : 'grid-cols-2'} gap-4`}>
+              {role !== 'shop_manager' && (
+                <div className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-2xl p-4 flex flex-col gap-1">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Revenue</p>
+                  <p className="text-2xl font-black text-accent">৳{viewRevenue.toLocaleString()}</p>
+                </div>
+              )}
               <div className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-2xl p-4 flex flex-col gap-1">
                 <p className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Orders</p>
                 <p className="text-2xl font-black text-white">{viewCount}</p>
