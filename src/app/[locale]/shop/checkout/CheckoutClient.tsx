@@ -219,7 +219,7 @@ export default function CheckoutClient() {
         phone: form.phone,
         name: form.name,
         externalId: playerId || undefined
-      }, data.orderId);
+      }, data.eventId || data.orderId);
 
       cart.clearCart();
       setSuccess(true);

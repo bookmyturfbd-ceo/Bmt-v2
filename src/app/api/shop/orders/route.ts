@@ -28,8 +28,48 @@ export async function POST(req: NextRequest) {
     const data = await req.json();
     const { name, phone, email, address, districtId, paymentMethod, items, playerId, firstTouchSource, lastTouchSource } = data;
 
+    // Check for an existing order with status 'new' or 'pending' for the same customer phone number
+    const existingOrder = await prisma.shopOrder.findFirst({
+      where: {
+        customerPhone: phone,
+        status: { in: ['new', 'pending'] }
+      },
+      include: {
+        items: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    let finalItemsToProcess = [...items];
+    if (existingOrder) {
+      const combined: { productId: string; sizeLabel: string; quantity: number }[] = existingOrder.items.map(item => ({
+        productId: item.productId,
+        sizeLabel: item.sizeLabel,
+        quantity: item.quantity
+      }));
+
+      items.forEach((newItem: any) => {
+        const match = combined.find(
+          item => item.productId === newItem.productId && item.sizeLabel === newItem.sizeLabel
+        );
+        if (match) {
+          match.quantity += Number(newItem.quantity);
+        } else {
+          combined.push({
+            productId: newItem.productId,
+            sizeLabel: newItem.sizeLabel,
+            quantity: Number(newItem.quantity)
+          });
+        }
+      });
+
+      finalItemsToProcess = combined;
+    }
+
     // 1. Fetch product records for the items in the order to get category and original price details
-    const productIds = items.map((i: any) => i.productId);
+    const productIds = finalItemsToProcess.map((i: any) => i.productId);
     const dbProducts = await prisma.shopProduct.findMany({
       where: { id: { in: productIds } },
       select: {
@@ -60,7 +100,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Map ordered items to include product category scope and verify the original unit price
-    const itemsWithCategories = items.map((item: any) => {
+    const itemsWithCategories = finalItemsToProcess.map((item: any) => {
       const details = productMap.get(item.productId);
       let originalPrice = 0;
       if (details) {
@@ -90,34 +130,66 @@ export async function POST(req: NextRequest) {
     const baseDelivery = getBaseDeliveryCharge(districtId);
     const evaluation = evaluateCartDiscounts(itemsWithCategories, baseDelivery, activeDiscounts);
 
-    // 4. Save order to database using secure server-calculated totals and unit prices
-    const order = await prisma.shopOrder.create({
-      data: {
-        playerId: playerId || null,
-        customerName: name,
-        customerPhone: phone,
-        customerEmail: email || null,
-        address,
-        district: districtId,
-        paymentMethod,
-        deliveryCharge: evaluation.deliveryCharge,
-        subtotal: evaluation.subtotalAfterDiscount,
-        total: evaluation.total,
-        status: 'new', // default to new status for the telegram Kanban board
-        firstTouchSource: firstTouchSource || null,
-        lastTouchSource: lastTouchSource || null,
-        items: {
-          create: evaluation.items.map((item: any) => ({
-            productId: item.productId,
-            sizeLabel: item.sizeLabel,
-            quantity: item.quantity,
-            price: item.discountedPrice
-          }))
-        }
-      }
-    });
+    let order;
+    if (existingOrder) {
+      // 4a. Update the existing order details and subtotal/total
+      await prisma.shopOrderItem.deleteMany({
+        where: { orderId: existingOrder.id }
+      });
 
-    // Update stock levels
+      order = await prisma.shopOrder.update({
+        where: { id: existingOrder.id },
+        data: {
+          customerName: name,
+          customerEmail: email || null,
+          address,
+          district: districtId,
+          paymentMethod,
+          deliveryCharge: evaluation.deliveryCharge,
+          subtotal: evaluation.subtotalAfterDiscount,
+          total: evaluation.total,
+          lastTouchSource: lastTouchSource || null,
+          updatedAt: new Date(),
+          items: {
+            create: evaluation.items.map((item: any) => ({
+              productId: item.productId,
+              sizeLabel: item.sizeLabel,
+              quantity: item.quantity,
+              price: item.discountedPrice
+            }))
+          }
+        }
+      });
+    } else {
+      // 4b. Save order to database using secure server-calculated totals and unit prices
+      order = await prisma.shopOrder.create({
+        data: {
+          playerId: playerId || null,
+          customerName: name,
+          customerPhone: phone,
+          customerEmail: email || null,
+          address,
+          district: districtId,
+          paymentMethod,
+          deliveryCharge: evaluation.deliveryCharge,
+          subtotal: evaluation.subtotalAfterDiscount,
+          total: evaluation.total,
+          status: 'new', // default to new status for the telegram Kanban board
+          firstTouchSource: firstTouchSource || null,
+          lastTouchSource: lastTouchSource || null,
+          items: {
+            create: evaluation.items.map((item: any) => ({
+              productId: item.productId,
+              sizeLabel: item.sizeLabel,
+              quantity: item.quantity,
+              price: item.discountedPrice
+            }))
+          }
+        }
+      });
+    }
+
+    // Update stock levels (only for the newly ordered items, i.e. the delta items)
     await Promise.all(items.map(async (item: any) => {
       const dbSizes = await prisma.shopProductSize.findMany({ where: { productId: item.productId, label: item.sizeLabel } });
       if (dbSizes.length > 0) {
@@ -128,10 +200,25 @@ export async function POST(req: NextRequest) {
       }
     }));
 
-    // Send Telegram Notification (if configured)
-    await sendOrder(order);
+    // Send Telegram Notification / Update Kanban Card
+    if (existingOrder) {
+      await moveOrder(existingOrder.id, 'new', null);
+    } else {
+      await sendOrder(order);
+    }
 
-    return NextResponse.json({ success: true, orderId: order.id });
+    if (existingOrder) {
+      return NextResponse.json({
+        success: true,
+        orderId: existingOrder.id,
+        eventId: `${existingOrder.id}_merge_${Date.now()}`
+      });
+    } else {
+      return NextResponse.json({
+        success: true,
+        orderId: order.id
+      });
+    }
   } catch (error: any) {
     console.error('Order creation error:', error);
     return NextResponse.json({ error: error.message || 'Failed to create order' }, { status: 500 });
