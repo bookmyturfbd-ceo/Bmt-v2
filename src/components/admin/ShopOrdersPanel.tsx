@@ -17,19 +17,28 @@ const STATUS_STYLES: Record<string, string> = {
   canceled:   'bg-red-500/20 text-red-400 border-red-500/30',
   exchange:   'bg-orange-500/20 text-orange-400 border-orange-500/30',
   returned:   'bg-zinc-500/20 text-zinc-400 border-zinc-500/30',
+  no_answer:  'bg-pink-500/20 text-pink-400 border-pink-500/30',
 };
 
 const TRANSITIONS: Record<string, { label: string; status: string; style: string }[]> = {
   new: [
     { label: 'Start Preparing 👨‍🍳', status: 'ready', style: 'bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20' },
+    { label: 'No Answer 📞', status: 'no_answer', style: 'bg-pink-500/10 border-pink-500/20 text-pink-400 hover:bg-pink-500/20' },
     { label: 'Cancel ❌', status: 'canceled', style: 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20' }
   ],
   ready: [
     { label: 'Dispatch 🚚', status: 'on_the_way', style: 'bg-purple-500/10 border-purple-500/20 text-purple-400 hover:bg-purple-500/20' },
+    { label: 'No Answer 📞', status: 'no_answer', style: 'bg-pink-500/10 border-pink-500/20 text-pink-400 hover:bg-pink-500/20' },
     { label: 'Cancel ❌', status: 'canceled', style: 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20' }
   ],
   on_the_way: [
     { label: 'Mark Delivered ✅', status: 'delivered', style: 'bg-accent/10 border-accent/20 text-accent hover:bg-accent/20' },
+    { label: 'No Answer 📞', status: 'no_answer', style: 'bg-pink-500/10 border-pink-500/20 text-pink-400 hover:bg-pink-500/20' },
+    { label: 'Cancel ❌', status: 'canceled', style: 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20' }
+  ],
+  no_answer: [
+    { label: 'Back to New 🛍️', status: 'new', style: 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20' },
+    { label: 'Start Preparing 👨‍🍳', status: 'ready', style: 'bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20' },
     { label: 'Cancel ❌', status: 'canceled', style: 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20' }
   ],
   delivered: [
@@ -681,6 +690,7 @@ export default function ShopOrdersPanel() {
       canceled: dateFilteredOrders.filter(o => o.status === 'canceled' || o.status === 'cancelled').length,
       exchange: dateFilteredOrders.filter(o => o.status === 'exchange').length,
       returned: dateFilteredOrders.filter(o => o.status === 'returned').length,
+      no_answer: dateFilteredOrders.filter(o => o.status === 'no_answer').length,
     };
   }, [dateFilteredOrders]);
 
@@ -690,6 +700,7 @@ export default function ShopOrdersPanel() {
     { id: 'ready', label: 'Ready 📦', count: statusCounts.ready },
     { id: 'on_the_way', label: 'On the Way 🚚', count: statusCounts.on_the_way },
     { id: 'delivered', label: 'Delivered ✅', count: statusCounts.delivered },
+    { id: 'no_answer', label: 'No Answer 📞', count: statusCounts.no_answer },
     { id: 'canceled', label: 'Canceled ❌', count: statusCounts.canceled },
     { id: 'exchange', label: 'Exchange 🔄', count: statusCounts.exchange },
     { id: 'returned', label: 'Returned ↩️', count: statusCounts.returned },
@@ -701,6 +712,7 @@ export default function ShopOrdersPanel() {
     ready: 'Ready to Ship',
     on_the_way: 'Dispatched Orders',
     delivered: 'Delivered Orders',
+    no_answer: 'No Answer Orders',
     canceled: 'Canceled Orders',
     exchange: 'Exchange Requests',
     returned: 'Returned Orders'

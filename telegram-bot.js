@@ -41,6 +41,7 @@ const getStatusLabel = (status) => {
     canceled: 'CANCELED ❌',
     exchange: 'EXCHANGE REQUESTED 🔄',
     returned: 'RETURNED ↩️',
+    no_answer: 'NO ANSWER 📞',
   };
   return labels[status] || status.toUpperCase();
 };
