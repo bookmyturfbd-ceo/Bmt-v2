@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Building2, Briefcase, GraduationCap, X, Loader2, CheckCircle2, Phone, Mail, MapPin, Send } from 'lucide-react';
+import { trackMetaEvent } from '@/lib/meta-pixel';
 
 // Facebook SVG icon (not available in all lucide-react versions)
 function FacebookIcon({ size = 13 }: { size?: number }) {
@@ -95,6 +96,15 @@ export default function JoinUsBentoSection() {
       });
       if (res.ok) {
         setSuccess(true);
+        // Track the Lead event via Meta Pixel and Conversions API (CAPI)
+        trackMetaEvent('Lead', {
+          content_name: modalType === 'COACH' ? 'Coach Onboarding Inquiry' : modalType === 'TURF_OWNER' ? 'Turf Owner Onboarding Inquiry' : 'Organizer Onboarding Inquiry',
+          content_category: modalType || 'General'
+        }, {
+          name: form.name,
+          phone: form.phone,
+          email: form.email || undefined
+        });
       } else {
         const d = await res.json().catch(() => ({}));
         setError(d.error || 'Something went wrong. Please try again.');
