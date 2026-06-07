@@ -142,8 +142,8 @@ export default function ShopOrdersPanel() {
     return () => clearTimeout(timer);
   }, [editForm?.items, editForm?.district]);
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [ordersData, categoriesData, productsData] = await Promise.all([
         fetch(`/api/shop/orders?t=${Date.now()}`).then(r => r.json()),
@@ -156,7 +156,7 @@ export default function ShopOrdersPanel() {
     } catch (err) {
       console.error('Failed to load shop order panel data', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -275,7 +275,7 @@ export default function ShopOrdersPanel() {
       } else {
         setEditingOrderId(null);
         setEditForm(null);
-        await load();
+        await load(true);
       }
     } catch (err) {
       console.error(err);
@@ -529,13 +529,29 @@ export default function ShopOrdersPanel() {
 
   const updateStatus = async (id: string, status: string) => {
     setUpdatingId(id);
-    await fetch('/api/shop/orders', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, status }),
-    });
-    await load();
-    setUpdatingId(null);
+    // Optimistic state update: update the order status locally immediately
+    setOrders(prevOrders =>
+      prevOrders.map(o => o.id === id ? { ...o, status } : o)
+    );
+    try {
+      const res = await fetch('/api/shop/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status }),
+      });
+      if (!res.ok) {
+        throw new Error('Failed to update status on the server');
+      }
+      // Silently sync the updated list in the background
+      await load(true);
+    } catch (err) {
+      console.error('Failed to update status:', err);
+      alert('Error updating status. Reverting changes...');
+      // Revert/refresh fully if update failed
+      await load();
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   const downloadInvoiceImage = async (order: any) => {
@@ -904,7 +920,7 @@ export default function ShopOrdersPanel() {
                     {TAB_TITLES[selectedStatus] ?? 'Orders'} ({finalOrdersList.length})
                   </h2>
                 </div>
-                <button onClick={load} className="text-xs text-[var(--muted)] hover:text-foreground transition-colors font-bold">Refresh</button>
+                <button onClick={() => load()} className="text-xs text-[var(--muted)] hover:text-foreground transition-colors font-bold">Refresh</button>
               </div>
 
               {/* Search & Date Filters */}
