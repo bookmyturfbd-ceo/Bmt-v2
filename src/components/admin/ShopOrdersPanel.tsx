@@ -332,6 +332,25 @@ export default function ShopOrdersPanel() {
 
   useEffect(() => { load(); }, []);
 
+  // Poll orders silently in the background every 5 seconds to sync state across different devices/admins
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Avoid polling if we are currently editing an order or updating a status to prevent state overrides
+      if (!updatingId && !editingOrderId) {
+        fetch(`/api/shop/orders?t=${Date.now()}`)
+          .then(r => r.json())
+          .then(data => {
+            if (Array.isArray(data)) {
+              setOrders(data);
+            }
+          })
+          .catch(err => console.error('Error polling shop orders:', err));
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [updatingId, editingOrderId]);
+
   const categoriesMap = useMemo(() => {
     const map = new Map<string, any>();
     categories.forEach(c => map.set(c.id, c));
