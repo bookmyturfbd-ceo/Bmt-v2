@@ -234,6 +234,7 @@ export default function ShopOrdersPanel() {
       address: order.address,
       district: order.district,
       paymentMethod: order.paymentMethod,
+      notes: order.notes || '',
       items: order.items.map((item: any) => ({
         id: item.id,
         productId: item.productId,
@@ -265,6 +266,7 @@ export default function ShopOrdersPanel() {
           address: editForm.address,
           district: editForm.district,
           paymentMethod: editForm.paymentMethod,
+          notes: editForm.notes || null,
           items: editForm.items
         })
       });
@@ -899,7 +901,7 @@ export default function ShopOrdersPanel() {
               <div className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-2xl p-4 flex flex-col gap-1">
                 <p className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Orders</p>
                 <p className="text-2xl font-black text-white">{viewCount}</p>
-                <p className="text-[10px] text-[var(--muted)]">{viewOrders.filter(o => o.status === 'cancelled').length} cancelled</p>
+                <p className="text-[10px] text-[var(--muted)]">{viewOrders.filter(o => o.status === 'canceled' || o.status === 'cancelled').length} cancelled</p>
               </div>
             </div>
           </div>
@@ -1042,7 +1044,14 @@ export default function ShopOrdersPanel() {
                       >
                         <span className="text-xs font-bold text-[var(--muted)] w-6 shrink-0">{index + 1}</span>
                         <span className="font-mono text-xs text-[var(--muted)] w-16 shrink-0">#{order.id.slice(0, 6).toUpperCase()}</span>
-                        <span className="font-bold text-sm flex-1 truncate">{order.customerName}</span>
+                        <span className="font-bold text-sm flex-1 truncate flex items-center gap-2">
+                          {order.customerName}
+                          {order.notes && (
+                            <span className="text-yellow-400 text-xs shrink-0" title={order.notes}>
+                              📝
+                            </span>
+                          )}
+                        </span>
                         <span className="text-xs text-[var(--muted)] hidden sm:block w-24 shrink-0 truncate">{order.district}</span>
                         <span className="text-xs text-[var(--muted)] hidden md:block w-32 shrink-0">{new Date(order.createdAt).toLocaleDateString()}</span>
                         <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border shrink-0 ${STATUS_STYLES[order.status] ?? STATUS_STYLES.pending}`}>
@@ -1154,6 +1163,17 @@ export default function ShopOrdersPanel() {
                                     value={editForm.address}
                                     onChange={e => setEditForm({ ...editForm, address: e.target.value })}
                                     className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-3 py-2 outline-none focus:border-accent text-sm text-white resize-none"
+                                  />
+                                </div>
+
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Order Note (Sticks to Order) 📝</label>
+                                  <textarea
+                                    rows={2}
+                                    value={editForm.notes}
+                                    onChange={e => setEditForm({ ...editForm, notes: e.target.value })}
+                                    className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-3 py-2 outline-none focus:border-accent text-sm text-white resize-none placeholder:text-[var(--muted)]"
+                                    placeholder="Add internal details, delivery schedules, sizing notes..."
                                   />
                                 </div>
                               </div>
@@ -1338,6 +1358,12 @@ export default function ShopOrdersPanel() {
                                 {order.customerEmail && <div className="flex items-center gap-2"><Mail size={13} className="text-[var(--muted)]" /><span>{order.customerEmail}</span></div>}
                                 <div className="flex items-start gap-2"><MapPin size={13} className="text-[var(--muted)] mt-0.5 shrink-0" /><span className="text-xs">{order.address}, <span className="font-black text-[var(--muted)]">{order.district}</span></span></div>
                                 <div className="flex items-center gap-2"><Banknote size={13} className="text-[var(--muted)]" /><span className="uppercase text-xs font-black text-accent bg-accent/10 px-2 rounded border border-accent/20">{order.paymentMethod}</span></div>
+                                {order.notes && (
+                                  <div className="mt-2 p-2.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 rounded-xl text-xs flex flex-col gap-1 max-w-sm animate-in slide-in-from-top-1 duration-200">
+                                    <span className="font-black uppercase text-[9px] tracking-wider">Order Note 📝</span>
+                                    <p className="whitespace-pre-wrap leading-relaxed">{order.notes}</p>
+                                  </div>
+                                )}
                               </div>
 
                               {/* Items */}

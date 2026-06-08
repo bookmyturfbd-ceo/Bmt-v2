@@ -1432,6 +1432,7 @@ model ShopOrder {
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
   firstTouchSource    Json?    @map("first_touch_source")
   lastTouchSource     Json?    @map("last_touch_source")
+  notes               String?
 
   items           ShopOrderItem[]
   player          Player?  @relation(fields: [playerId], references: [id], onDelete: SetNull)

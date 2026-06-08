@@ -469,6 +469,7 @@
     "typeToSearch": "Type to search...",
     "noDistrict": "No valid district found",
     "fullAddressPlaceholder": "Full Address (House, Road, Area) *",
+    "orderNotesPlaceholder": "Order Notes / Instructions (Optional)",
     "paymentMethod": "Payment Method",
     "cod": "Cash on Delivery",
     "popular": "Popular",

@@ -26,7 +26,7 @@ function serializeOrder(order: any) {
 export async function POST(req: NextRequest) {
   try {
     const data = await req.json();
-    const { name, phone, email, address, districtId, paymentMethod, items, playerId, firstTouchSource, lastTouchSource } = data;
+    const { name, phone, email, address, districtId, paymentMethod, items, playerId, firstTouchSource, lastTouchSource, notes } = data;
 
     // Check for an existing order with status 'new' or 'pending' that matches name, phone, or email
     const conditions: any[] = [
@@ -159,6 +159,7 @@ export async function POST(req: NextRequest) {
           total: evaluation.total,
           lastTouchSource: lastTouchSource || null,
           updatedAt: new Date(),
+          notes: notes || null,
           items: {
             create: evaluation.items.map((item: any) => ({
               productId: item.productId,
@@ -186,6 +187,7 @@ export async function POST(req: NextRequest) {
           status: 'new', // default to new status for the telegram Kanban board
           firstTouchSource: firstTouchSource || null,
           lastTouchSource: lastTouchSource || null,
+          notes: notes || null,
           items: {
             create: evaluation.items.map((item: any) => ({
               productId: item.productId,
@@ -246,6 +248,7 @@ export async function PATCH(req: NextRequest) {
       address, 
       district, 
       paymentMethod,
+      notes,
       items // Array of { productId, sizeLabel, quantity }
     } = data;
 
@@ -379,7 +382,8 @@ export async function PATCH(req: NextRequest) {
             deliveryCharge: evaluation.deliveryCharge,
             subtotal: evaluation.subtotalAfterDiscount,
             total: evaluation.total,
-            status: newStatus
+            status: newStatus,
+            notes: notes !== undefined ? notes : originalOrder.notes
           }
         })
       ]);
@@ -424,7 +428,8 @@ export async function PATCH(req: NextRequest) {
           address: address ?? originalOrder.address,
           district: district ?? originalOrder.district,
           paymentMethod: paymentMethod ?? originalOrder.paymentMethod,
-          status: newStatus
+          status: newStatus,
+          notes: notes !== undefined ? notes : originalOrder.notes
         }
       });
     }

@@ -393,6 +393,7 @@
     "typeToSearch": "খুঁজতে টাইপ করুন...",
     "noDistrict": "কোনো বৈধ জেলা পাওয়া যায়নি",
     "fullAddressPlaceholder": "পূর্ণ ঠিকানা (বাসা, রাস্তা, এলাকা) *",
+    "orderNotesPlaceholder": "অর্ডার নোট / বিশেষ নির্দেশনা (ঐচ্ছিক)",
     "paymentMethod": "পেমেন্ট পদ্ধতি",
     "cod": "ক্যাশ অন ডেলিভারি",
     "popular": "জনপ্রিয়",

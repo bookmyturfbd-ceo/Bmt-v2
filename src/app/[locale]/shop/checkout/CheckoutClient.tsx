@@ -45,7 +45,7 @@ export default function CheckoutClient() {
   
   const [mounted, setMounted] = useState(false);
   const [form, setForm] = useState({
-    name: '', phone: '', email: '', address: '', districtId: ''
+    name: '', phone: '', email: '', address: '', districtId: '', notes: ''
   });
   const [paymentMethod, setPaymentMethod] = useState<'cod'|'wallet'>('cod');
   const [placing, setPlacing] = useState(false);
@@ -362,6 +362,8 @@ export default function CheckoutClient() {
 
             <textarea required autoComplete="street-address" placeholder={t('fullAddressPlaceholder')} value={form.address} onChange={e=>setForm({...form, address: e.target.value})}
               rows={3} className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-3 outline-none focus:border-accent text-sm resize-none" />
+            <textarea placeholder={t('orderNotesPlaceholder')} value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})}
+              rows={2} className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-3 outline-none focus:border-accent text-sm resize-none placeholder:text-[var(--muted)]" />
           </div>
 
           {/* Payment Method */}
