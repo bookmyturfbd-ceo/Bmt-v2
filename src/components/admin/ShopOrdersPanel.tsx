@@ -104,6 +104,10 @@ export default function ShopOrdersPanel() {
   const [selectorSize, setSelectorSize] = useState<string | null>(null);
   const [selectorQuantity, setSelectorQuantity] = useState<number>(1);
 
+  // Note-only editing states
+  const [noteEditingOrderId, setNoteEditingOrderId] = useState<string | null>(null);
+  const [noteEditVal, setNoteEditVal] = useState<string>('');
+
   // Real-time discount evaluation hook
   useEffect(() => {
     if (!editForm || !editForm.items || editForm.items.length === 0) {
@@ -282,6 +286,34 @@ export default function ShopOrdersPanel() {
     } catch (err) {
       console.error(err);
       alert("Error saving edits.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const saveNoteOnly = async () => {
+    if (!noteEditingOrderId) return;
+    setUpdatingId(noteEditingOrderId);
+    try {
+      const res = await fetch('/api/shop/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: noteEditingOrderId,
+          notes: noteEditVal || null
+        })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        alert(errorData.error || "Failed to save note.");
+      } else {
+        setNoteEditingOrderId(null);
+        await load(true);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error saving note.");
     } finally {
       setUpdatingId(null);
     }
@@ -1483,9 +1515,18 @@ export default function ShopOrdersPanel() {
                               </button>
                               <button
                                 onClick={() => startEditing(order)}
-                                className="px-3 py-1.5 rounded-xl text-xs font-black border border-blue-500/20 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all flex items-center gap-1.5 mr-auto"
+                                className="px-3 py-1.5 rounded-xl text-xs font-black border border-blue-500/20 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all flex items-center gap-1.5"
                               >
                                 Edit Order ✏️
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setNoteEditingOrderId(order.id);
+                                  setNoteEditVal(order.notes || '');
+                                }}
+                                className="px-3 py-1.5 rounded-xl text-xs font-black border border-yellow-500/20 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition-all flex items-center gap-1.5 mr-auto"
+                              >
+                                Note 📝
                               </button>
                               {TRANSITIONS[order.status]?.map(t => (
                                 <button key={t.status} onClick={() => updateStatus(order.id, t.status)} disabled={isUpdating}
@@ -2063,6 +2104,62 @@ export default function ShopOrdersPanel() {
                   {selectorItemIndex === 'new' ? 'Add Item ➕' : 'Update Item ✅'}
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Note Editor Modal ── */}
+      {noteEditingOrderId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-neutral-900 border border-white/10 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl relative flex flex-col animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-black/25">
+              <h3 className="font-black text-sm text-white flex items-center gap-2">
+                Order Note 📝
+              </h3>
+              <button
+                type="button"
+                onClick={() => setNoteEditingOrderId(null)}
+                className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors text-white"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 bg-black/5 flex flex-col gap-3">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">
+                Note (Sticks to Order)
+              </label>
+              <textarea
+                rows={4}
+                value={noteEditVal}
+                onChange={e => setNoteEditVal(e.target.value)}
+                className="w-full bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-3.5 py-2.5 outline-none focus:border-accent text-sm text-white resize-none placeholder:text-[var(--muted)]"
+                placeholder="Add internal details, delivery schedules, sizing notes..."
+                autoFocus
+              />
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-white/10 bg-black/25 flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setNoteEditingOrderId(null)}
+                className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-xs rounded-xl transition-all"
+              >
+                Cancel ❌
+              </button>
+              <button
+                type="button"
+                onClick={saveNoteOnly}
+                disabled={updatingId !== null}
+                className="px-5 py-2 bg-accent hover:brightness-110 text-black font-black text-xs rounded-xl transition-all shadow-md shadow-accent/15 flex items-center gap-1.5"
+              >
+                {updatingId !== null && <Loader2 size={12} className="animate-spin" />}
+                Save Note 💾
+              </button>
             </div>
           </div>
         </div>
