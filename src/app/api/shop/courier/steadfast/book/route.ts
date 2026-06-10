@@ -86,8 +86,9 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       const errorText = await response.text();
+      const errorMessage = errorText ? errorText.replace(/"/g, '') : response.statusText;
       return NextResponse.json(
-        { error: `Steadfast API returned error status: ${response.statusText}`, details: errorText },
+        { error: `Steadfast API Error: ${errorMessage}`, details: errorText },
         { status: response.status }
       );
     }
