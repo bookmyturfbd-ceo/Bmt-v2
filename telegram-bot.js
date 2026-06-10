@@ -68,6 +68,10 @@ const formatMessage = (order) => {
     `💰 *Total:* ৳${order.total.toLocaleString()}\n` +
     `📍 *Address:* ${escapeMarkdown(order.address)}, ${escapeMarkdown(order.district)}`;
 
+  if (order.steadfastTrackingCode) {
+    message += `\n🚚 *Courier:* Steadfast (ST: \`${escapeMarkdown(order.steadfastTrackingCode)}\`)`;
+  }
+
   if (order.notes) {
     message += `\n📝 *Notes:* ${escapeMarkdown(order.notes)}`;
   }

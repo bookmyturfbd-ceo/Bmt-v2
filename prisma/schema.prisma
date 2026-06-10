@@ -1433,6 +1433,9 @@ model ShopOrder {
   firstTouchSource    Json?    @map("first_touch_source")
   lastTouchSource     Json?    @map("last_touch_source")
   notes               String?
+  steadfastConsignmentId String?  @map("steadfast_consignment_id")
+  steadfastTrackingCode  String?  @map("steadfast_tracking_code")
+  steadfastStatus        String?  @map("steadfast_status")
 
   items           ShopOrderItem[]
   player          Player?  @relation(fields: [playerId], references: [id], onDelete: SetNull)
