@@ -68,42 +68,68 @@ function getBaseDeliveryCharge(district: string): number {
   return 150;
 }
 
-function CourierAndFraudCheckPanel({ order, onStatusUpdated }: { order: any; onStatusUpdated: () => void }) {
+function FraudCheckPill({ phone }: { phone: string }) {
   const [fraudData, setFraudData] = useState<any>(null);
-  const [loadingFraud, setLoadingFraud] = useState(false);
-  const [errorFraud, setErrorFraud] = useState<string | null>(null);
-  const [booking, setBooking] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!order.customerPhone) return;
-
+    if (!phone) return;
     let active = true;
-    setLoadingFraud(true);
-    setErrorFraud(null);
-
-    fetch(`/api/shop/courier/steadfast/fraud-check?phone=${encodeURIComponent(order.customerPhone)}`)
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to fetch');
-        return res.json();
-      })
+    setLoading(true);
+    fetch(`/api/shop/courier/steadfast/fraud-check?phone=${encodeURIComponent(phone)}`)
+      .then((r) => r.json())
       .then((data) => {
-        if (data && (data.status === 200 || data.total_parcels !== undefined || data.totalParcels !== undefined)) {
-          if (active) setFraudData(data);
-        } else {
-          if (active) setErrorFraud(data?.message || 'API Error');
+        if (active && data && (data.status === 200 || data.total_parcels !== undefined || data.totalParcels !== undefined)) {
+          setFraudData(data);
         }
       })
-      .catch((err) => {
-        if (active) setErrorFraud(err.message);
-      })
+      .catch((err) => console.error('Pill fraud check error:', err))
       .finally(() => {
-        if (active) setLoadingFraud(false);
+        if (active) setLoading(false);
       });
-
     return () => {
       active = false;
     };
-  }, [order.customerPhone]);
+  }, [phone]);
+
+  if (loading) {
+    return <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black bg-white/5 text-[var(--muted)] border border-white/5 animate-pulse shrink-0">⏳ Loading...</span>;
+  }
+
+  if (!fraudData) return null;
+
+  const total = Number(fraudData.total_parcels ?? fraudData.totalParcels ?? 0);
+  const delivered = Number(fraudData.total_delivered ?? fraudData.totalDelivered ?? 0);
+  const cancelled = Number(fraudData.total_cancelled ?? fraudData.totalCancelled ?? 0);
+  const fraudReports = Number(fraudData.total_fraud_reports ?? fraudData.totalFraudReports ?? 0);
+
+  if (total === 0) {
+    return <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0" title="New Buyer (0 parcels)">New Buyer 🛍️</span>;
+  }
+
+  const successRate = (delivered + cancelled > 0) ? Math.round((delivered / (delivered + cancelled)) * 100) : 100;
+
+  // Determine pill style based on success rate and fraud reports
+  let style = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+  if (fraudReports > 0 || successRate < 70) {
+    style = 'bg-red-500/10 text-red-400 border-red-500/20';
+  } else if (successRate < 90) {
+    style = 'bg-orange-500/10 text-orange-400 border-orange-500/20';
+  }
+
+  return (
+    <span 
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black border shrink-0 ${style}`}
+      title={`Total: ${total} | Delivered: ${delivered} | Cancelled: ${cancelled} | Fraud: ${fraudReports}`}
+    >
+      🛡️ {successRate}% ({delivered} received / {cancelled} canceled)
+      {fraudReports > 0 && <span className="text-[8px] bg-red-600 text-white px-0.5 rounded">F:{fraudReports}</span>}
+    </span>
+  );
+}
+
+function CourierAndFraudCheckPanel({ order, onStatusUpdated }: { order: any; onStatusUpdated: () => void }) {
+  const [booking, setBooking] = useState(false);
 
   const handleBookOrder = async () => {
     if (booking) return;
@@ -129,148 +155,54 @@ function CourierAndFraudCheckPanel({ order, onStatusUpdated }: { order: any; onS
     }
   };
 
-  // Extract metrics from fraud check response
-  const total = Number(fraudData?.total_parcels ?? fraudData?.totalParcels ?? 0);
-  const delivered = Number(fraudData?.total_delivered ?? fraudData?.totalDelivered ?? 0);
-  const cancelled = Number(fraudData?.total_cancelled ?? fraudData?.totalCancelled ?? 0);
-  const fraudReports = Number(fraudData?.total_fraud_reports ?? fraudData?.totalFraudReports ?? 0);
-
-  const successRate = total > 0 ? Math.round((delivered / total) * 100) : 0;
-
-  // Compute risk level
-  let riskLevel: 'low' | 'medium' | 'high' = 'low';
-  let riskColor = 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10';
-  let riskLabel = 'Low Risk Buyer';
-
-  if (fraudReports > 0 || (total >= 3 && successRate < 70)) {
-    riskLevel = 'high';
-    riskColor = 'text-red-400 border-red-500/20 bg-red-500/10';
-    riskLabel = 'HIGH RISK BUYER';
-  } else if (total >= 3 && successRate < 90) {
-    riskLevel = 'medium';
-    riskColor = 'text-orange-400 border-orange-500/20 bg-orange-500/10';
-    riskLabel = 'Medium Risk Buyer';
-  }
-
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 border-t border-[var(--panel-border)]/30 pt-4 pb-1">
-      {/* Steadfast Courier Booking Section */}
-      <div className="flex flex-col gap-2.5">
+    <div className="border-t border-[var(--panel-border)]/30 pt-4 pb-1">
+      <div className="bg-white/2 border border-white/5 rounded-2xl p-4 flex flex-col gap-3 max-w-xl">
         <h4 className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)] flex items-center gap-1.5">
           <Truck size={12} className="text-accent" /> Courier Delivery (Steadfast)
         </h4>
 
-        <div className="bg-white/2 border border-white/5 rounded-2xl p-4 flex flex-col justify-between h-full gap-3">
-          {order.steadfastConsignmentId ? (
-            <div className="flex flex-col gap-2 text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-[var(--muted)]">Status:</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-accent/25 text-accent border border-accent/30 font-bold">
-                  {order.steadfastStatus || 'booked'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[var(--muted)]">Consignment ID:</span>
-                <span className="font-bold text-white">{order.steadfastConsignmentId}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[var(--muted)]">Tracking Code:</span>
-                <span className="font-mono font-bold text-accent">{order.steadfastTrackingCode}</span>
-              </div>
-              <a
-                href={`https://steadfast.com.bd/t/${order.steadfastTrackingCode}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 text-center py-2 bg-white/5 hover:bg-white/10 text-white font-bold border border-white/10 rounded-xl transition-all flex items-center justify-center gap-1 text-[11px]"
-              >
-                Track on Steadfast 🌐
-              </a>
+        {order.steadfastConsignmentId ? (
+          <div className="flex flex-col gap-4">
+            {/* Bold write on parcel box */}
+            <div className="flex flex-col items-center justify-center p-4 bg-black/40 border border-white/10 rounded-2xl gap-1 text-center">
+              <span className="text-[9px] text-accent uppercase font-black tracking-widest">Write on parcel ✏️</span>
+              <span className="text-3xl font-black text-white font-mono tracking-wider">{order.steadfastConsignmentId}</span>
+              <span className="text-[9px] text-[var(--muted)] font-mono">Tracking: {order.steadfastTrackingCode}</span>
             </div>
-          ) : (
-            <div className="flex flex-col justify-between h-full gap-4">
-              <p className="text-xs text-[var(--muted)] leading-relaxed">
-                This order has not been dispatched to Steadfast Courier yet. You can automatically create a consignment booking.
-              </p>
-              <button
-                type="button"
-                onClick={handleBookOrder}
-                disabled={booking || order.status === 'canceled' || order.status === 'cancelled'}
-                className="w-full py-2.5 bg-accent hover:brightness-110 text-black font-black text-xs rounded-xl transition-all shadow-md shadow-accent/10 flex items-center justify-center gap-1.5 disabled:opacity-40 select-none cursor-pointer"
-              >
-                {booking ? <Loader2 size={12} className="animate-spin" /> : '🚚'} Book to Steadfast
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* Steadfast Client Profiling (Fraud Check) Section */}
-      <div className="flex flex-col gap-2.5">
-        <h4 className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)] flex items-center gap-1.5">
-          🛡️ Courier Fraud Check (Steadfast Database)
-        </h4>
-
-        <div className="bg-white/2 border border-white/5 rounded-2xl p-4 flex flex-col justify-between h-full gap-3">
-          {loadingFraud ? (
-            <div className="flex flex-col items-center justify-center py-6 gap-2 flex-1">
-              <Loader2 size={18} className="animate-spin text-accent" />
-              <span className="text-[11px] text-[var(--muted)] font-medium">Scanning delivery history...</span>
-            </div>
-          ) : errorFraud ? (
-            <div className="flex items-center justify-center py-6 text-xs text-red-400 italic flex-1">
-              ⚠️ Unable to fetch history: {errorFraud}
-            </div>
-          ) : fraudData ? (
-            <div className="flex flex-col gap-3">
-              {/* Risk Level Header */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--muted)]">Risk Profile:</span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border ${riskColor}`}>
-                  {riskLabel}
-                </span>
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div className="flex flex-col gap-0.5 bg-white/2 border border-white/5 rounded-xl p-2.5">
+                <span className="text-[9px] text-[var(--muted)] uppercase font-bold">Courier Status</span>
+                <span className="font-black text-accent uppercase text-[10px]">{order.steadfastStatus || 'booked'}</span>
               </div>
-
-              {/* Stats Grid */}
-              <div className="grid grid-cols-2 gap-2 text-center">
-                <div className="bg-black/30 border border-white/5 rounded-xl p-2">
-                  <p className="text-[9px] text-[var(--muted)] uppercase font-bold">Total Parcels</p>
-                  <p className="text-sm font-black text-white mt-0.5">{total}</p>
-                </div>
-                <div className="bg-black/30 border border-white/5 rounded-xl p-2">
-                  <p className="text-[9px] text-[var(--muted)] uppercase font-bold">Success Rate</p>
-                  <p className="text-sm font-black text-accent mt-0.5">{total > 0 ? `${successRate}%` : 'N/A'}</p>
-                </div>
-                <div className="bg-black/30 border border-white/5 rounded-xl p-2">
-                  <p className="text-[9px] text-[var(--muted)] uppercase font-bold">Cancelled</p>
-                  <p className="text-sm font-black text-white mt-0.5">{cancelled}</p>
-                </div>
-                <div className="bg-black/30 border border-white/5 rounded-xl p-2">
-                  <p className="text-[9px] text-[var(--muted)] uppercase font-bold">Fraud Reports</p>
-                  <p className={`text-sm font-black mt-0.5 ${fraudReports > 0 ? 'text-red-400' : 'text-white'}`}>{fraudReports}</p>
-                </div>
+              <div className="flex flex-col justify-center">
+                <a
+                  href={`https://steadfast.com.bd/t/${order.steadfastTrackingCode}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full text-center py-2.5 bg-white/5 hover:bg-white/10 text-white font-bold border border-white/10 rounded-xl transition-all flex items-center justify-center gap-1 text-[11px] select-none cursor-pointer"
+                >
+                  Track on Steadfast 🌐
+                </a>
               </div>
-
-              {/* Advisory comment */}
-              {riskLevel === 'high' ? (
-                <p className="text-[10px] text-red-400 leading-tight font-bold">
-                  ⚠️ Caution: This phone number has cancellation history or active fraud reports. Consider call confirmation.
-                </p>
-              ) : riskLevel === 'medium' ? (
-                <p className="text-[10px] text-orange-400 leading-tight font-bold">
-                  ⚠️ Notice: Delivery success rate is under 90%. Confirm size/order details before dispatching.
-                </p>
-              ) : (
-                <p className="text-[10px] text-emerald-400 leading-tight font-bold">
-                  ✅ Safe: Good delivery history. Perfect candidate for cash-on-delivery.
-                </p>
-              )}
             </div>
-          ) : (
-            <div className="flex items-center justify-center py-6 text-xs text-[var(--muted)] italic flex-1">
-              No phone number to scan.
-            </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+            <p className="text-xs text-[var(--muted)] leading-relaxed flex-1">
+              This order has not been dispatched to Steadfast Courier yet. You can automatically create a consignment booking.
+            </p>
+            <button
+              type="button"
+              onClick={handleBookOrder}
+              disabled={booking || order.status === 'canceled' || order.status === 'cancelled'}
+              className="py-2.5 px-6 bg-accent hover:brightness-110 text-black font-black text-xs rounded-xl transition-all shadow-md shadow-accent/10 flex items-center justify-center gap-1.5 disabled:opacity-40 select-none cursor-pointer shrink-0"
+            >
+              {booking ? <Loader2 size={12} className="animate-spin" /> : '🚚'} Book to Steadfast
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1284,8 +1216,9 @@ export default function ShopOrdersPanel() {
                       >
                         <span className="text-xs font-bold text-[var(--muted)] w-6 shrink-0">{index + 1}</span>
                         <span className="font-mono text-xs text-[var(--muted)] w-16 shrink-0">#{order.id.slice(0, 6).toUpperCase()}</span>
-                        <span className="font-bold text-sm flex-1 truncate flex items-center gap-2">
-                          {order.customerName}
+                        <span className="font-bold text-sm flex-1 min-w-0 flex items-center gap-2">
+                          <span className="truncate">{order.customerName}</span>
+                          <FraudCheckPill phone={order.customerPhone} />
                           {order.notes && (
                             <span className="text-yellow-400 text-xs shrink-0" title={order.notes}>
                               📝
