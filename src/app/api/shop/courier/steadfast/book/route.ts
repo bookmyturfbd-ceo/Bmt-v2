@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     const apiKey = process.env.STEADFAST_API_KEY;
     const secretKey = process.env.STEADFAST_SECRET_KEY;
-    const baseUrl = process.env.STEADFAST_BASE_URL || 'https://portal.steadfast.com.bd/api/v1';
+    const baseUrl = process.env.STEADFAST_BASE_URL || 'https://portal.packzy.com/api/v1';
 
     if (!apiKey || !secretKey) {
       return NextResponse.json({ error: 'Steadfast credentials are not configured' }, { status: 500 });

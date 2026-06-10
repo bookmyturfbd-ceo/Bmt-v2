@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
     const apiKey = process.env.STEADFAST_API_KEY;
     const secretKey = process.env.STEADFAST_SECRET_KEY;
-    const baseUrl = process.env.STEADFAST_BASE_URL || 'https://portal.steadfast.com.bd/api/v1';
+    const baseUrl = process.env.STEADFAST_BASE_URL || 'https://portal.packzy.com/api/v1';
 
     if (!apiKey || !secretKey) {
       return NextResponse.json({ error: 'Steadfast credentials are not configured' }, { status: 500 });
@@ -32,15 +32,19 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    if (!response.ok) {
+    // Parse data safely
+    let data;
+    try {
+      data = await response.json();
+    } catch (parseErr) {
       const errorText = await response.text();
       return NextResponse.json(
-        { error: `Steadfast API error: ${response.statusText}`, details: errorText },
+        { error: `Steadfast API returned non-JSON response: ${response.statusText}`, details: errorText },
         { status: response.status }
       );
     }
 
-    const data = await response.json();
+    // Return response directly (even if error status like 403/400) so browser gets the message
     return NextResponse.json(data);
   } catch (error: any) {
     console.error('Steadfast Fraud Check Error:', error);

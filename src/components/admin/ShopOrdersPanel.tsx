@@ -87,7 +87,11 @@ function CourierAndFraudCheckPanel({ order, onStatusUpdated }: { order: any; onS
         return res.json();
       })
       .then((data) => {
-        if (active) setFraudData(data);
+        if (data && (data.status === 200 || data.total_parcels !== undefined || data.totalParcels !== undefined)) {
+          if (active) setFraudData(data);
+        } else {
+          if (active) setErrorFraud(data?.message || 'API Error');
+        }
       })
       .catch((err) => {
         if (active) setErrorFraud(err.message);
