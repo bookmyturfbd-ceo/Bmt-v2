@@ -326,6 +326,7 @@ export default function ShopOrdersPanel() {
   const [selectedColorFilter, setSelectedColorFilter] = useState<string>('all');
   const [filterParentCategoryId, setFilterParentCategoryId] = useState<string | null>(null);
   const [filterSubCategoryId, setFilterSubCategoryId] = useState<string | null>(null);
+  const [filterProductId, setFilterProductId] = useState<string | null>(null);
   const [filterSize, setFilterSize] = useState<string | null>(null);
   const [filterDate, setFilterDate] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -1090,6 +1091,14 @@ export default function ShopOrdersPanel() {
       });
     }
 
+    if (filterProductId) {
+      list = list.filter(order => {
+        return (order.items || []).some((item: any) => {
+          return item.productId === filterProductId;
+        });
+      });
+    }
+
     if (filterSize) {
       list = list.filter(order => {
         return (order.items || []).some((item: any) => {
@@ -1098,20 +1107,33 @@ export default function ShopOrdersPanel() {
       });
     }
 
+    // Sort single orders first if any filter is active
+    if (filterParentCategoryId || filterSubCategoryId || filterProductId || filterSize) {
+      list = [...list].sort((a, b) => {
+        const aLen = a.items?.length || 0;
+        const bLen = b.items?.length || 0;
+        return aLen - bLen;
+      });
+    }
+
     return list;
-  }, [dateFilteredOrders, selectedStatus, searchQuery, filterParentCategoryId, filterSubCategoryId, filterSize, categoriesMap]);
+  }, [dateFilteredOrders, selectedStatus, searchQuery, filterParentCategoryId, filterSubCategoryId, filterProductId, filterSize, categoriesMap]);
 
   const availableSizesFilter = useMemo(() => {
     const sizes = new Set<string>();
     allProducts.forEach(p => {
-      if (filterParentCategoryId) {
-        const cat = categoriesMap.get(p.categoryId);
-        if (!cat) return;
-        const parentId = cat.parentId || cat.id;
-        if (parentId !== filterParentCategoryId) return;
-      }
-      if (filterSubCategoryId && filterSubCategoryId !== 'all' && filterSubCategoryId !== 'direct') {
-        if (p.categoryId !== filterSubCategoryId) return;
+      if (filterProductId) {
+        if (p.id !== filterProductId) return;
+      } else {
+        if (filterParentCategoryId) {
+          const cat = categoriesMap.get(p.categoryId);
+          if (!cat) return;
+          const parentId = cat.parentId || cat.id;
+          if (parentId !== filterParentCategoryId) return;
+        }
+        if (filterSubCategoryId && filterSubCategoryId !== 'all' && filterSubCategoryId !== 'direct') {
+          if (p.categoryId !== filterSubCategoryId) return;
+        }
       }
       (p.sizes || []).forEach((s: any) => {
         if (s.label) sizes.add(s.label);
@@ -1119,6 +1141,20 @@ export default function ShopOrdersPanel() {
     });
     const sorted = sortSizes(Array.from(sizes).map(label => ({ label })), s => s.label);
     return sorted.map((s: any) => s.label);
+  }, [allProducts, filterParentCategoryId, filterSubCategoryId, filterProductId, categoriesMap]);
+
+  const filterProductsList = useMemo(() => {
+    if (!filterParentCategoryId) return [];
+    const targetCatId = (filterSubCategoryId === 'direct') ? filterParentCategoryId : filterSubCategoryId;
+    if (!targetCatId) {
+      return allProducts.filter(p => {
+        const cat = categoriesMap.get(p.categoryId);
+        if (!cat) return false;
+        const parentId = cat.parentId || cat.id;
+        return parentId === filterParentCategoryId;
+      });
+    }
+    return allProducts.filter(p => p.categoryId === targetCatId);
   }, [allProducts, filterParentCategoryId, filterSubCategoryId, categoriesMap]);
 
   // Daily revenue stats card
@@ -1389,6 +1425,7 @@ export default function ShopOrdersPanel() {
                       const val = e.target.value;
                       setFilterParentCategoryId(val ? val : null);
                       setFilterSubCategoryId(null);
+                      setFilterProductId(null);
                       setFilterSize(null);
                     }}
                     className="bg-transparent font-bold outline-none border-none cursor-pointer text-white [color-scheme:dark]"
@@ -1408,6 +1445,7 @@ export default function ShopOrdersPanel() {
                       onChange={e => {
                         const val = e.target.value;
                         setFilterSubCategoryId(val ? val : null);
+                        setFilterProductId(null);
                         setFilterSize(null);
                       }}
                       className="bg-transparent font-bold outline-none border-none cursor-pointer text-white [color-scheme:dark]"
@@ -1418,6 +1456,26 @@ export default function ShopOrdersPanel() {
                       )}
                       {categories.filter(c => c.parentId === filterParentCategoryId).map(cat => (
                         <option key={cat.id} value={cat.id} className="bg-neutral-950 text-white">{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Product Select (Only if parent is selected) */}
+                {filterParentCategoryId && (
+                  <div className="flex items-center gap-2 bg-[var(--panel-bg)] border border-[var(--panel-border)] px-3 py-1.5 rounded-xl text-xs animate-in slide-in-from-left-2 duration-200">
+                    <select
+                      value={filterProductId || ''}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setFilterProductId(val ? val : null);
+                        setFilterSize(null);
+                      }}
+                      className="bg-transparent font-bold outline-none border-none cursor-pointer text-white [color-scheme:dark] max-w-[160px] truncate"
+                    >
+                      <option value="" className="bg-neutral-950 text-white">Select Product...</option>
+                      {filterProductsList.map(prod => (
+                        <option key={prod.id} value={prod.id} className="bg-neutral-950 text-white">{prod.name}</option>
                       ))}
                     </select>
                   </div>
@@ -1440,11 +1498,12 @@ export default function ShopOrdersPanel() {
                 )}
 
                 {/* Clear Filter button */}
-                {(filterParentCategoryId || filterSubCategoryId || filterSize) && (
+                {(filterParentCategoryId || filterSubCategoryId || filterProductId || filterSize) && (
                   <button
                     onClick={() => {
                       setFilterParentCategoryId(null);
                       setFilterSubCategoryId(null);
+                      setFilterProductId(null);
                       setFilterSize(null);
                     }}
                     className="text-[10px] bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 text-red-400 font-black px-3 py-1.5 rounded-xl transition-all"
