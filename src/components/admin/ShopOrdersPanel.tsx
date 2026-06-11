@@ -147,6 +147,12 @@ function CourierAndFraudCheckPanel({ order, onStatusUpdated }: { order: any; onS
   const [loadingFraud, setLoadingFraud] = useState(false);
   const [fraudError, setFraudError] = useState<string | null>(null);
 
+  // Success Modal States
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [bookedConsignmentId, setBookedConsignmentId] = useState<string | null>(null);
+  const [bookedTrackingCode, setBookedTrackingCode] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
   useEffect(() => {
     if (!order.customerPhone) return;
     setLoadingFraud(true);
@@ -184,14 +190,28 @@ function CourierAndFraudCheckPanel({ order, onStatusUpdated }: { order: any; onS
       if (!res.ok) {
         alert(data.error || 'Failed to book order with Steadfast');
       } else {
-        alert('Successfully booked consignment with Steadfast Courier!');
-        onStatusUpdated();
+        setBookedConsignmentId(data.consignmentId || '');
+        setBookedTrackingCode(data.trackingCode || '');
+        setShowSuccessModal(true);
       }
     } catch (err) {
       console.error(err);
       alert('Error booking order');
     } finally {
       setBooking(false);
+    }
+  };
+
+  const handleCloseSuccessModal = () => {
+    setShowSuccessModal(false);
+    onStatusUpdated();
+  };
+
+  const handleCopyCode = () => {
+    if (bookedConsignmentId) {
+      navigator.clipboard.writeText(bookedConsignmentId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -301,6 +321,81 @@ function CourierAndFraudCheckPanel({ order, onStatusUpdated }: { order: any; onS
           })()}
         </div>
       </div>
+
+      {/* Success Modal Popup */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-neutral-900 border border-white/10 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl relative flex flex-col p-6 animate-in zoom-in-95 duration-200">
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={handleCloseSuccessModal}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors text-white"
+            >
+              <X size={16} />
+            </button>
+
+            {/* Modal Content */}
+            <div className="flex flex-col items-center justify-center gap-4 text-center mt-4">
+              <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                <Truck className="text-emerald-400" size={24} />
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-black text-white">Consignment Booked!</h3>
+                <p className="text-xs text-[var(--muted)] mt-1">
+                  Steadfast Courier consignment successfully created.
+                </p>
+              </div>
+
+              {/* Large Consignment ID Block */}
+              <div className="w-full flex flex-col items-center justify-center p-5 bg-black/40 border border-white/5 rounded-2xl gap-2.5 mt-2 relative">
+                <span className="text-[9px] text-accent uppercase font-black tracking-widest">
+                  Write on parcel ✏️
+                </span>
+                
+                {/* Large Code */}
+                <span className="text-4xl font-black text-white font-mono tracking-widest select-all">
+                  {bookedConsignmentId}
+                </span>
+
+                {/* Copy Button */}
+                <button
+                  type="button"
+                  onClick={handleCopyCode}
+                  className="mt-1.5 px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1 cursor-pointer select-none"
+                >
+                  {copied ? 'Copied! ✓' : 'Copy Code 📋'}
+                </button>
+              </div>
+
+              {/* Tracking Link */}
+              {bookedTrackingCode && (
+                <div className="flex flex-col items-center gap-1 text-[11px] text-[var(--muted)]">
+                  <span>Tracking Code: <strong className="text-white font-mono">{bookedTrackingCode}</strong></span>
+                  <a
+                    href={`https://steadfast.com.bd/t/${bookedTrackingCode}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent font-bold hover:underline mt-1 flex items-center gap-1"
+                  >
+                    Track Shipment 🌐
+                  </a>
+                </div>
+              )}
+
+              {/* Confirm / Continue Button */}
+              <button
+                type="button"
+                onClick={handleCloseSuccessModal}
+                className="w-full mt-4 py-3 bg-accent hover:brightness-110 text-black font-black text-sm rounded-xl transition-all shadow-md shadow-accent/15 cursor-pointer select-none"
+              >
+                Okay, Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1073,7 +1168,9 @@ export default function ShopOrdersPanel() {
         return (order.items || []).some((item: any) => {
           const product = item.product;
           if (!product) return false;
-          const cat = categoriesMap.get(product.categoryId);
+          const categoryId = product.categoryId || product.category?.id;
+          if (!categoryId) return false;
+          const cat = categoriesMap.get(categoryId);
           if (!cat) return false;
           const parentId = cat.parentId || cat.id;
           return parentId === filterParentCategoryId;
@@ -1086,7 +1183,9 @@ export default function ShopOrdersPanel() {
         return (order.items || []).some((item: any) => {
           const product = item.product;
           if (!product) return false;
-          return product.categoryId === filterSubCategoryId || (filterSubCategoryId === 'direct' && product.categoryId === filterParentCategoryId);
+          const categoryId = product.categoryId || product.category?.id;
+          if (!categoryId) return false;
+          return categoryId === filterSubCategoryId || (filterSubCategoryId === 'direct' && categoryId === filterParentCategoryId);
         });
       });
     }
@@ -1122,17 +1221,19 @@ export default function ShopOrdersPanel() {
   const availableSizesFilter = useMemo(() => {
     const sizes = new Set<string>();
     allProducts.forEach(p => {
+      const categoryId = p.categoryId || p.category?.id;
       if (filterProductId) {
         if (p.id !== filterProductId) return;
       } else {
         if (filterParentCategoryId) {
-          const cat = categoriesMap.get(p.categoryId);
+          if (!categoryId) return;
+          const cat = categoriesMap.get(categoryId);
           if (!cat) return;
           const parentId = cat.parentId || cat.id;
           if (parentId !== filterParentCategoryId) return;
         }
         if (filterSubCategoryId && filterSubCategoryId !== 'all' && filterSubCategoryId !== 'direct') {
-          if (p.categoryId !== filterSubCategoryId) return;
+          if (categoryId !== filterSubCategoryId) return;
         }
       }
       (p.sizes || []).forEach((s: any) => {
@@ -1148,13 +1249,15 @@ export default function ShopOrdersPanel() {
     const targetCatId = (filterSubCategoryId === 'direct') ? filterParentCategoryId : filterSubCategoryId;
     if (!targetCatId) {
       return allProducts.filter(p => {
-        const cat = categoriesMap.get(p.categoryId);
+        const categoryId = p.categoryId || p.category?.id;
+        if (!categoryId) return false;
+        const cat = categoriesMap.get(categoryId);
         if (!cat) return false;
         const parentId = cat.parentId || cat.id;
         return parentId === filterParentCategoryId;
       });
     }
-    return allProducts.filter(p => p.categoryId === targetCatId);
+    return allProducts.filter(p => (p.categoryId || p.category?.id) === targetCatId);
   }, [allProducts, filterParentCategoryId, filterSubCategoryId, categoriesMap]);
 
   // Daily revenue stats card
