@@ -324,6 +324,9 @@ export default function ShopOrdersPanel() {
   const [categoryViewTab, setCategoryViewTab] = useState<'products' | 'demographics'>('products');
   const [ratioStatusFilter, setRatioStatusFilter] = useState<string>('active'); // active = new + ready
   const [selectedColorFilter, setSelectedColorFilter] = useState<string>('all');
+  const [filterParentCategoryId, setFilterParentCategoryId] = useState<string | null>(null);
+  const [filterSubCategoryId, setFilterSubCategoryId] = useState<string | null>(null);
+  const [filterSize, setFilterSize] = useState<string | null>(null);
   const [filterDate, setFilterDate] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -1064,8 +1067,59 @@ export default function ShopOrdersPanel() {
       });
     }
 
+    if (filterParentCategoryId) {
+      list = list.filter(order => {
+        return (order.items || []).some((item: any) => {
+          const product = item.product;
+          if (!product) return false;
+          const cat = categoriesMap.get(product.categoryId);
+          if (!cat) return false;
+          const parentId = cat.parentId || cat.id;
+          return parentId === filterParentCategoryId;
+        });
+      });
+    }
+
+    if (filterSubCategoryId) {
+      list = list.filter(order => {
+        return (order.items || []).some((item: any) => {
+          const product = item.product;
+          if (!product) return false;
+          return product.categoryId === filterSubCategoryId || (filterSubCategoryId === 'direct' && product.categoryId === filterParentCategoryId);
+        });
+      });
+    }
+
+    if (filterSize) {
+      list = list.filter(order => {
+        return (order.items || []).some((item: any) => {
+          return item.sizeLabel?.toLowerCase() === filterSize.toLowerCase();
+        });
+      });
+    }
+
     return list;
-  }, [dateFilteredOrders, selectedStatus, searchQuery]);
+  }, [dateFilteredOrders, selectedStatus, searchQuery, filterParentCategoryId, filterSubCategoryId, filterSize, categoriesMap]);
+
+  const availableSizesFilter = useMemo(() => {
+    const sizes = new Set<string>();
+    allProducts.forEach(p => {
+      if (filterParentCategoryId) {
+        const cat = categoriesMap.get(p.categoryId);
+        if (!cat) return;
+        const parentId = cat.parentId || cat.id;
+        if (parentId !== filterParentCategoryId) return;
+      }
+      if (filterSubCategoryId && filterSubCategoryId !== 'all' && filterSubCategoryId !== 'direct') {
+        if (p.categoryId !== filterSubCategoryId) return;
+      }
+      (p.sizes || []).forEach((s: any) => {
+        if (s.label) sizes.add(s.label);
+      });
+    });
+    const sorted = sortSizes(Array.from(sizes).map(label => ({ label })), s => s.label);
+    return sorted.map((s: any) => s.label);
+  }, [allProducts, filterParentCategoryId, filterSubCategoryId, categoriesMap]);
 
   // Daily revenue stats card
   const todayStr = new Date().toISOString().split('T')[0];
@@ -1266,57 +1320,138 @@ export default function ShopOrdersPanel() {
 
           {/* ── All Orders — Compact Rows ── */}
           <div className="glass-panel border border-[var(--panel-border)] rounded-3xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-[var(--panel-border)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-black/20">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <ShoppingBag size={16} className="text-accent" />
-                  <h2 className="font-black">
-                    {TAB_TITLES[selectedStatus] ?? 'Orders'} ({finalOrdersList.length})
-                  </h2>
+            <div className="px-5 py-4 border-b border-[var(--panel-border)] flex flex-col gap-4 bg-black/20">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <ShoppingBag size={16} className="text-accent" />
+                    <h2 className="font-black">
+                      {TAB_TITLES[selectedStatus] ?? 'Orders'} ({finalOrdersList.length})
+                    </h2>
+                  </div>
+                  <button onClick={() => load()} className="text-xs text-[var(--muted)] hover:text-foreground transition-colors font-bold">Refresh</button>
                 </div>
-                <button onClick={() => load()} className="text-xs text-[var(--muted)] hover:text-foreground transition-colors font-bold">Refresh</button>
+
+                {/* Search & Date Filters */}
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Search Customer Input */}
+                  <div className="flex items-center gap-2 bg-[var(--panel-bg)] border border-[var(--panel-border)] px-3.5 py-1.5 rounded-xl w-full sm:w-64">
+                    <Search size={13} className="text-accent shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="Search name, phone, email..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="bg-transparent text-xs font-black outline-none border-none text-white w-full placeholder:text-[var(--muted)]"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="text-[10px] bg-white/10 hover:bg-white/20 text-white font-bold px-1.5 py-0.5 rounded transition-colors shrink-0"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Date Filter Input */}
+                  <div className="flex items-center gap-2 bg-[var(--panel-bg)] border border-[var(--panel-border)] px-3 py-1.5 rounded-xl">
+                    <Calendar size={13} className="text-accent shrink-0" />
+                    <input
+                      type="date"
+                      value={filterDate}
+                      onChange={(e) => setFilterDate(e.target.value)}
+                      className="bg-transparent text-xs font-black outline-none border-none cursor-pointer text-white [color-scheme:dark]"
+                    />
+                    {filterDate && (
+                      <button
+                        onClick={() => setFilterDate('')}
+                        className="text-[10px] bg-white/10 hover:bg-white/20 text-white font-bold px-1.5 py-0.5 rounded transition-colors shrink-0"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {/* Search & Date Filters */}
-              <div className="flex flex-wrap items-center gap-3">
-                {/* Search Customer Input */}
-                <div className="flex items-center gap-2 bg-[var(--panel-bg)] border border-[var(--panel-border)] px-3.5 py-1.5 rounded-xl w-full sm:w-64">
-                  <Search size={13} className="text-accent shrink-0" />
-                  <input
-                    type="text"
-                    placeholder="Search name, phone, email..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="bg-transparent text-xs font-black outline-none border-none text-white w-full placeholder:text-[var(--muted)]"
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => setSearchQuery('')}
-                      className="text-[10px] bg-white/10 hover:bg-white/20 text-white font-bold px-1.5 py-0.5 rounded transition-colors shrink-0"
-                    >
-                      Clear
-                    </button>
-                  )}
+              {/* Product Variant Filters */}
+              <div className="flex flex-wrap items-center gap-2.5 pt-3 border-t border-white/5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[var(--muted)] mr-1.5">
+                  📦 Product Filter:
+                </span>
+
+                {/* Parent Category */}
+                <div className="flex items-center gap-2 bg-[var(--panel-bg)] border border-[var(--panel-border)] px-3 py-1.5 rounded-xl text-xs">
+                  <select
+                    value={filterParentCategoryId || ''}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setFilterParentCategoryId(val ? val : null);
+                      setFilterSubCategoryId(null);
+                      setFilterSize(null);
+                    }}
+                    className="bg-transparent font-bold outline-none border-none cursor-pointer text-white [color-scheme:dark]"
+                  >
+                    <option value="" className="bg-neutral-950 text-white">Select Parent...</option>
+                    {categories.filter(c => !c.parentId).map(cat => (
+                      <option key={cat.id} value={cat.id} className="bg-neutral-950 text-white">{cat.name}</option>
+                    ))}
+                  </select>
                 </div>
 
-                {/* Date Filter Input */}
-                <div className="flex items-center gap-2 bg-[var(--panel-bg)] border border-[var(--panel-border)] px-3 py-1.5 rounded-xl">
-                  <Calendar size={13} className="text-accent shrink-0" />
-                  <input
-                    type="date"
-                    value={filterDate}
-                    onChange={(e) => setFilterDate(e.target.value)}
-                    className="bg-transparent text-xs font-black outline-none border-none cursor-pointer text-white [color-scheme:dark]"
-                  />
-                  {filterDate && (
-                    <button
-                      onClick={() => setFilterDate('')}
-                      className="text-[10px] bg-white/10 hover:bg-white/20 text-white font-bold px-1.5 py-0.5 rounded transition-colors shrink-0"
+                {/* Subcategory */}
+                {filterParentCategoryId && (
+                  <div className="flex items-center gap-2 bg-[var(--panel-bg)] border border-[var(--panel-border)] px-3 py-1.5 rounded-xl text-xs animate-in slide-in-from-left-2 duration-200">
+                    <select
+                      value={filterSubCategoryId || ''}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setFilterSubCategoryId(val ? val : null);
+                        setFilterSize(null);
+                      }}
+                      className="bg-transparent font-bold outline-none border-none cursor-pointer text-white [color-scheme:dark]"
                     >
-                      Clear
-                    </button>
-                  )}
-                </div>
+                      <option value="" className="bg-neutral-950 text-white">Select Subcat...</option>
+                      {allProducts.some(p => p.categoryId === filterParentCategoryId) && (
+                        <option value="direct" className="bg-neutral-950 text-white">General / Uncategorized</option>
+                      )}
+                      {categories.filter(c => c.parentId === filterParentCategoryId).map(cat => (
+                        <option key={cat.id} value={cat.id} className="bg-neutral-950 text-white">{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Size */}
+                {filterParentCategoryId && (
+                  <div className="flex items-center gap-2 bg-[var(--panel-bg)] border border-[var(--panel-border)] px-3 py-1.5 rounded-xl text-xs animate-in slide-in-from-left-2 duration-200">
+                    <select
+                      value={filterSize || ''}
+                      onChange={e => setFilterSize(e.target.value || null)}
+                      className="bg-transparent font-bold outline-none border-none cursor-pointer text-white [color-scheme:dark]"
+                    >
+                      <option value="" className="bg-neutral-950 text-white">Select Size...</option>
+                      {availableSizesFilter.map(size => (
+                        <option key={size} value={size} className="bg-neutral-950 text-white">{size}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Clear Filter button */}
+                {(filterParentCategoryId || filterSubCategoryId || filterSize) && (
+                  <button
+                    onClick={() => {
+                      setFilterParentCategoryId(null);
+                      setFilterSubCategoryId(null);
+                      setFilterSize(null);
+                    }}
+                    className="text-[10px] bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 text-red-400 font-black px-3 py-1.5 rounded-xl transition-all"
+                  >
+                    Clear Filter ✕
+                  </button>
+                )}
               </div>
             </div>
 
