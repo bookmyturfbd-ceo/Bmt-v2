@@ -71,19 +71,28 @@ function getBaseDeliveryCharge(district: string): number {
 function FraudCheckPill({ phone }: { phone: string }) {
   const [fraudData, setFraudData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [errorStatus, setErrorStatus] = useState<boolean>(false);
 
   useEffect(() => {
     if (!phone) return;
     let active = true;
     setLoading(true);
+    setErrorStatus(false);
     fetch(`/api/shop/courier/steadfast/fraud-check?phone=${encodeURIComponent(phone)}`)
       .then((r) => r.json())
       .then((data) => {
-        if (active && data && (data.status === 200 || data.total_parcels !== undefined || data.totalParcels !== undefined)) {
-          setFraudData(data);
+        if (active) {
+          if (data && (data.status === 200 || data.total_parcels !== undefined || data.totalParcels !== undefined)) {
+            setFraudData(data);
+          } else if (data && data.error) {
+            setErrorStatus(true);
+          }
         }
       })
-      .catch((err) => console.error('Pill fraud check error:', err))
+      .catch((err) => {
+        console.error('Pill fraud check error:', err);
+        if (active) setErrorStatus(true);
+      })
       .finally(() => {
         if (active) setLoading(false);
       });
@@ -94,6 +103,10 @@ function FraudCheckPill({ phone }: { phone: string }) {
 
   if (loading) {
     return <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black bg-white/5 text-[var(--muted)] border border-white/5 animate-pulse shrink-0">⏳ Loading...</span>;
+  }
+
+  if (errorStatus) {
+    return <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 shrink-0" title="Steadfast API Limit Exceeded or Account Issue">⚠️ Limit/Error</span>;
   }
 
   if (!fraudData) return null;
@@ -130,6 +143,33 @@ function FraudCheckPill({ phone }: { phone: string }) {
 
 function CourierAndFraudCheckPanel({ order, onStatusUpdated }: { order: any; onStatusUpdated: () => void }) {
   const [booking, setBooking] = useState(false);
+  const [fraudData, setFraudData] = useState<any>(null);
+  const [loadingFraud, setLoadingFraud] = useState(false);
+  const [fraudError, setFraudError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!order.customerPhone) return;
+    setLoadingFraud(true);
+    setFraudError(null);
+    fetch(`/api/shop/courier/steadfast/fraud-check?phone=${encodeURIComponent(order.customerPhone)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && data.error) {
+          setFraudError(data.error);
+        } else if (data && (data.total_parcels !== undefined || data.totalParcels !== undefined)) {
+          setFraudData(data);
+        } else {
+          setFraudError('Invalid response from Steadfast API');
+        }
+      })
+      .catch((err) => {
+        console.error('Fraud check error:', err);
+        setFraudError('Failed to load delivery records');
+      })
+      .finally(() => {
+        setLoadingFraud(false);
+      });
+  }, [order.customerPhone]);
 
   const handleBookOrder = async () => {
     if (booking) return;
@@ -203,6 +243,63 @@ function CourierAndFraudCheckPanel({ order, onStatusUpdated }: { order: any; onS
             </button>
           </div>
         )}
+
+        {/* Customer Delivery Records */}
+        <div className="border-t border-white/5 pt-3 mt-1 flex flex-col gap-2">
+          <h5 className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)]">
+            Customer Delivery History (Steadfast)
+          </h5>
+          
+          {loadingFraud && (
+            <div className="flex items-center gap-2 py-1.5 text-xs text-[var(--muted)]">
+              <Loader2 size={12} className="animate-spin text-accent" />
+              <span>Fetching customer delivery records...</span>
+            </div>
+          )}
+
+          {fraudError && (
+            <div className="p-2.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 rounded-xl text-xs leading-relaxed">
+              ⚠️ <strong>Steadfast API Info:</strong> {fraudError}
+            </div>
+          )}
+
+          {fraudData && (() => {
+            const total = Number(fraudData.total_parcels ?? fraudData.totalParcels ?? 0);
+            const delivered = Number(fraudData.total_delivered ?? fraudData.totalDelivered ?? 0);
+            const cancelled = Number(fraudData.total_cancelled ?? fraudData.totalCancelled ?? 0);
+            const fraudReports = Number(fraudData.total_fraud_reports ?? fraudData.totalFraudReports ?? 0);
+            const successRate = (delivered + cancelled > 0) ? Math.round((delivered / (delivered + cancelled)) * 100) : 100;
+
+            if (total === 0) {
+              return (
+                <div className="p-2.5 bg-emerald-500/5 border border-emerald-500/10 text-emerald-400 rounded-xl text-xs">
+                  🛍️ <strong>New Buyer:</strong> Customer has 0 previous delivery records on Steadfast.
+                </div>
+              );
+            }
+
+            return (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white/2 border border-white/5 rounded-2xl p-3">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[9px] text-[var(--muted)] uppercase font-bold text-[8px]">Total Parcels</span>
+                  <span className="font-black text-xs text-white">{total}</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[9px] text-[var(--muted)] uppercase font-bold text-[8px]">Delivered</span>
+                  <span className="font-black text-xs text-emerald-400">{delivered} ({successRate}%)</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[9px] text-[var(--muted)] uppercase font-bold text-[8px]">Cancelled</span>
+                  <span className="font-black text-xs text-red-400">{cancelled}</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[9px] text-[var(--muted)] uppercase font-bold text-[8px]">Fraud Reports</span>
+                  <span className="font-black text-xs text-amber-400">{fraudReports}</span>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
       </div>
     </div>
   );
@@ -226,6 +323,7 @@ export default function ShopOrdersPanel() {
   const [selectedParentCategoryId, setSelectedParentCategoryId] = useState<string | null>(null);
   const [categoryViewTab, setCategoryViewTab] = useState<'products' | 'demographics'>('products');
   const [ratioStatusFilter, setRatioStatusFilter] = useState<string>('active'); // active = new + ready
+  const [selectedColorFilter, setSelectedColorFilter] = useState<string>('all');
   const [filterDate, setFilterDate] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -998,6 +1096,69 @@ export default function ShopOrdersPanel() {
     return sortSizes(selectedProductDetails.sizes, (s: any) => s.label);
   }, [selectedProductDetails]);
 
+  // Helper to extract color from product name
+  const getProductColor = (name: string) => {
+    if (!name) return 'Other';
+    const parts = name.trim().split(/\s+/);
+    const lastPart = parts[parts.length - 1]; // e.g. "W1", "B2", "Y1"
+    if (!lastPart) return 'Other';
+    
+    const code = lastPart.charAt(0).toUpperCase();
+    switch (code) {
+      case 'W': return 'White';
+      case 'B': return 'Black/Blue';
+      case 'Y': return 'Yellow';
+      case 'G': return 'Green';
+      case 'R': return 'Red';
+      default:
+        const lower = name.toLowerCase();
+        if (lower.includes('white')) return 'White';
+        if (lower.includes('black')) return 'Black';
+        if (lower.includes('blue')) return 'Black/Blue';
+        if (lower.includes('yellow')) return 'Yellow';
+        if (lower.includes('green')) return 'Green';
+        if (lower.includes('red')) return 'Red';
+        return 'Other';
+    }
+  };
+
+  const sizeBreakdown = useMemo(() => {
+    const filteredOrders = orders.filter(o => {
+      if (o.status === 'canceled' || o.status === 'cancelled') return false;
+      if (ratioStatusFilter === 'new') return o.status === 'new';
+      if (ratioStatusFilter === 'ready') return o.status === 'ready';
+      if (ratioStatusFilter === 'active') return o.status === 'new' || o.status === 'ready';
+      if (ratioStatusFilter === 'all_active') return o.status === 'new' || o.status === 'ready' || o.status === 'on_the_way';
+      return true; // 'all'
+    });
+
+    const breakdown: Record<string, number> = {};
+
+    filteredOrders.forEach(order => {
+      (order.items || []).forEach((item: any) => {
+        const product = item.product;
+        if (!product) return;
+        
+        const qty = item.quantity || 0;
+        const sizeLabel = item.sizeLabel || 'Unknown';
+
+        if (selectedColorFilter !== 'all') {
+          const prodColor = getProductColor(product.name);
+          if (prodColor !== selectedColorFilter) return;
+        }
+
+        breakdown[sizeLabel] = (breakdown[sizeLabel] || 0) + qty;
+      });
+    });
+
+    const sorted = Object.entries(breakdown).map(([label, qty]) => ({
+      label,
+      qty
+    }));
+    
+    return sortSizes(sorted, s => s.label);
+  }, [orders, ratioStatusFilter, selectedColorFilter]);
+
   if (loading) return <div className="flex justify-center py-20"><Loader2 size={32} className="animate-spin text-accent" /></div>;
 
   return (
@@ -1218,7 +1379,6 @@ export default function ShopOrdersPanel() {
                         <span className="font-mono text-xs text-[var(--muted)] w-16 shrink-0">#{order.id.slice(0, 6).toUpperCase()}</span>
                         <span className="font-bold text-sm flex-1 min-w-0 flex items-center gap-2">
                           <span className="truncate">{order.customerName}</span>
-                          <FraudCheckPill phone={order.customerPhone} />
                           {order.notes && (
                             <span className="text-yellow-400 text-xs shrink-0" title={order.notes}>
                               📝
@@ -1716,6 +1876,46 @@ export default function ShopOrdersPanel() {
                 <option value="ready" className="bg-[#121212] text-white">Ready Only</option>
                 <option value="all_active" className="bg-[#121212] text-white">All Active (New + Ready + Dispatch)</option>
                 <option value="all" className="bg-[#121212] text-white">All Orders (excl. Cancelled)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Size Breakdown Bar */}
+          <div className="glass-panel border border-[var(--panel-border)] rounded-3xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-black/10">
+            <div className="flex flex-col gap-1.5">
+              <h3 className="text-xs font-black uppercase tracking-widest text-[var(--muted)] flex items-center gap-1.5">
+                📦 Order Size Breakdown ({selectedColorFilter === 'all' ? 'In General' : `${selectedColorFilter} Only`})
+              </h3>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {sizeBreakdown.length === 0 ? (
+                  <span className="text-xs text-[var(--muted)] italic">No items found matching the current filter.</span>
+                ) : (
+                  sizeBreakdown.map(size => (
+                    <div key={size.label} className="flex items-center gap-2 px-3 py-2 bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-2xl">
+                      <span className="font-mono text-xs text-accent font-black uppercase">{size.label}</span>
+                      <span className="w-px h-3 bg-white/10" />
+                      <span className="text-sm font-black text-white">{size.qty} pcs</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Color Filter Selector */}
+            <div className="flex items-center gap-2 bg-[var(--panel-bg)] border border-[var(--panel-border)] px-4 py-2.5 rounded-2xl self-start md:self-auto">
+              <span className="text-xs font-bold text-[var(--muted)]">Filter by Color:</span>
+              <select
+                value={selectedColorFilter}
+                onChange={e => setSelectedColorFilter(e.target.value)}
+                className="bg-transparent text-xs font-black outline-none border-none cursor-pointer pr-4 text-white [color-scheme:dark]"
+              >
+                <option value="all" className="bg-[#121212] text-white">🌈 All Colors</option>
+                <option value="White" className="bg-[#121212] text-white">⚪ White</option>
+                <option value="Black/Blue" className="bg-[#121212] text-white">🔵 Black/Blue</option>
+                <option value="Yellow" className="bg-[#121212] text-white">🟡 Yellow</option>
+                <option value="Green" className="bg-[#121212] text-white">🟢 Green</option>
+                <option value="Red" className="bg-[#121212] text-white">🔴 Red</option>
+                <option value="Other" className="bg-[#121212] text-white">⚫ Other</option>
               </select>
             </div>
           </div>

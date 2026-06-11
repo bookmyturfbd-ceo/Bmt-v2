@@ -1,5 +1,5 @@
-const apiKey = 'zmwqzf5xtse98zob0cdtauhdoldmsqei';
-const secretKey = '9anzu702znyhxmqjtkifwnar';
+const apiKey = 'ceuaml7bupbx2os7ml2xste5qnwgrkni';
+const secretKey = '5icxfasrofpz27ailwonc2oq';
 const baseUrl = 'https://portal.packzy.com/api/v1';
 
 async function test() {
