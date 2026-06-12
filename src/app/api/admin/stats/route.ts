@@ -47,10 +47,10 @@ export async function GET(req: NextRequest) {
       // Shop Orders
       const shopOrdersAgg = await prisma.shopOrder.aggregate({
         _sum: { total: true },
-        where: { status: { notIn: ['canceled', 'cancelled'] } }
+        where: { status: { notIn: ['canceled', 'cancelled', 'no_answer'] } }
       });
       const shopOrdersCount = await prisma.shopOrder.count({
-        where: { status: { notIn: ['canceled', 'cancelled'] } }
+        where: { status: { notIn: ['canceled', 'cancelled', 'no_answer'] } }
       });
 
       // Challenge Market

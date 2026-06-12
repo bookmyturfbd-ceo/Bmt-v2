@@ -53,7 +53,7 @@ export default function ShopIncomePanel() {
 
   const todayStr = new Date().toISOString().split('T')[0];
 
-  const activeOrders = useMemo(() => orders.filter(o => o.status !== 'canceled' && o.status !== 'cancelled'), [orders]);
+  const activeOrders = useMemo(() => orders.filter(o => o.status !== 'canceled' && o.status !== 'cancelled' && o.status !== 'no_answer'), [orders]);
   const todayOrders = useMemo(() => activeOrders.filter(o => o.createdAt.startsWith(todayStr)), [activeOrders, todayStr]);
 
   // Aggregate by subcategory (parentId !== null) across all active orders

@@ -810,12 +810,12 @@ export default function ShopOrdersPanel() {
 
   const ratioData = useMemo(() => {
     const filteredOrders = orders.filter(o => {
-      if (o.status === 'canceled' || o.status === 'cancelled') return false;
+      if (o.status === 'canceled' || o.status === 'cancelled' || o.status === 'no_answer') return false;
       if (ratioStatusFilter === 'new') return o.status === 'new';
       if (ratioStatusFilter === 'ready') return o.status === 'ready';
       if (ratioStatusFilter === 'active') return o.status === 'new' || o.status === 'ready';
       if (ratioStatusFilter === 'all_active') return o.status === 'new' || o.status === 'ready' || o.status === 'on_the_way';
-      return true; // 'all' (excluding cancelled)
+      return true; // 'all' (excluding cancelled and no answer)
     });
 
     const parentMap: Record<string, {
@@ -954,7 +954,7 @@ export default function ShopOrdersPanel() {
     if (!selectedParentCategoryId) return [];
 
     const filteredOrders = orders.filter(o => {
-      if (o.status === 'canceled' || o.status === 'cancelled') return false;
+      if (o.status === 'canceled' || o.status === 'cancelled' || o.status === 'no_answer') return false;
       if (ratioStatusFilter === 'new') return o.status === 'new';
       if (ratioStatusFilter === 'ready') return o.status === 'ready';
       if (ratioStatusFilter === 'active') return o.status === 'new' || o.status === 'ready';
@@ -1344,12 +1344,12 @@ export default function ShopOrdersPanel() {
   const todayStr = new Date().toISOString().split('T')[0];
   const viewDay = sortedDays[historyDayOffset] ?? todayStr;
   const viewOrders = byDay[viewDay] ?? [];
-  const viewRevenue = viewOrders.filter(o => o.status !== 'canceled' && o.status !== 'cancelled').reduce((s: number, o: any) => s + (o.total ?? 0), 0);
-  const viewCount = viewOrders.filter(o => o.status !== 'canceled' && o.status !== 'cancelled').length;
+  const viewRevenue = viewOrders.filter(o => o.status !== 'canceled' && o.status !== 'cancelled' && o.status !== 'no_answer').reduce((s: number, o: any) => s + (o.total ?? 0), 0);
+  const viewCount = viewOrders.filter(o => o.status !== 'canceled' && o.status !== 'cancelled' && o.status !== 'no_answer').length;
 
   const todayOrders = byDay[todayStr] ?? [];
-  const todayRevenue = todayOrders.filter(o => o.status !== 'canceled' && o.status !== 'cancelled').reduce((s: number, o: any) => s + (o.total ?? 0), 0);
-  const lifetimeRevenue = orders.filter(o => o.status !== 'canceled' && o.status !== 'cancelled').reduce((s: number, o: any) => s + (o.total ?? 0), 0);
+  const todayRevenue = todayOrders.filter(o => o.status !== 'canceled' && o.status !== 'cancelled' && o.status !== 'no_answer').reduce((s: number, o: any) => s + (o.total ?? 0), 0);
+  const lifetimeRevenue = orders.filter(o => o.status !== 'canceled' && o.status !== 'cancelled' && o.status !== 'no_answer').reduce((s: number, o: any) => s + (o.total ?? 0), 0);
 
   // Product Selector Modal computations
   const filteredProducts = useMemo(() => {
@@ -1397,7 +1397,7 @@ export default function ShopOrdersPanel() {
 
   const sizeBreakdown = useMemo(() => {
     const filteredOrders = orders.filter(o => {
-      if (o.status === 'canceled' || o.status === 'cancelled') return false;
+      if (o.status === 'canceled' || o.status === 'cancelled' || o.status === 'no_answer') return false;
       if (ratioStatusFilter === 'new') return o.status === 'new';
       if (ratioStatusFilter === 'ready') return o.status === 'ready';
       if (ratioStatusFilter === 'active') return o.status === 'new' || o.status === 'ready';
@@ -1507,7 +1507,9 @@ export default function ShopOrdersPanel() {
               <div className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-2xl p-4 flex flex-col gap-1">
                 <p className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Orders</p>
                 <p className="text-2xl font-black text-white">{viewCount}</p>
-                <p className="text-[10px] text-[var(--muted)]">{viewOrders.filter(o => o.status === 'canceled' || o.status === 'cancelled').length} cancelled</p>
+                <p className="text-[10px] text-[var(--muted)]">
+                  {viewOrders.filter(o => o.status === 'canceled' || o.status === 'cancelled').length} cancelled · {viewOrders.filter(o => o.status === 'no_answer').length} no answer
+                </p>
               </div>
             </div>
           </div>
