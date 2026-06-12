@@ -4,7 +4,14 @@ const { moveOrder } = require('../../../../../../../telegram-bot');
 
 export async function POST(req: NextRequest) {
   try {
-    const { orderId } = await req.json();
+    const { 
+      orderId, 
+      recipientName, 
+      recipientPhone, 
+      recipientAddress, 
+      codAmount, 
+      note 
+    } = await req.json();
 
     if (!orderId) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
@@ -34,7 +41,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Normalize phone number (must be 11 digits)
-    let cleanPhone = order.customerPhone.replace(/\D/g, '');
+    const rawPhone = recipientPhone || order.customerPhone;
+    let cleanPhone = rawPhone.replace(/\D/g, '');
     if (cleanPhone.startsWith('880')) {
       cleanPhone = cleanPhone.slice(2);
     } else if (cleanPhone.startsWith('80') && cleanPhone.length > 11) {
@@ -49,12 +57,15 @@ export async function POST(req: NextRequest) {
 
     if (cleanPhone.length !== 11) {
       return NextResponse.json({
-        error: `Invalid phone number for courier: ${order.customerPhone}. Must be 11 digits.`
+        error: `Invalid phone number for courier: ${rawPhone}. Must be 11 digits.`
       }, { status: 400 });
     }
 
-    // Determine COD amount (0 if paid via wallet)
-    const codAmount = order.paymentMethod === 'wallet' ? 0 : order.total;
+    // Determine COD amount (use custom if provided, else 0 for wallet, else order total)
+    const finalCodAmount = codAmount !== undefined ? Number(codAmount) : (order.paymentMethod === 'wallet' ? 0 : order.total);
+    const finalName = recipientName || order.customerName;
+    const finalAddress = recipientAddress || `${order.address}, ${order.district}`;
+    const finalNote = note !== undefined ? note : (order.notes || 'BMT Shop order');
 
     const apiKey = process.env.STEADFAST_API_KEY;
     const secretKey = process.env.STEADFAST_SECRET_KEY;
@@ -67,11 +78,11 @@ export async function POST(req: NextRequest) {
     // Steadfast Order Payload
     const payload = {
       invoice: order.id,
-      recipient_name: order.customerName,
+      recipient_name: finalName,
       recipient_phone: cleanPhone,
-      recipient_address: `${order.address}, ${order.district}`,
-      cod_amount: codAmount,
-      note: order.notes || 'BMT Shop order'
+      recipient_address: finalAddress,
+      cod_amount: finalCodAmount,
+      note: finalNote
     };
 
     const response = await fetch(`${baseUrl}/create_order`, {
@@ -105,13 +116,17 @@ export async function POST(req: NextRequest) {
 
     const consignment = data.consignment;
 
-    // Update database with consignment details
+    // Update database with consignment details and copy custom recipient inputs
     await prisma.shopOrder.update({
       where: { id: order.id },
       data: {
         steadfastConsignmentId: consignment.consignment_id.toString(),
         steadfastTrackingCode: consignment.tracking_code,
         steadfastStatus: consignment.status,
+        customerName: finalName,
+        customerPhone: rawPhone,
+        address: recipientAddress ? recipientAddress.replace(`, ${order.district}`, '').trim() : order.address,
+        notes: finalNote
       }
     });
 

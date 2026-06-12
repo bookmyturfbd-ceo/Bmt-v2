@@ -141,17 +141,45 @@ function FraudCheckPill({ phone }: { phone: string }) {
   );
 }
 
-function CourierAndFraudCheckPanel({ order, onStatusUpdated }: { order: any; onStatusUpdated: () => void }) {
+function CourierAndFraudCheckPanel({ 
+  order, 
+  onStatusUpdated,
+  onBookSuccess
+}: { 
+  order: any; 
+  onStatusUpdated: () => void;
+  onBookSuccess: (consignmentId: string, trackingCode: string) => void;
+}) {
   const [booking, setBooking] = useState(false);
   const [fraudData, setFraudData] = useState<any>(null);
   const [loadingFraud, setLoadingFraud] = useState(false);
   const [fraudError, setFraudError] = useState<string | null>(null);
 
-  // Success Modal States
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [bookedConsignmentId, setBookedConsignmentId] = useState<string | null>(null);
-  const [bookedTrackingCode, setBookedTrackingCode] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  // Pre-booking Edit Modal States
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [recipientName, setRecipientName] = useState(order.customerName || '');
+  const [recipientPhone, setRecipientPhone] = useState(order.customerPhone || '');
+  const [recipientAddress, setRecipientAddress] = useState(`${order.address || ''}, ${order.district || ''}`);
+  const [codAmount, setCodAmount] = useState<number>(order.paymentMethod === 'wallet' ? 0 : (order.total || 0));
+
+  const itemSummary = useMemo(() => {
+    return (order.items || []).map((item: any) => 
+      `${item.product?.name || 'Product'} - ${item.sizeLabel} x${item.quantity}`
+    ).join(', ');
+  }, [order.items]);
+
+  const [note, setNote] = useState(() => {
+    return `${itemSummary}${order.notes ? ` (${order.notes})` : ''}`;
+  });
+
+  // Re-sync states when order changes
+  useEffect(() => {
+    setRecipientName(order.customerName || '');
+    setRecipientPhone(order.customerPhone || '');
+    setRecipientAddress(`${order.address || ''}, ${order.district || ''}`);
+    setCodAmount(order.paymentMethod === 'wallet' ? 0 : (order.total || 0));
+    setNote(`${itemSummary}${order.notes ? ` (${order.notes})` : ''}`);
+  }, [order, itemSummary]);
 
   useEffect(() => {
     if (!order.customerPhone) return;
@@ -184,34 +212,27 @@ function CourierAndFraudCheckPanel({ order, onStatusUpdated }: { order: any; onS
       const res = await fetch('/api/shop/courier/steadfast/book', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: order.id }),
+        body: JSON.stringify({ 
+          orderId: order.id,
+          recipientName,
+          recipientPhone,
+          recipientAddress,
+          codAmount,
+          note
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
         alert(data.error || 'Failed to book order with Steadfast');
       } else {
-        setBookedConsignmentId(data.consignmentId || '');
-        setBookedTrackingCode(data.trackingCode || '');
-        setShowSuccessModal(true);
+        setShowEditModal(false);
+        onBookSuccess(data.consignmentId || '', data.trackingCode || '');
       }
     } catch (err) {
       console.error(err);
       alert('Error booking order');
     } finally {
       setBooking(false);
-    }
-  };
-
-  const handleCloseSuccessModal = () => {
-    setShowSuccessModal(false);
-    onStatusUpdated();
-  };
-
-  const handleCopyCode = () => {
-    if (bookedConsignmentId) {
-      navigator.clipboard.writeText(bookedConsignmentId);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -251,11 +272,11 @@ function CourierAndFraudCheckPanel({ order, onStatusUpdated }: { order: any; onS
         ) : (
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <p className="text-xs text-[var(--muted)] leading-relaxed flex-1">
-              This order has not been dispatched to Steadfast Courier yet. You can automatically create a consignment booking.
+              This order has not been dispatched to Steadfast Courier yet. You can review and book a consignment.
             </p>
             <button
               type="button"
-              onClick={handleBookOrder}
+              onClick={() => setShowEditModal(true)}
               disabled={booking || order.status === 'canceled' || order.status === 'cancelled'}
               className="py-2.5 px-6 bg-accent hover:brightness-110 text-black font-black text-xs rounded-xl transition-all shadow-md shadow-accent/10 flex items-center justify-center gap-1.5 disabled:opacity-40 select-none cursor-pointer shrink-0"
             >
@@ -322,75 +343,127 @@ function CourierAndFraudCheckPanel({ order, onStatusUpdated }: { order: any; onS
         </div>
       </div>
 
-      {/* Success Modal Popup */}
-      {showSuccessModal && (
+      {/* Pre-booking Edit Modal */}
+      {showEditModal && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="bg-neutral-900 border border-white/10 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl relative flex flex-col p-6 animate-in zoom-in-95 duration-200">
-            {/* Close Button */}
-            <button
-              type="button"
-              onClick={handleCloseSuccessModal}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors text-white"
-            >
-              <X size={16} />
-            </button>
-
-            {/* Modal Content */}
-            <div className="flex flex-col items-center justify-center gap-4 text-center mt-4">
-              <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                <Truck className="text-emerald-400" size={24} />
-              </div>
-              
-              <div>
-                <h3 className="text-lg font-black text-white">Consignment Booked!</h3>
-                <p className="text-xs text-[var(--muted)] mt-1">
-                  Steadfast Courier consignment successfully created.
-                </p>
-              </div>
-
-              {/* Large Consignment ID Block */}
-              <div className="w-full flex flex-col items-center justify-center p-5 bg-black/40 border border-white/5 rounded-2xl gap-2.5 mt-2 relative">
-                <span className="text-[9px] text-accent uppercase font-black tracking-widest">
-                  Write on parcel ✏️
-                </span>
-                
-                {/* Large Code */}
-                <span className="text-4xl font-black text-white font-mono tracking-widest select-all">
-                  {bookedConsignmentId}
-                </span>
-
-                {/* Copy Button */}
-                <button
-                  type="button"
-                  onClick={handleCopyCode}
-                  className="mt-1.5 px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1 cursor-pointer select-none"
-                >
-                  {copied ? 'Copied! ✓' : 'Copy Code 📋'}
-                </button>
-              </div>
-
-              {/* Tracking Link */}
-              {bookedTrackingCode && (
-                <div className="flex flex-col items-center gap-1 text-[11px] text-[var(--muted)]">
-                  <span>Tracking Code: <strong className="text-white font-mono">{bookedTrackingCode}</strong></span>
-                  <a
-                    href={`https://steadfast.com.bd/t/${bookedTrackingCode}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-accent font-bold hover:underline mt-1 flex items-center gap-1"
-                  >
-                    Track Shipment 🌐
-                  </a>
-                </div>
-              )}
-
-              {/* Confirm / Continue Button */}
+          <div className="bg-neutral-900 border border-white/10 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl relative flex flex-col animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="p-5 border-b border-white/10 flex items-center justify-between bg-black/25">
+              <h3 className="font-black text-sm text-white flex items-center gap-2">
+                <Truck size={16} className="text-accent animate-pulse" />
+                Steadfast Courier Booking Details
+              </h3>
               <button
                 type="button"
-                onClick={handleCloseSuccessModal}
-                className="w-full mt-4 py-3 bg-accent hover:brightness-110 text-black font-black text-sm rounded-xl transition-all shadow-md shadow-accent/15 cursor-pointer select-none"
+                onClick={() => setShowEditModal(false)}
+                className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors text-white"
               >
-                Okay, Done
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto max-h-[70vh] flex flex-col gap-4 bg-black/5 text-xs text-white">
+              <p className="text-[11px] text-[var(--muted)] leading-relaxed">
+                Review and adjust the shipment details before dispatching to Steadfast Courier.
+              </p>
+
+              {/* Recipient Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[9px] font-black uppercase tracking-wider text-[var(--muted)]">
+                    Recipient Name
+                  </label>
+                  <input
+                    type="text"
+                    value={recipientName}
+                    onChange={(e) => setRecipientName(e.target.value)}
+                    className="w-full bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-3.5 py-2.5 outline-none focus:border-accent text-xs text-white font-bold"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[9px] font-black uppercase tracking-wider text-[var(--muted)]">
+                    Recipient Phone
+                  </label>
+                  <input
+                    type="text"
+                    value={recipientPhone}
+                    onChange={(e) => setRecipientPhone(e.target.value)}
+                    className="w-full bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-3.5 py-2.5 outline-none focus:border-accent text-xs text-white font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* COD Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[9px] font-black uppercase tracking-wider text-[var(--muted)]">
+                    COD Amount (৳)
+                  </label>
+                  <input
+                    type="number"
+                    value={codAmount}
+                    onChange={(e) => setCodAmount(Number(e.target.value))}
+                    className="w-full bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-3.5 py-2.5 outline-none focus:border-accent text-xs text-white font-bold"
+                    min={0}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5 justify-center">
+                  <span className="text-[9px] text-[var(--muted)] leading-relaxed">
+                    Default COD is 0 for wallet purchases, and order total for others.
+                  </span>
+                </div>
+              </div>
+
+              {/* Note / Product Details */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[9px] font-black uppercase tracking-wider text-[var(--muted)]">
+                  Note / Product Details (Sent to Steadfast)
+                </label>
+                <textarea
+                  rows={2}
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  className="w-full bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-3.5 py-2.5 outline-none focus:border-accent text-xs text-white resize-none font-bold"
+                  placeholder="Spain Polo - XL x 1, etc..."
+                />
+              </div>
+
+              {/* Recipient Address */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[9px] font-black uppercase tracking-wider text-[var(--muted)]">
+                  Delivery Address (Including District)
+                </label>
+                <textarea
+                  rows={3}
+                  value={recipientAddress}
+                  onChange={(e) => setRecipientAddress(e.target.value)}
+                  className="w-full bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-3.5 py-2.5 outline-none focus:border-accent text-xs text-white resize-none font-bold"
+                  placeholder="Street address, landmarks, district"
+                />
+                <span className="text-[9px] text-yellow-400/80 leading-normal">
+                  ⚠️ Steadfast requires area details and district name explicitly written in the address field.
+                </span>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-white/10 bg-black/25 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-xs rounded-xl transition-all"
+              >
+                Cancel ❌
+              </button>
+              <button
+                type="button"
+                onClick={handleBookOrder}
+                disabled={booking}
+                className="px-5 py-2 bg-accent hover:brightness-110 text-black font-black text-xs rounded-xl transition-all shadow-md shadow-accent/15 flex items-center gap-1.5"
+              >
+                {booking && <Loader2 size={12} className="animate-spin" />}
+                Confirm & Book Consignment 🚚
               </button>
             </div>
           </div>
@@ -406,6 +479,13 @@ export default function ShopOrdersPanel() {
   const [allProducts, setAllProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
+
+  // Steadfast Success Modal state at parent level
+  const [steadfastSuccessData, setSteadfastSuccessData] = useState<{
+    consignmentId: string;
+    trackingCode: string;
+  } | null>(null);
+  const [copiedSuccessCode, setCopiedSuccessCode] = useState(false);
 
   useEffect(() => {
     setRole(getCookie('bmt_role'));
@@ -2105,7 +2185,14 @@ export default function ShopOrdersPanel() {
                           </div>
 
                             {/* Courier Booking & Fraud Check Panel */}
-                            <CourierAndFraudCheckPanel order={order} onStatusUpdated={() => load(true)} />
+                            <CourierAndFraudCheckPanel 
+                               order={order} 
+                               onStatusUpdated={() => load(true)} 
+                               onBookSuccess={(consignmentId, trackingCode) => {
+                                 setSteadfastSuccessData({ consignmentId, trackingCode });
+                                 load(true);
+                               }}
+                             />
 
                             {/* Status actions */}
                             <div className="flex flex-wrap gap-2 pt-2 border-t border-[var(--panel-border)]/50 items-center">
@@ -2801,6 +2888,89 @@ export default function ShopOrdersPanel() {
               >
                 {updatingId !== null && <Loader2 size={12} className="animate-spin" />}
                 Save Note 💾
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Persistent Steadfast Success Modal */}
+      {steadfastSuccessData && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-neutral-900 border border-white/10 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl relative flex flex-col p-6 animate-in zoom-in-95 duration-200">
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setSteadfastSuccessData(null);
+              }}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors text-white"
+            >
+              <X size={16} />
+            </button>
+
+            {/* Modal Content */}
+            <div className="flex flex-col items-center justify-center gap-4 text-center mt-4">
+              <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                <Truck className="text-emerald-400" size={24} />
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-black text-white">Consignment Booked!</h3>
+                <p className="text-xs text-[var(--muted)] mt-1">
+                  Steadfast Courier consignment successfully created.
+                </p>
+              </div>
+
+              {/* Large Consignment ID Block */}
+              <div className="w-full flex flex-col items-center justify-center p-5 bg-black/40 border border-white/5 rounded-2xl gap-2.5 mt-2 relative">
+                <span className="text-[9px] text-accent uppercase font-black tracking-widest">
+                  Write on parcel ✏️
+                </span>
+                
+                {/* Large Code */}
+                <span className="text-4xl font-black text-white font-mono tracking-widest select-all">
+                  {steadfastSuccessData.consignmentId}
+                </span>
+
+                {/* Copy Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(steadfastSuccessData.consignmentId);
+                    setCopiedSuccessCode(true);
+                    setTimeout(() => setCopiedSuccessCode(false), 2000);
+                  }}
+                  className="mt-1.5 px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-[10px] font-bold rounded-lg transition-colors flex items-center gap-1 cursor-pointer select-none"
+                >
+                  {copiedSuccessCode ? 'Copied! ✓' : 'Copy Code 📋'}
+                </button>
+              </div>
+
+              {/* Tracking Link */}
+              {steadfastSuccessData.trackingCode && (
+                <div className="flex flex-col items-center gap-1 text-[11px] text-[var(--muted)]">
+                  <span>Tracking Code: <strong className="text-white font-mono">{steadfastSuccessData.trackingCode}</strong></span>
+                  <a
+                    href={`https://steadfast.com.bd/t/${steadfastSuccessData.trackingCode}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent font-bold hover:underline mt-1 flex items-center gap-1"
+                  >
+                    Track Shipment 🌐
+                  </a>
+                </div>
+              )}
+
+              {/* Confirm / Continue Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSteadfastSuccessData(null);
+                }}
+                className="w-full mt-4 py-3 bg-accent hover:brightness-110 text-black font-black text-sm rounded-xl transition-all shadow-md shadow-accent/15 cursor-pointer select-none"
+              >
+                Okay, Done
               </button>
             </div>
           </div>
