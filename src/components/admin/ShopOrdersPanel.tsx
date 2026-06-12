@@ -1226,6 +1226,9 @@ export default function ShopOrdersPanel() {
       list = list.filter(o => {
         const nameMatches = o.customerName?.toLowerCase().includes(query);
         const emailMatches = o.customerEmail?.toLowerCase().includes(query);
+        const steadfastConsignmentMatches = o.steadfastConsignmentId?.toLowerCase().includes(query);
+        const steadfastTrackingMatches = o.steadfastTrackingCode?.toLowerCase().includes(query);
+        const orderIdMatches = o.id?.toLowerCase().includes(query);
         
         let phoneMatches = false;
         if (o.customerPhone) {
@@ -1239,7 +1242,7 @@ export default function ShopOrdersPanel() {
           }
         }
 
-        return nameMatches || emailMatches || phoneMatches;
+        return nameMatches || emailMatches || phoneMatches || steadfastConsignmentMatches || steadfastTrackingMatches || orderIdMatches;
       });
     }
 
