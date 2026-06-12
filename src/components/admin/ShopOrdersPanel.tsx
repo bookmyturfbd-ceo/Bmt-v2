@@ -346,9 +346,9 @@ function CourierAndFraudCheckPanel({
       {/* Pre-booking Edit Modal */}
       {showEditModal && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="bg-neutral-900 border border-white/10 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl relative flex flex-col animate-in zoom-in-95 duration-200">
+          <div className="bg-neutral-900 border border-white/10 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh] md:max-h-[85vh] animate-in zoom-in-95 duration-200">
             {/* Header */}
-            <div className="p-5 border-b border-white/10 flex items-center justify-between bg-black/25">
+            <div className="p-5 border-b border-white/10 flex items-center justify-between bg-black/25 shrink-0">
               <h3 className="font-black text-sm text-white flex items-center gap-2">
                 <Truck size={16} className="text-accent animate-pulse" />
                 Steadfast Courier Booking Details
@@ -363,7 +363,7 @@ function CourierAndFraudCheckPanel({
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 overflow-y-auto max-h-[70vh] flex flex-col gap-4 bg-black/5 text-xs text-white">
+            <div className="p-6 overflow-y-auto flex-1 flex flex-col gap-4 bg-black/5 text-xs text-white">
               <p className="text-[11px] text-[var(--muted)] leading-relaxed">
                 Review and adjust the shipment details before dispatching to Steadfast Courier.
               </p>
@@ -448,7 +448,7 @@ function CourierAndFraudCheckPanel({
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-white/10 bg-black/25 flex justify-end gap-3">
+            <div className="p-4 border-t border-white/10 bg-black/25 flex justify-end gap-3 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowEditModal(false)}
@@ -2897,20 +2897,20 @@ export default function ShopOrdersPanel() {
       {/* Persistent Steadfast Success Modal */}
       {steadfastSuccessData && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="bg-neutral-900 border border-white/10 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl relative flex flex-col p-6 animate-in zoom-in-95 duration-200">
+          <div className="bg-neutral-900 border border-white/10 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh] md:max-h-[85vh] p-6 animate-in zoom-in-95 duration-200">
             {/* Close Button */}
             <button
               type="button"
               onClick={() => {
                 setSteadfastSuccessData(null);
               }}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors text-white"
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors text-white z-10"
             >
               <X size={16} />
             </button>
 
             {/* Modal Content */}
-            <div className="flex flex-col items-center justify-center gap-4 text-center mt-4">
+            <div className="flex flex-col items-center justify-center gap-4 text-center mt-4 overflow-y-auto flex-1 px-1">
               <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
                 <Truck className="text-emerald-400" size={24} />
               </div>
