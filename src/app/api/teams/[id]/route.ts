@@ -98,6 +98,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ ok: true, isSubscribed: t.isSubscribed });
     }
 
+    if (action === 'change_sport_type') {
+      if (!isOM) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+      const { sportType } = payload || {};
+      if (!sportType) return NextResponse.json({ error: 'Sport type is required' }, { status: 400 });
+      const validSports = ['FUTSAL_5', 'FUTSAL_6', 'FUTSAL_7', 'CRICKET_7', 'FOOTBALL_FULL', 'CRICKET_FULL'];
+      if (!validSports.includes(sportType)) {
+        return NextResponse.json({ error: 'Invalid sport type' }, { status: 400 });
+      }
+      const updatedTeam = await prisma.team.update({
+        where: { id },
+        data: { sportType: sportType as any }
+      });
+      return NextResponse.json({ ok: true, sportType: updatedTeam.sportType });
+    }
+
     if (action === 'add_member') {
       if (!isOM) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
       

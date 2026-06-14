@@ -830,10 +830,9 @@ export default function InteractionBoardPage() {
                   disabled={saving}
                   className="relative w-full p-5 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-900/40 to-orange-900/20 text-left hover:border-amber-400/50 transition-all active:scale-[0.98] disabled:opacity-50"
                 >
-                  <span className="absolute top-3 right-3 text-[8px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">PAID</span>
                   <div className="text-3xl mb-2">📋</div>
                   <p className="text-base font-black text-white">We'll Book Ourselves</p>
-                  <p className="text-xs text-neutral-400 mt-1">Use an external turf. Match fee of ৳{wbtFee} applies (৳{wbtFee/2} each). Manage your own booking.</p>
+                  <p className="text-xs text-neutral-400 mt-1">Use an external turf. Manage your own booking.</p>
                   {saving && <Loader2 size={14} className="absolute bottom-3 right-3 animate-spin text-amber-400" />}
                 </button>
               </div>
@@ -899,7 +898,7 @@ export default function InteractionBoardPage() {
                 <p className="text-xs text-neutral-400 mt-1">
                   {match.venueType === 'BMT'
                     ? "Search our platform's verified turfs. Opponent picks the slot, you accept."
-                    : `Use an external turf. Match fee of ৳${wbtFee} applies (৳${wbtFee/2} each).`}
+                    : 'Use an external turf. Manage your own booking.'}
                 </p>
               </div>
               <div className="flex gap-3">
@@ -1163,9 +1162,6 @@ export default function InteractionBoardPage() {
 
       {/* ── STEP 3b: OPEN WBT BOOKING ── */}
       {currentStep === 3 && (venueTypeLocal ?? match.venueType) === 'OPEN_WBT' && (() => {
-        const myPaid = isTeamA ? match.wbtPaymentA : match.wbtPaymentB;
-        const oppPaid = isTeamA ? match.wbtPaymentB : match.wbtPaymentA;
-        const perTeam = wbtFee / 2 - (match.wbtCouponDiscount ?? 0);
         const turfSelected = !!match.wbtTurfId;
 
         return (
@@ -1212,7 +1208,12 @@ export default function InteractionBoardPage() {
                         setSaving(true); setMsg('');
                         const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'select_wbt_turf', wbtTurfId: selectedWbtTurf.id, wbtFrom, wbtTo, matchDate: wbtMatchDate }) });
                         const d = await r.json();
-                        if (r.ok) { setMsg('✅ Turf selected!'); loadMatch(); }
+                        if (r.ok) { 
+                          setMsg('✅ Turf selected! Booking confirmed.'); 
+                          setCurrentStep(4);
+                          router.push(`/${locale}/interact`);
+                          loadMatch(); 
+                        }
                         else setMsg('❌ ' + d.error);
                         setSaving(false);
                       }}
@@ -1223,95 +1224,6 @@ export default function InteractionBoardPage() {
                       Confirm Turf &amp; Time
                     </button>
                   </div>
-                )}
-              </div>
-            )}
-
-            {/* ── Section 2: Turf confirmed — show details + payment ── */}
-            {turfSelected && (
-              <div className="mt-3 flex flex-col gap-3">
-                {/* Turf info card */}
-                <div className="p-4 bg-amber-900/10 border border-amber-500/20 rounded-2xl">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-1">External Turf Selected</p>
-                  <p className="font-black text-white">{match.wbtTurfName}</p>
-                  <p className="text-xs text-neutral-400 mt-0.5">📅 {match.matchDate} · 🕒 {match.wbtFrom}–{match.wbtTo}</p>
-                </div>
-
-                {/* Payment status cards */}
-                <div className="grid grid-cols-2 gap-2">
-                  {[{ name: match.teamA?.name, paid: match.wbtPaymentA }, { name: match.teamB?.name, paid: match.wbtPaymentB }].map((t, i) => (
-                    <div key={i} className={`p-3 rounded-xl border text-center ${t.paid ? 'bg-[#00ff41]/10 border-[#00ff41]/30' : 'bg-neutral-900 border-white/10'}`}>
-                      <p className="text-[9px] font-black uppercase tracking-widest text-neutral-500 mb-0.5">{t.name}</p>
-                      {t.paid
-                        ? <p className="text-[#00ff41] font-black text-xs flex items-center justify-center gap-1"><CheckCircle size={11} /> Paid</p>
-                        : <p className="text-neutral-500 text-xs font-bold">৳{perTeam.toFixed(0)} pending</p>
-                      }
-                    </div>
-                  ))}
-                </div>
-
-                {/* Coupon (only if not yet paid) */}
-                {!myPaid && isOMC && (
-                  <div className="flex gap-2">
-                    <input value={couponCode} onChange={e => setCouponCode(e.target.value.toUpperCase())}
-                      placeholder="Coupon code (optional)"
-                      className="flex-1 bg-neutral-900 border border-white/10 rounded-xl px-3 py-2.5 text-sm font-mono text-white outline-none focus:border-amber-500/50 placeholder:text-neutral-600" />
-                    <button
-                      onClick={async () => {
-                        if (!couponCode) return;
-                        setSaving(true); setMsg('');
-                        const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'apply_wbt_coupon', couponCode }) });
-                        const d = await r.json();
-                        if (r.ok) { setCouponDiscount(d.discount); setMsg(`✅ Coupon applied — ৳${d.discount} off each team`); loadMatch(); }
-                        else setMsg('❌ ' + d.error);
-                        setSaving(false);
-                      }}
-                      disabled={saving || !couponCode}
-                      className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs rounded-xl disabled:opacity-50 transition-all"
-                    >
-                      Apply
-                    </button>
-                  </div>
-                )}
-                {match.wbtCouponCode && (
-                  <p className="text-xs font-bold text-amber-400 flex items-center gap-1.5"><CheckCircle size={11} /> Coupon <span className="font-mono">{match.wbtCouponCode}</span> — ৳{(match.wbtCouponDiscount??0).toFixed(0)} off each team</p>
-                )}
-
-                {/* Fee summary */}
-                <div className="p-3 bg-neutral-900 border border-white/10 rounded-xl text-xs">
-                  <div className="flex justify-between mb-1"><span className="text-neutral-500">Match Fee</span><span className="font-bold">৳{wbtFee}</span></div>
-                  {(match.wbtCouponDiscount ?? 0) > 0 && <div className="flex justify-between mb-1 text-amber-400"><span>Coupon discount (each)</span><span>-৳{(match.wbtCouponDiscount??0).toFixed(0)}</span></div>}
-                  <div className="flex justify-between font-black text-white border-t border-white/10 pt-1 mt-1"><span>Your share</span><span>৳{Math.max(0, perTeam).toFixed(0)}</span></div>
-                </div>
-
-                {/* Pay button */}
-                {isOMC && !myPaid && (
-                  <button
-                    onClick={async () => {
-                      setSaving(true); setMsg('');
-                      const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'pay_wbt' }) });
-                      const d = await r.json();
-                      if (r.ok) {
-                        setMsg(d.bothPaid ? '✅ Both paid! Booking confirmed.' : '✅ Payment sent — waiting for opponent');
-                        if (d.bothPaid) { setCurrentStep(4); router.push(`/${locale}/interact`); }
-                        loadMatch();
-                      } else setMsg('❌ ' + d.error);
-                      setSaving(false);
-                    }}
-                    disabled={saving}
-                    className="w-full py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-black font-black text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 active:scale-[0.98]"
-                  >
-                    {saving ? <Loader2 size={16} className="animate-spin" /> : `Pay ৳${Math.max(0, perTeam).toFixed(0)} from Wallet`}
-                  </button>
-                )}
-                {myPaid && !oppPaid && (
-                  <div className="p-4 bg-[#00ff41]/5 border border-[#00ff41]/20 rounded-2xl text-center">
-                    <p className="text-[#00ff41] font-black text-sm mb-1">✅ You've paid!</p>
-                    <p className="text-xs text-neutral-400 flex items-center justify-center gap-1.5"><Clock size={10} className="animate-spin" /> Waiting for {isTeamA ? match.teamB?.name : match.teamA?.name} to pay…</p>
-                  </div>
-                )}
-                {!isOMC && !myPaid && (
-                  <p className="text-xs text-neutral-500 text-center py-2">Only OMC can make payment</p>
                 )}
               </div>
             )}

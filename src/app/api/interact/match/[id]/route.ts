@@ -386,13 +386,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // ── select_wbt_turf ───────────────────────────────────────────────────────
     if (action === 'select_wbt_turf') {
       if (!isOMC || !isTeamA) return NextResponse.json({ error: 'Only challenger OMC can select WBT turf' }, { status: 403 });
+      if (!match.rosterLockedA || !match.rosterLockedB) return NextResponse.json({ error: 'Both teams must lock rosters before booking' }, { status: 400 });
       const { wbtTurfId, wbtFrom, wbtTo, matchDate } = body;
       if (!wbtTurfId || !wbtFrom || !wbtTo || !matchDate) return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
       const turf = await prisma.wbtTurf.findUnique({ where: { id: wbtTurfId }, include: { division: true, city: true } });
       if (!turf) return NextResponse.json({ error: 'WBT Turf not found' }, { status: 404 });
-      await prisma.match.update({ where: { id: matchId }, data: { wbtTurfId, wbtTurfName: turf.name, wbtFrom, wbtTo, matchDate } });
-      await broadcastInteractEvent(matchId, 'wbt_turf_selected', { wbtTurfId, turfName: turf.name, wbtFrom, wbtTo, matchDate, city: turf.city.name });
-      return NextResponse.json({ ok: true });
+      
+      const code = Math.random().toString(36).substring(2, 6).toUpperCase();
+
+      await prisma.match.update({ 
+        where: { id: matchId }, 
+        data: { 
+          wbtTurfId, 
+          wbtTurfName: turf.name, 
+          wbtFrom, 
+          wbtTo, 
+          matchDate,
+          status: 'SCHEDULED',
+          venueBookedAt: new Date(),
+          bookingCode: code
+        } 
+      });
+      await broadcastInteractEvent(matchId, 'wbt_booking_complete', { bookingCode: code });
+      return NextResponse.json({ ok: true, bookingCode: code });
     }
 
     // ── apply_wbt_coupon ──────────────────────────────────────────────────────

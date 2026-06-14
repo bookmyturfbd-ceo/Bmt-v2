@@ -140,6 +140,8 @@ export default function SingleTeamPage() {
   const [showTurfModal, setShowTurfModal] = useState(false);
   const [showSubModal,  setShowSubModal]  = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showSportModal, setShowSportModal] = useState(false);
+  const [newSportType, setNewSportType] = useState('');
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [search, setSearch] = useState('');
@@ -370,6 +372,15 @@ export default function SingleTeamPage() {
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="text-sm">{sportEmoji}</span>
                       <span className="text-[11px] font-bold tracking-wide text-white/80 uppercase drop-shadow-sm">{sportName}</span>
+                      {isOM && (
+                        <button
+                          onClick={() => { setNewSportType(team.sportType); setShowSportModal(true); }}
+                          className="ml-1 opacity-60 hover:opacity-100 hover:text-accent transition-opacity p-0.5"
+                          title="Change Sport Type"
+                        >
+                          ✏️
+                        </button>
+                      )}
                     </div>
                     
                     <div className="flex items-center gap-2 mt-2">
@@ -464,6 +475,15 @@ export default function SingleTeamPage() {
               <div className="flex items-center gap-1.5 mt-1">
                 <span className="text-xs">{sportEmoji}</span>
                 <span className="text-[11px] font-bold tracking-wide text-[var(--muted)]">{sportName}</span>
+                {isOM && (
+                  <button
+                    onClick={() => { setNewSportType(team.sportType); setShowSportModal(true); }}
+                    className="ml-1 opacity-60 hover:opacity-100 hover:text-accent transition-opacity p-0.5"
+                    title="Change Sport Type"
+                  >
+                    ✏️
+                  </button>
+                )}
               </div>
 
               <div className="mt-2 w-full flex flex-col items-center gap-2 z-30">
@@ -1002,6 +1022,76 @@ export default function SingleTeamPage() {
                 className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl transition-all shadow-lg text-sm uppercase tracking-widest border border-red-400/30 disabled:opacity-50 flex justify-center items-center gap-2"
               >
                 {saving ? <Loader2 size={16} className="animate-spin" /> : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CHANGE SPORT TYPE MODAL */}
+      {showSportModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowSportModal(false)}>
+          <div className="bg-neutral-900 border border-white/10 rounded-3xl p-6 w-full max-w-sm flex flex-col shadow-2xl relative" onClick={e => e.stopPropagation()}>
+            <h3 className="font-black text-xl mb-1 text-white">Change Sport Type</h3>
+            <p className="text-xs text-[var(--muted)] mb-6 font-bold">
+              Select the new sport type for <span className="text-white">{team.name}</span>.
+            </p>
+
+            <div className="flex flex-col gap-2 mb-6">
+              {[
+                { value: 'FUTSAL_5', label: '5-a-side Futsal', emoji: '⚽' },
+                { value: 'FUTSAL_6', label: '6-a-side Futsal', emoji: '⚽' },
+                { value: 'FUTSAL_7', label: '7-a-side Futsal', emoji: '⚽' },
+                { value: 'CRICKET_7', label: '7-a-side Cricket', emoji: '🏏' },
+                { value: 'FOOTBALL_FULL', label: 'Football (Full 11v11)', emoji: '⚽' },
+                { value: 'CRICKET_FULL', label: 'Cricket (Full 11v11)', emoji: '🏏' },
+              ].map((sport) => (
+                <button
+                  key={sport.value}
+                  onClick={() => setNewSportType(sport.value)}
+                  className={`w-full text-left p-3 rounded-xl border transition-all flex items-center gap-3 ${
+                    newSportType === sport.value
+                      ? 'bg-accent/15 border-accent text-white font-black'
+                      : 'bg-neutral-800/50 border-white/5 text-neutral-300 hover:bg-neutral-800'
+                  }`}
+                >
+                  <span className="text-lg">{sport.emoji}</span>
+                  <span className="text-sm">{sport.label}</span>
+                  {newSportType === sport.value && <span className="ml-auto text-accent">✓</span>}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowSportModal(false)}
+                className="flex-1 py-3 bg-neutral-800 hover:bg-neutral-700 text-white font-bold rounded-xl transition-colors text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!newSportType) return;
+                  setSaving(true);
+                  const res = await fetch(`/api/teams/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'change_sport_type', payload: { sportType: newSportType } })
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    setTeam({ ...team, sportType: data.sportType });
+                    setShowSportModal(false);
+                  } else {
+                    const data = await res.json();
+                    alert(data.error || 'Failed to update sport type');
+                  }
+                  setSaving(false);
+                }}
+                disabled={saving || !newSportType || newSportType === team.sportType}
+                className="flex-1 py-3 bg-accent hover:bg-accent/80 text-black font-black rounded-xl transition-all text-sm disabled:opacity-50"
+              >
+                {saving ? <Loader2 size={16} className="animate-spin mx-auto text-black" /> : 'Save'}
               </button>
             </div>
           </div>
