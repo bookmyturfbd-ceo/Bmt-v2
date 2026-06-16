@@ -153,7 +153,7 @@ export default async function RootPage({ params }: { params: Promise<{ locale: s
     name: t.name,
     logoUrl: t.logoUrl,
     sportType: t.sportType,
-    mmr: t.sportType.includes('CRICKET') ? t.cricketMmr : t.footballMmr,
+    mmr: t.sportType?.includes('CRICKET') ? t.cricketMmr : t.footballMmr,
     members: t._count.members,
   })).sort((a, b) => b.mmr - a.mmr);
 
