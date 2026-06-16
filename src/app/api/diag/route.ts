@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     // Check if tournamentFootballMmr column exists on Team table via raw SQL
     let tournamentMmrColumnsExist = false;
     try {
-      await prisma.$queryRaw`SELECT "tournamentFootballMmr" FROM "Team" LIMIT 1`;
+      await prisma.$queryRaw`SELECT "tournamentFootballMmr" FROM "teams" LIMIT 1`;
       tournamentMmrColumnsExist = true;
     } catch {
       tournamentMmrColumnsExist = false;
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 
     // Check for teams without a sport type using raw SQL (bypasses Prisma's enum validation)
     const nullSportTypeResult = await prisma.$queryRaw<{ count: bigint }[]>`
-      SELECT COUNT(*) as count FROM "Team" WHERE "sportType" IS NULL
+      SELECT COUNT(*) as count FROM "teams" WHERE "sportType" IS NULL
     `;
     const nullSportTypeTeams = Number(nullSportTypeResult[0]?.count ?? 0);
 
