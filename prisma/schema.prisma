@@ -120,6 +120,9 @@ enum SportType {
   CRICKET_7
   FOOTBALL_FULL
   CRICKET_FULL
+  FUTSAL
+  FOOTBALL
+  CRICKET
 }
 
 enum ScoringMode {
@@ -831,6 +834,10 @@ model Team {
   footballMmr   Int      @default(1000)
   cricketMmr    Int      @default(1000)
 
+  // Tournament MMR (v3)
+  tournamentFootballMmr Int @default(1000)
+  tournamentCricketMmr  Int @default(1000)
+
   createdAt DateTime @default(now())
 
   owner   Player       @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
@@ -890,6 +897,7 @@ model Match {
   teamA_Id    String
   teamB_Id    String
   status      MatchStatus @default(PENDING)
+  sportType   SportType?
 
   // Score
   scoreA      Int         @default(0)
