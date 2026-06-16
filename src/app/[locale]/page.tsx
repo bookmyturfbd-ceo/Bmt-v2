@@ -41,8 +41,7 @@ const SPORT_EMOJIS: Record<string, string> = {
 };
 
 export default async function RootPage({ params }: { params: Promise<{ locale: string }> }) {
-  try {
-    const { locale } = await params;
+  const { locale } = await params;
   const t = await getTranslations({ locale, namespace: 'Home' });
 
   const cookieStore = await cookies();
@@ -487,19 +486,4 @@ export default async function RootPage({ params }: { params: Promise<{ locale: s
       </div>
     </div>
   );
-  } catch (err: any) {
-    return (
-      <div className="p-8 bg-neutral-900 text-red-500 font-mono text-sm overflow-auto h-screen">
-        <h1 className="text-xl font-bold mb-4 font-black">Homepage Render Error: {err.message}</h1>
-        <pre className="whitespace-pre-wrap text-xs bg-black/40 p-4 rounded-xl border border-white/5">{err.stack}</pre>
-        {err.code && <p className="mt-2 font-black">Code: {err.code}</p>}
-        {err.meta && (
-          <div className="mt-2">
-            <p className="font-black">Metadata:</p>
-            <pre className="text-xs bg-black/40 p-4 rounded-xl border border-white/5">{JSON.stringify(err.meta, null, 2)}</pre>
-          </div>
-        )}
-      </div>
-    );
-  }
 }
