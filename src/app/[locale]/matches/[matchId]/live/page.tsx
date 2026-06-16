@@ -551,6 +551,7 @@ export default function LiveScoringPage() {
         if (data.fromTeamId !== stateRef.current?.myTeamId) {
           setScoreModeRequest({ mode: data.mode, fromTeamId: data.fromTeamId, singleScorerId: data.singleScorerId });
           setShowModeGate(false);
+          loadState();
         }
       }
       if (event === 'SCORE_MODE_AGREED') {
@@ -622,7 +623,7 @@ export default function LiveScoringPage() {
     if (!m || !tid) return;
 
     const mmrDelta  = amA ? matchResult.mmrChangeA : matchResult.mmrChangeB;
-    const sportType = m.teamA?.sportType ?? 'FUTSAL_5';
+    const sportType = m.sportType ?? m.teamA?.sportType ?? 'FUTSAL_5';
     const myTeam    = amA ? m.teamA : m.teamB;
     const oppTeam   = amA ? m.teamB : m.teamA;
     const currentMmr = myTeam?.footballMmr ?? myTeam?.teamMmr ?? 1000;
@@ -886,23 +887,34 @@ export default function LiveScoringPage() {
         </div>
 
         {/* Score block */}
-        <div className="flex items-center justify-between px-4 pb-4 pt-1">
-          <div className="flex flex-col items-center gap-1 flex-1">
-            <div className="w-10 h-10 rounded-xl bg-neutral-800 border border-white/10 overflow-hidden flex items-center justify-center">
-              {match.teamA.logoUrl ? <img src={match.teamA.logoUrl} className="w-full h-full object-cover" alt="" /> : <Shield size={16} className="text-neutral-500" />}
+        <div className="flex flex-col items-center px-4 pb-4 pt-1">
+          {/* Teams names/logos row */}
+          <div className="flex items-center justify-between w-full mb-3 gap-2 px-1">
+            {/* Team A */}
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-neutral-800 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                {match.teamA.logoUrl ? <img src={match.teamA.logoUrl} className="w-full h-full object-cover" alt="" /> : <Shield size={14} className="text-neutral-500" />}
+              </div>
+              <span className="text-xs font-black text-neutral-100 break-words leading-tight">{match.teamA.name}</span>
             </div>
-            <p className="text-[10px] font-black text-neutral-400 text-center truncate max-w-[80px]">{match.teamA.name}</p>
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0 px-2">
-            <span key={`sA-${scoreA}`} className="text-7xl font-black text-white tabular-nums" style={{ animation: 'scorePop 0.4s ease-out' }}>{scoreA}</span>
-            <span className="text-2xl font-black text-neutral-600">:</span>
-            <span key={`sB-${scoreB}`} className="text-7xl font-black text-white tabular-nums" style={{ animation: 'scorePop 0.4s ease-out' }}>{scoreB}</span>
-          </div>
-          <div className="flex flex-col items-center gap-1 flex-1">
-            <div className="w-10 h-10 rounded-xl bg-neutral-800 border border-white/10 overflow-hidden flex items-center justify-center">
-              {match.teamB.logoUrl ? <img src={match.teamB.logoUrl} className="w-full h-full object-cover" alt="" /> : <Shield size={16} className="text-neutral-500" />}
+
+            {/* VS Badge */}
+            <div className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-[9px] font-black text-neutral-500 uppercase tracking-widest shrink-0 mx-2">VS</div>
+
+            {/* Team B */}
+            <div className="flex items-center justify-end gap-2 flex-1 min-w-0 text-right">
+              <span className="text-xs font-black text-neutral-100 break-words leading-tight">{match.teamB.name}</span>
+              <div className="w-8 h-8 rounded-lg bg-neutral-800 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                {match.teamB.logoUrl ? <img src={match.teamB.logoUrl} className="w-full h-full object-cover" alt="" /> : <Shield size={14} className="text-neutral-500" />}
+              </div>
             </div>
-            <p className="text-[10px] font-black text-neutral-400 text-center truncate max-w-[80px]">{match.teamB.name}</p>
+          </div>
+
+          {/* Score row (centered under) */}
+          <div className="flex items-center gap-3">
+            <span key={`sA-${scoreA}`} className="text-5xl font-black text-white tabular-nums" style={{ animation: 'scorePop 0.4s ease-out' }}>{scoreA}</span>
+            <span className="text-xl font-black text-neutral-600">:</span>
+            <span key={`sB-${scoreB}`} className="text-5xl font-black text-white tabular-nums" style={{ animation: 'scorePop 0.4s ease-out' }}>{scoreB}</span>
           </div>
         </div>
 
@@ -1321,7 +1333,7 @@ export default function LiveScoringPage() {
                     <p className="text-white font-black text-base mb-1">Individual Scoring</p>
                     <p className="text-neutral-400 text-xs">Both teams individually score for themselves on their own phones.</p>
                   </button>
-                  <button onClick={() => handleProposeMode('LIVE_SINGLE')} disabled={modeGateLoading}
+                  <button onClick={() => { setShowScorerSearch(true); setShowModeGate(false); }} disabled={modeGateLoading}
                     className="w-full p-5 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-left active:scale-[0.98] transition-all disabled:opacity-50">
                     <p className="text-purple-400 font-black text-base mb-1">Single Scorer</p>
                     <p className="text-neutral-400 text-xs">Instantly generate a secure, login-free scoring link to share with anyone to score for both teams.</p>
@@ -1361,7 +1373,7 @@ export default function LiveScoringPage() {
               <h3 className="text-xl font-black text-white mb-1">Mode Proposed</h3>
               <p className="text-sm text-neutral-400">
                 {scoreModeRequest.mode === 'LIVE_SINGLE' ? (
-                  <>Opponent wants to invite a <strong className="text-white">Single Scorer</strong> to score for both teams.</>
+                  <>Opponent wants to invite <strong className="text-white">{state?.match?.proposedSingleScorer?.fullName || 'a Single Scorer'}</strong> to score for both teams.</>
                 ) : (
                   <>Opponent wants to use <strong className="text-white">
                     {scoreModeRequest.mode === 'SCORE_AFTER' ? 'Score After Match' : 'Live Scoring'}

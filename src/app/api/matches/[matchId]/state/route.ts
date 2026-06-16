@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { createCasualScorerToken } from '@/lib/match/token-generator';
 
 function pid(req: NextRequest) {
   return req.cookies.get('bmt_player_id')?.value ?? null;
@@ -55,6 +56,7 @@ export async function GET(
               player: { select: { id: true, fullName: true, avatarUrl: true, mmr: true } } } } }
         },
         rosterPicks: true,
+        proposedSingleScorer: { select: { id: true, fullName: true, avatarUrl: true } },
       }
     }),
     prisma.matchScorer.findMany({ where: { matchId } }),
@@ -83,7 +85,6 @@ export async function GET(
   const isSingleScorer = match?.scoringMode === 'LIVE_SINGLE' && scorers.filter(s => s.playerId === playerId).length === 2;
 
   // Import dynamically or directly from token generator
-  const { createCasualScorerToken } = require('@/lib/match/token-generator');
   const scorerToken = createCasualScorerToken(matchId);
 
   return NextResponse.json({

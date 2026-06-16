@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { validateCasualScorerToken } from '@/lib/match/token-generator';
 
 function pid(req: NextRequest) { return req.cookies.get('bmt_player_id')?.value ?? null; }
 
@@ -63,7 +64,6 @@ export async function POST(
   let isAuthorizedToken = false;
 
   if (!playerId && token) {
-    const { validateCasualScorerToken } = require('@/lib/match/token-generator');
     const tokenMatchId = validateCasualScorerToken(token);
     if (tokenMatchId === matchId) {
       isAuthorizedToken = true;
