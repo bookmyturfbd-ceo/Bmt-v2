@@ -8,10 +8,7 @@ export async function GET(req: NextRequest) {
     const matchesCount = await prisma.match.count();
     const teamsCount = await prisma.team.count();
 
-    // Check for teams with null sportType (causes homepage crash)
-    const nullSportTypeTeams = await prisma.team.count({ where: { sportType: null } });
-
-    // Check if tournamentFootballMmr column exists on Team table
+    // Check if tournamentFootballMmr column exists on Team table via raw SQL
     let tournamentMmrColumnsExist = false;
     try {
       await prisma.$queryRaw`SELECT "tournamentFootballMmr" FROM "Team" LIMIT 1`;
@@ -20,12 +17,11 @@ export async function GET(req: NextRequest) {
       tournamentMmrColumnsExist = false;
     }
 
-    // Sample of teams with null sportType
-    const nullSportTypeExamples = await prisma.team.findMany({
-      where: { sportType: null },
-      select: { id: true, name: true },
-      take: 5,
-    });
+    // Check for teams without a sport type using raw SQL (bypasses Prisma's enum validation)
+    const nullSportTypeResult = await prisma.$queryRaw<{ count: bigint }[]>`
+      SELECT COUNT(*) as count FROM "Team" WHERE "sportType" IS NULL
+    `;
+    const nullSportTypeTeams = Number(nullSportTypeResult[0]?.count ?? 0);
 
     return NextResponse.json({
       success: true,
@@ -35,7 +31,6 @@ export async function GET(req: NextRequest) {
       matchesCount,
       teamsCount,
       nullSportTypeTeams,
-      nullSportTypeExamples,
       tournamentMmrColumnsExist,
       env: {
         DATABASE_URL_length: process.env.DATABASE_URL?.length ?? 0,
