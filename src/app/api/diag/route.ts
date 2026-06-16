@@ -6,13 +6,37 @@ export async function GET(req: NextRequest) {
     const dbTime = await prisma.$queryRaw`SELECT NOW()`;
     const playersCount = await prisma.player.count();
     const matchesCount = await prisma.match.count();
-    
+    const teamsCount = await prisma.team.count();
+
+    // Check for teams with null sportType (causes homepage crash)
+    const nullSportTypeTeams = await prisma.team.count({ where: { sportType: null } });
+
+    // Check if tournamentFootballMmr column exists on Team table
+    let tournamentMmrColumnsExist = false;
+    try {
+      await prisma.$queryRaw`SELECT "tournamentFootballMmr" FROM "Team" LIMIT 1`;
+      tournamentMmrColumnsExist = true;
+    } catch {
+      tournamentMmrColumnsExist = false;
+    }
+
+    // Sample of teams with null sportType
+    const nullSportTypeExamples = await prisma.team.findMany({
+      where: { sportType: null },
+      select: { id: true, name: true },
+      take: 5,
+    });
+
     return NextResponse.json({
       success: true,
       message: 'Database connection successful!',
       dbTime,
       playersCount,
       matchesCount,
+      teamsCount,
+      nullSportTypeTeams,
+      nullSportTypeExamples,
+      tournamentMmrColumnsExist,
       env: {
         DATABASE_URL_length: process.env.DATABASE_URL?.length ?? 0,
         NODE_ENV: process.env.NODE_ENV,
