@@ -11,9 +11,9 @@ export async function GET(req: NextRequest) {
   const tier  = searchParams.get('tier')  ?? 'ALL';
   const category = searchParams.get('category') ?? 'ranked';
 
-  const isCricketSport = sport.includes('CRICKET') || sport === 'CRICKET';
+  const isCricketSport = sport.includes('CRICKET');
   let mmrField = isCricketSport ? 'cricketMmr' : 'footballMmr';
-  if (category === 'tournament') {
+  if (category === 'tournament' && type === 'players') {
     mmrField = isCricketSport ? 'tournamentCricketMmr' : 'tournamentFootballMmr';
   }
 
@@ -47,24 +47,13 @@ export async function GET(req: NextRequest) {
     playedPlayerIds = new Set(teamMembers.map(m => m.playerId));
   }
 
-  let sportFilter: any = undefined;
-  if (sport !== 'ALL') {
-    if (sport === 'FUTSAL_5' || sport === 'FUTSAL_6' || sport === 'FUTSAL_7' || sport === 'FUTSAL') {
-      sportFilter = { in: ['FUTSAL', 'FUTSAL_5', 'FUTSAL_6', 'FUTSAL_7'] };
-    } else if (sport === 'FOOTBALL_FULL' || sport === 'FOOTBALL') {
-      sportFilter = { in: ['FOOTBALL', 'FOOTBALL_FULL'] };
-    } else if (sport === 'CRICKET_7' || sport === 'CRICKET_FULL' || sport === 'CRICKET') {
-      sportFilter = { in: ['CRICKET', 'CRICKET_7', 'CRICKET_FULL'] };
-    } else {
-      sportFilter = sport;
-    }
-  }
-
   try {
     if (type === 'teams') {
       if (sport === 'ALL') {
         const teams = await prisma.team.findMany({
-          where: {},
+          where: {
+            teamType: category === 'tournament' ? 'TOURNAMENT' : 'REGULAR',
+          },
           select: {
             id        : true,
             name      : true,
@@ -73,8 +62,6 @@ export async function GET(req: NextRequest) {
             teamMmr   : true,
             footballMmr: true,
             cricketMmr : true,
-            tournamentFootballMmr: true,
-            tournamentCricketMmr: true,
             isDisbanded: true,
             _count: {
               select: { members: true }
@@ -94,9 +81,7 @@ export async function GET(req: NextRequest) {
           const allMatches = [...t.matchesAsTeamA, ...t.matchesAsTeamB];
           const wins   = allMatches.filter(m => m.winnerId === t.id).length;
           const played = allMatches.length;
-          const mmr    = t.sportType?.includes('CRICKET') || t.sportType === 'CRICKET'
-            ? (category === 'tournament' ? t.tournamentCricketMmr : t.cricketMmr)
-            : (category === 'tournament' ? t.tournamentFootballMmr : t.footballMmr);
+          const mmr    = t.sportType?.includes('CRICKET') ? t.cricketMmr : t.footballMmr;
           return {
             id       : t.id,
             name     : t.name,
@@ -122,7 +107,8 @@ export async function GET(req: NextRequest) {
       } else {
         const whereClause: any = {
           [mmrField]: { gte: minMmr, lte: maxMmr },
-          sportType: sportFilter,
+          teamType: category === 'tournament' ? 'TOURNAMENT' : 'REGULAR',
+          sportType: sport,
         };
 
         const teams = await prisma.team.findMany({
@@ -137,8 +123,6 @@ export async function GET(req: NextRequest) {
             teamMmr   : true,
             footballMmr: true,
             cricketMmr : true,
-            tournamentFootballMmr: true,
-            tournamentCricketMmr: true,
             isDisbanded: true,
             _count: {
               select: { members: true }
@@ -158,9 +142,7 @@ export async function GET(req: NextRequest) {
           const allMatches = [...t.matchesAsTeamA, ...t.matchesAsTeamB];
           const wins   = allMatches.filter(m => m.winnerId === t.id).length;
           const played = allMatches.length;
-          const mmr    = isCricketSport
-            ? (category === 'tournament' ? t.tournamentCricketMmr : t.cricketMmr)
-            : (category === 'tournament' ? t.tournamentFootballMmr : t.footballMmr);
+          const mmr    = isCricketSport ? t.cricketMmr : t.footballMmr;
           return {
             rank     : idx + 1,
             id       : t.id,
@@ -268,11 +250,9 @@ export async function GET(req: NextRequest) {
           avatarUrl   : true,
           footballMmr : true,
           cricketMmr  : true,
-          tournamentFootballMmr: true,
-          tournamentCricketMmr: true,
           teamMemberships: {
             take: 1,
-            where: { team: { sportType: sportFilter } },
+            where: { team: { sportType: sport as any } },
             select: {
               team: {
                 select: { id: true, name: true, logoUrl: true, sportType: true }
@@ -287,9 +267,7 @@ export async function GET(req: NextRequest) {
       });
 
       const enrichedPlayers = players.map((p, idx) => {
-        const mmr     = isCricketSport
-          ? (category === 'tournament' ? p.tournamentCricketMmr : p.cricketMmr)
-          : (category === 'tournament' ? p.tournamentFootballMmr : p.footballMmr);
+        const mmr     = isCricketSport ? p.cricketMmr : p.footballMmr;
         const team    = p.teamMemberships[0]?.team ?? null;
         const stats   = p.matchStats;
         const badges  = stats.filter((s: { badge: string | null; mmrChange: number; badgeBonus: number }) => s.badge && s.badge !== 'NONE').length;
