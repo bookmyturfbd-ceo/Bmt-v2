@@ -178,6 +178,7 @@ export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganize
         setPublishCheck({
           chargePerTournament: d.data.chargePerTournament ?? 0,
           walletBalance: d.data.wallet?.balance ?? 0,
+          publishForFree: d.data.publishForFree ?? false,
         });
       }
       setPublishLoading(false);
@@ -253,9 +254,13 @@ export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganize
   if (publishLoading) {
     publishDisabled = true;
   } else if (publishCheck && !publishCheck.isSuperAdmin) {
-    const charge = publishCheck.chargePerTournament ?? 0;
+    const isFree = publishCheck.publishForFree ?? false;
+    const charge = isFree ? 0 : (publishCheck.chargePerTournament ?? 0);
     const bal = publishCheck.walletBalance ?? 0;
-    if (charge === 0) {
+    
+    if (isFree) {
+      // Free publishers have no balance restrictions or charge warning messages.
+    } else if (charge === 0) {
       publishDisabled = true;
       publishMsg = 'Publishing amount is not set. Please contact BMT.';
     } else if (bal < charge) {
@@ -265,7 +270,8 @@ export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganize
   }
 
   const triggerPublish = () => {
-    if (publishCheck?.isSuperAdmin || (publishCheck?.chargePerTournament ?? 0) === 0) {
+    const isFree = publishCheck?.publishForFree ?? false;
+    if (publishCheck?.isSuperAdmin || isFree || (publishCheck?.chargePerTournament ?? 0) === 0) {
       handlePublish();
     } else {
       setConfirmOpen(true);
@@ -710,6 +716,14 @@ export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganize
                 <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-xl p-4">
                   <AlertTriangle size={18} className="text-red-400 shrink-0 mt-0.5" />
                   <p className="text-sm text-red-300 font-bold">{publishMsg}</p>
+                </div>
+              ) : publishCheck && !publishCheck.isSuperAdmin && publishCheck.publishForFree ? (
+                <div className="flex items-start gap-3 bg-accent/10 border border-accent/20 rounded-xl p-4">
+                  <Wallet size={18} className="text-[#00ff41] shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-black text-[#00ff41]">Publishing Fee: FREE</p>
+                    <p className="text-xs text-neutral-400 mt-0.5 font-bold">You are allowed to publish tournaments for free!</p>
+                  </div>
                 </div>
               ) : publishCheck && !publishCheck.isSuperAdmin && publishCheck.chargePerTournament > 0 ? (
                 <div className="flex items-start gap-3 bg-accent/10 border border-accent/20 rounded-xl p-4">

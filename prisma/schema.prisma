@@ -1859,6 +1859,7 @@ model Organizer {
   isVerified   Boolean  @default(false) // set true by super admin if needed
   joinedAt     DateTime @default(now())
   chargePerTournament Int @default(0)
+  publishForFree      Boolean @default(false)
   banStatus    BanStatus @default(none)
   banReason    String?
 

@@ -24,6 +24,7 @@ export default function OrganizerListTab() {
   const [chargingOrganizer, setChargingOrganizer] = useState<any>(null);
   const [chargeAmount, setChargeAmount] = useState('');
   const [chargeLoading, setChargeLoading] = useState(false);
+  const [publishForFreeLocal, setPublishForFreeLocal] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deletingOrganizer, setDeletingOrganizer] = useState<any>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -92,7 +93,10 @@ export default function OrganizerListTab() {
     const res = await fetch(`/api/organizers/${chargingOrganizer.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chargePerTournament: parseInt(chargeAmount) || 0 }),
+      body: JSON.stringify({ 
+        chargePerTournament: parseInt(chargeAmount) || 0,
+        publishForFree: publishForFreeLocal
+      }),
     });
     const data = await res.json();
     if (data.success) { setChargingOrganizer(null); loadOrganizers(); } else alert(data.error);
@@ -191,7 +195,13 @@ export default function OrganizerListTab() {
                     </div>
                     <div className="text-right hidden sm:block">
                       <p className="text-[9px] font-bold uppercase tracking-widest text-neutral-500">Charge/Trn</p>
-                      <p className="text-sm font-black text-white">৳{org.chargePerTournament ?? 0}</p>
+                      <p className="text-sm font-black text-white">
+                        {org.publishForFree ? (
+                          <span className="text-accent text-xs">FREE</span>
+                        ) : (
+                          `৳${org.chargePerTournament ?? 0}`
+                        )}
+                      </p>
                     </div>
                     {isOpen ? <ChevronDown size={16} className="text-neutral-400" /> : <ChevronRight size={16} className="text-neutral-400" />}
                   </div>
@@ -230,7 +240,11 @@ export default function OrganizerListTab() {
                     {/* Actions row */}
                     <div className="flex flex-wrap gap-2 pt-2 border-t border-white/5">
                       <button
-                        onClick={() => { setChargingOrganizer(org); setChargeAmount(org.chargePerTournament?.toString() || '0'); }}
+                        onClick={() => {
+                          setChargingOrganizer(org);
+                          setChargeAmount(org.chargePerTournament?.toString() || '0');
+                          setPublishForFreeLocal(org.publishForFree ?? false);
+                        }}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-800 text-xs font-bold uppercase tracking-wider hover:bg-neutral-700 transition-colors"
                       >
                         <Wallet size={12} /> Set Charge
@@ -319,7 +333,20 @@ export default function OrganizerListTab() {
             <p className="text-xs text-neutral-400 mb-6">Charge <span className="text-white font-bold">{chargingOrganizer.name}</span> automatically when they create a new tournament.</p>
             <div className="mb-6">
               <label className="block text-xs font-black uppercase tracking-widest text-neutral-400 mb-2">Amount (Taka)</label>
-              <input type="number" value={chargeAmount} onChange={e => setChargeAmount(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl p-3 font-bold text-xl" />
+              <input type="number" value={chargeAmount} onChange={e => setChargeAmount(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-xl p-3 font-bold text-xl mb-4" />
+              
+              <label className="flex items-center gap-3 bg-black/30 border border-white/5 p-4 rounded-xl cursor-pointer hover:border-accent/30 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={publishForFreeLocal}
+                  onChange={e => setPublishForFreeLocal(e.target.checked)}
+                  className="w-5 h-5 accent-[#00ff41]"
+                />
+                <div>
+                  <p className="font-black text-xs text-white uppercase tracking-wider">Publish For Free</p>
+                  <p className="text-[10px] text-neutral-500 mt-0.5 font-bold">Organizers can publish tournaments without charge</p>
+                </div>
+              </label>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setChargingOrganizer(null)} className="flex-1 px-4 py-3 rounded-xl hover:bg-white/5 transition-colors font-bold text-neutral-400 uppercase text-sm tracking-wider">Cancel</button>

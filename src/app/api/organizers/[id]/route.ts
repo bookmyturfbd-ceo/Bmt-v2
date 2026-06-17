@@ -8,11 +8,14 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { chargePerTournament, banStatus } = body;
+    const { chargePerTournament, banStatus, publishForFree } = body;
 
     const dataToUpdate: any = {};
     if (typeof chargePerTournament === 'number') {
       dataToUpdate.chargePerTournament = chargePerTournament;
+    }
+    if (typeof publishForFree === 'boolean') {
+      dataToUpdate.publishForFree = publishForFree;
     }
     if (banStatus === 'none' || banStatus === 'perma') {
       dataToUpdate.banStatus = banStatus;

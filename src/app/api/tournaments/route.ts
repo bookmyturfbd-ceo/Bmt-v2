@@ -110,7 +110,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: 'Organizer not found' }, { status: 404 });
       }
 
-      const chargeAmount = organizer.chargePerTournament || 0;
+      const chargeAmount = organizer.publishForFree ? 0 : (organizer.chargePerTournament || 0);
       const currentBalance = organizer.wallet?.balance || 0;
 
       if (currentBalance < chargeAmount) {

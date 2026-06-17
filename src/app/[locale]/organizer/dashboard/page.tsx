@@ -160,6 +160,7 @@ function OrgWalletPanel({ organizer }: { organizer: any }) {
   const balance = organizer.wallet?.balance ?? 0;
   const txs: any[] = organizer.wallet?.transactions ?? [];
   const charge = organizer.chargePerTournament ?? 0;
+  const isFree = organizer.publishForFree ?? false;
 
   const [view,         setView]         = useState<'overview'|'recharge'|'history'>('overview');
   const [step,         setStep]         = useState<'amount'|'method'|'payment'|'done'>('amount');
@@ -222,7 +223,15 @@ function OrgWalletPanel({ organizer }: { organizer: any }) {
           <span className="text-5xl font-black text-accent tabular-nums">৳{balance.toLocaleString()}</span>
           <span className="text-sm font-bold text-neutral-600">BDT</span>
         </div>
-        <p className="text-xs text-neutral-500 mt-2">{charge > 0 ? `৳${charge} deducted per tournament published.` : 'No publishing fee set — contact BMT.'}</p>
+        <p className="text-xs text-neutral-500 mt-2">
+          {isFree ? (
+            <span className="text-[#00ff41] font-bold">Publishing Fee: FREE (Allowed to publish tournaments for free!)</span>
+          ) : charge > 0 ? (
+            `৳${charge} deducted per tournament published.`
+          ) : (
+            'No publishing fee set — contact BMT.'
+          )}
+        </p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <button onClick={() => { reset(); setView('recharge'); }}
