@@ -23,18 +23,28 @@ export async function POST(req: NextRequest) {
   const { action } = body;
 
   if (action === 'addEntry') {
-    const entry = await prisma.ledgerEntry.create({
-      data: {
-        turfId: body.turfId,
-        ownerId: body.ownerId,
-        month: body.month,
-        type: body.type, // 'cost' | 'income'
-        category: body.category, // 'staff' | 'facility' | 'walk-in' | 'other'
-        description: body.description || '',
-        amount: Number(body.amount || 0)
-      }
-    });
-    return NextResponse.json(entry, { status: 201 });
+    if (!body.turfId) {
+      return NextResponse.json({ error: 'Missing turfId parameter.' }, { status: 400 });
+    }
+    const cleanCategory = body.category === 'walk-in' ? 'walkin' : body.category;
+    try {
+      const entry = await prisma.ledgerEntry.create({
+        data: {
+          turfId: body.turfId,
+          ownerId: body.ownerId,
+          month: body.month,
+          type: body.type, // 'cost' | 'income'
+          category: cleanCategory, // 'staff' | 'facility' | 'walkin' | 'other'
+          description: body.description || '',
+          amount: Number(body.amount || 0)
+        }
+      });
+      return NextResponse.json(entry, { status: 201 });
+    } catch (err) {
+      console.error('Failed to create ledger entry:', err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      return NextResponse.json({ error: 'Failed to save entry: ' + errMsg }, { status: 400 });
+    }
   }
 
   if (action === 'concludeMonth') {

@@ -300,6 +300,7 @@ export default function FinancePanel() {
 
   const [ledgerEntries, setLedgerEntries] = useState<any[]>([]);
   const [conclusions, setConclusions]     = useState<any[]>([]);
+  const [selTurfId, setSelTurfId]         = useState<string>('');
 
   useEffect(() => {
     localStorage.setItem('bmt_finance_year', selYear.toString());
@@ -364,6 +365,12 @@ export default function FinancePanel() {
   /* ─── Derived data ─── */
   const myTurfs   = turfs.filter(t => t.ownerId === ownerId);
   const myTurfIds = new Set(myTurfs.map(t => t.id));
+
+  useEffect(() => {
+    if (myTurfs.length > 0 && !selTurfId) {
+      setSelTurfId(myTurfs[0].id);
+    }
+  }, [myTurfs, selTurfId]);
   const mySlots   = slots.filter(s => myTurfIds.has(s.turfId));
   const mySlotIds = new Set(mySlots.map(s => s.id));
   const myBookings = bookings.filter(b => {
@@ -421,15 +428,30 @@ export default function FinancePanel() {
   const addLedgerEntry = async () => {
     if (!ledgerDesc || !ledgerAmt) return;
     setAddingLedger(true);
+    const turfId = selTurfId || myTurfs[0]?.id;
+    if (!turfId) {
+      alert("No turf associated with this account. Please create a turf first.");
+      setAddingLedger(false);
+      return;
+    }
     const body = {
-      action: 'addEntry', ownerId, month: monthPrefix,
-      type: ledgerType, category: ledgerCat, description: ledgerDesc, amount: Number(ledgerAmt),
+      action: 'addEntry', 
+      ownerId, 
+      turfId,
+      month: monthPrefix,
+      type: ledgerType, 
+      category: ledgerCat, 
+      description: ledgerDesc, 
+      amount: Number(ledgerAmt),
     };
     const res = await fetch('/api/bmt/ledger', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
     if(res.ok) {
        const newEntry = await res.json();
        setLedgerEntries(prev => [...prev, newEntry]);
        setLedgerDesc(''); setLedgerAmt('');
+    } else {
+       const errorData = await res.json();
+       alert(errorData.error || 'Failed to add ledger entry.');
     }
     setAddingLedger(false);
   };
@@ -890,8 +912,16 @@ export default function FinancePanel() {
               
               {!currentConclusion && (
                 <div className="flex flex-col gap-3 p-4 rounded-xl border-2 border-dashed border-black/20 dark:border-white/20">
+                  {myTurfs.length > 1 && (
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] uppercase font-bold text-[var(--muted)]">Select Turf</label>
+                      <select value={selTurfId} onChange={e => setSelTurfId(e.target.value)} className="bg-transparent border border-black/20 dark:border-white/20 rounded-xl px-3 py-2 text-sm font-bold outline-none text-current focus:border-accent">
+                        {myTurfs.map(t => <option key={t.id} value={t.id} className="text-black bg-white dark:bg-neutral-900 dark:text-white">{t.name}</option>)}
+                      </select>
+                    </div>
+                  )}
                   <div className="flex gap-3">
-                    <select value={ledgerType} onChange={e => { setLedgerType(e.target.value as any); setLedgerCat(e.target.value === 'cost' ? 'staff' : 'walk-in'); }} className="bg-transparent border border-black/20 dark:border-white/20 rounded-xl px-3 py-3 text-sm font-bold outline-none flex-1 max-w-[120px] text-current focus:border-accent">
+                    <select value={ledgerType} onChange={e => { setLedgerType(e.target.value as any); setLedgerCat(e.target.value === 'cost' ? 'staff' : 'walkin'); }} className="bg-transparent border border-black/20 dark:border-white/20 rounded-xl px-3 py-3 text-sm font-bold outline-none flex-1 max-w-[120px] text-current focus:border-accent">
                       <option value="cost" className="text-black bg-white dark:bg-neutral-900 dark:text-white">Cost</option>
                       <option value="income" className="text-black bg-white dark:bg-neutral-900 dark:text-white">Income</option>
                     </select>
@@ -899,7 +929,7 @@ export default function FinancePanel() {
                       {ledgerType === 'cost' ? (
                         <><option className="text-black bg-white dark:bg-neutral-900 dark:text-white" value="staff">Staff Salary</option><option className="text-black bg-white dark:bg-neutral-900 dark:text-white" value="facility">Facility Cost</option><option className="text-black bg-white dark:bg-neutral-900 dark:text-white" value="other">Other Cost</option></>
                       ) : (
-                        <><option className="text-black bg-white dark:bg-neutral-900 dark:text-white" value="walk-in">Walk-in Booking</option><option className="text-black bg-white dark:bg-neutral-900 dark:text-white" value="other">Other Income</option></>
+                        <><option className="text-black bg-white dark:bg-neutral-900 dark:text-white" value="walkin">Walk-in Booking</option><option className="text-black bg-white dark:bg-neutral-900 dark:text-white" value="other">Other Income</option></>
                       )}
                     </select>
                   </div>
