@@ -117,7 +117,13 @@ export default function SlotManagerPanel() {
       const order = ['Morning', 'Afternoon', 'Evening', 'Night'];
       const catDiff = order.indexOf(a.timeCategory) - order.indexOf(b.timeCategory);
       if (catDiff !== 0) return catDiff;
-      return a.startTime.localeCompare(b.startTime);
+      
+      const getMins = (t: string) => {
+        const [h, m] = t.split(':').map(Number);
+        const mins = h * 60 + m;
+        return mins >= 360 ? mins - 360 : (1440 - 360) + mins;
+      };
+      return getMins(a.startTime) - getMins(b.startTime);
     });
 
   const grouped = visibleSlots.reduce<Record<string, Slot[]>>((acc, s) => {

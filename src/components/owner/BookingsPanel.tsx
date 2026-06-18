@@ -91,7 +91,13 @@ export default function BookingsPanel() {
     .sort((a, b) => {
       const sa = mySlots.find(s => s.id === a.slotId)?.startTime || '';
       const sb = mySlots.find(s => s.id === b.slotId)?.startTime || '';
-      return sa.localeCompare(sb);
+      const getMins = (t: string) => {
+        if (!t) return 9999;
+        const [h, m] = t.split(':').map(Number);
+        const mins = h * 60 + m;
+        return mins >= 360 ? mins - 360 : (1440 - 360) + mins;
+      };
+      return getMins(sa) - getMins(sb);
     });
 
   // Net income = ownerShare if set, else gross (legacy)
