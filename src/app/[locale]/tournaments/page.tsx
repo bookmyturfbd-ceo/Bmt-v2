@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter, usePathname } from '@/i18n/routing';
+import { useRouter, usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import {
   ArrowLeft, Trophy, Users, Calendar, ChevronRight, Loader2,
