@@ -10,6 +10,9 @@ function getPlayerId(req: NextRequest): string | null {
 }
 
 function mapSportToEnum(s: string): SportType {
+  if (s === 'FUTSAL') return 'FUTSAL' as SportType;
+  if (s === 'FOOTBALL') return 'FOOTBALL' as SportType;
+  if (s === 'CRICKET') return 'CRICKET' as SportType;
   if (s === 'FUTSAL_5') return 'FUTSAL_5' as SportType;
   if (s === 'FUTSAL_6') return 'FUTSAL_6' as SportType;
   if (s === 'FUTSAL_7') return 'FUTSAL_7' as SportType;
@@ -21,17 +24,16 @@ function mapSportToEnum(s: string): SportType {
   const low = s.toLowerCase();
   if (low.includes('5')) return 'FUTSAL_5' as SportType;
   if (low.includes('6')) return 'FUTSAL_6' as SportType;
-  if (low.includes('cricket')) return 'CRICKET_7' as SportType;
-  return 'FUTSAL_5' as SportType;
+  if (low.includes('cricket')) return 'CRICKET' as SportType;
+  if (low.includes('futsal')) return 'FUTSAL' as SportType;
+  if (low.includes('football')) return 'FOOTBALL' as SportType;
+  return 'FUTSAL' as SportType;
 }
 
 export function mapEnumToSport(enumValue: SportType | string): string {
-  if (enumValue === 'FUTSAL_5') return '5-a-side Futsal';
-  if (enumValue === 'FUTSAL_6') return '6-a-side Futsal';
-  if (enumValue === 'FUTSAL_7') return '7-a-side Futsal';
-  if (enumValue === 'CRICKET_7') return '7-a-side Cricket';
-  if (enumValue === 'FOOTBALL_FULL') return 'Football (Full 11v11)';
-  if (enumValue === 'CRICKET_FULL') return 'Cricket (Full 11v11)';
+  if (enumValue === 'FUTSAL' || enumValue === 'FUTSAL_5' || enumValue === 'FUTSAL_6' || enumValue === 'FUTSAL_7') return 'Futsal';
+  if (enumValue === 'FOOTBALL' || enumValue === 'FOOTBALL_FULL') return 'Football';
+  if (enumValue === 'CRICKET' || enumValue === 'CRICKET_7' || enumValue === 'CRICKET_FULL') return 'Cricket';
   return enumValue as string;
 }
 
@@ -40,13 +42,9 @@ export async function GET(req: NextRequest) {
   const playerId = getPlayerId(req);
   if (!playerId) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
 
-  // Optional ?type=REGULAR or ?type=TOURNAMENT filter
-  const typeParam = new URL(req.url).searchParams.get('type') as TeamType | null;
-
   const memberships = await prisma.teamMember.findMany({
     where: {
       playerId,
-      ...(typeParam ? { team: { teamType: typeParam } } : {}),
     },
     include: {
       team: {
@@ -80,35 +78,90 @@ export async function POST(req: NextRequest) {
     if (!playerId) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
 
     const body = await req.json();
-    const { name, sport, logoUrl, teamType = 'REGULAR' } = body;
+    const { name, sport, logoUrl } = body;
+    const teamType = 'REGULAR'; // unified teamType
 
     if (!name?.trim()) return NextResponse.json({ error: 'Team name is required' }, { status: 400 });
     if (!sport?.trim()) return NextResponse.json({ error: 'Sport is required' }, { status: 400 });
-    if (teamType !== 'REGULAR' && teamType !== 'TOURNAMENT') {
-      return NextResponse.json({ error: 'Invalid team type' }, { status: 400 });
-    }
 
     // Check for duplicate team name
     const existing = await prisma.team.findFirst({
       where: { name: { equals: name.trim(), mode: 'insensitive' } },
+      include: { members: { select: { playerId: true, role: true } } },
     });
-    if (existing) return NextResponse.json({ error: `Team name "${name.trim()}" is already taken` }, { status: 409 });
+
+    if (existing) {
+      // ── Placeholder-Claim Flow ────────────────────────────────────────────────
+      // If the existing team is a TOURNAMENT placeholder team with no real members
+      // (only the system placeholder owner), allow the captain to claim it by
+      // transferring ownership and updating the logo.
+      const isPlaceholder =
+        existing.teamType === 'TOURNAMENT' &&
+        existing.members.length <= 1 &&
+        existing.members.every(m => m.playerId === existing.ownerId);
+
+      if (isPlaceholder) {
+        // Transfer ownership to this captain
+        const oldOwnerId = existing.ownerId;
+
+        const updatedTeam = await prisma.$transaction(async (tx) => {
+          // Remove old placeholder owner membership (if it exists)
+          await tx.teamMember.deleteMany({ where: { teamId: existing.id, playerId: oldOwnerId } });
+
+          // Update team — new owner, logo, teamCode (if none set)
+          const teamCode = existing.teamCode ?? `T-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+          const updated = await tx.team.update({
+            where: { id: existing.id },
+            data: {
+              ownerId: playerId,
+              logoUrl: logoUrl || existing.logoUrl || null,
+              teamCode,
+            },
+            include: {
+              owner: { select: { id: true, fullName: true } },
+              members: { select: { id: true, role: true, playerId: true } },
+            },
+          });
+
+          // Add captain as owner member
+          await tx.teamMember.create({ data: { teamId: existing.id, playerId, role: 'owner' } });
+
+          // Update tournament registration entityId references — they should still point
+          // to the same team.id so no change is needed for matches/groups.
+          // (entityId in TournamentRegistration = team.id which is unchanged)
+
+          return updated;
+        });
+
+        const returnedTeam = { ...updatedTeam, sport: mapEnumToSport(updatedTeam.sportType), teamType: updatedTeam.teamType, claimed: true };
+        return NextResponse.json({ team: returnedTeam, message: `You've successfully claimed "${name.trim()}" as your tournament team!` }, { status: 200 });
+      }
+
+      // Normal duplicate — not claimable
+      return NextResponse.json({ error: `Team name "${name.trim()}" is already taken` }, { status: 409 });
+    }
 
     const sportEnum = mapSportToEnum(sport);
 
-    // Prevent two teams of the same sport AND same team type
+    // Prevent two teams of the same sport category
     const alreadyInSport = await prisma.teamMember.findFirst({
       where: {
         playerId,
-        team: { sportType: sportEnum, teamType: teamType as any },
+        team: {
+          OR: [
+            { sportType: sportEnum },
+            ...(sportEnum === 'FUTSAL' ? [{ sportType: 'FUTSAL_5' as SportType }, { sportType: 'FUTSAL_6' as SportType }, { sportType: 'FUTSAL_7' as SportType }] : []),
+            ...(sportEnum === 'CRICKET' ? [{ sportType: 'CRICKET_7' as SportType }, { sportType: 'CRICKET_FULL' as SportType }] : []),
+            ...(sportEnum === 'FOOTBALL' ? [{ sportType: 'FOOTBALL_FULL' as SportType }] : []),
+          ]
+        },
       },
       include: { team: true },
     });
     
     if (alreadyInSport) {
-      const typeLabel = teamType === 'TOURNAMENT' ? 'tournament' : 'regular';
       return NextResponse.json({
-        error: `You are already in a ${mapEnumToSport(sportEnum)} ${typeLabel} team (${alreadyInSport.team.name}). Leave it before creating a new one.`,
+        error: `You are already in a ${mapEnumToSport(alreadyInSport.team.sportType)} team (${alreadyInSport.team.name}). Leave it before creating a new one.`,
       }, { status: 400 });
     }
 
@@ -131,13 +184,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (team.teamType === 'TOURNAMENT') {
-      const { syncTournamentTeamMmr } = await import('@/lib/teamMmr');
-      await syncTournamentTeamMmr(team.id);
-    }
-
-    const { sportType, teamType: tt, ...rest } = team as any;
-    const returnedTeam = { ...rest, sport: mapEnumToSport(team.sportType), teamType: team.teamType };
+    const returnedTeam = { ...team, sport: mapEnumToSport(team.sportType), teamType: team.teamType };
 
     return NextResponse.json({ team: returnedTeam }, { status: 201 });
   } catch (error: any) {

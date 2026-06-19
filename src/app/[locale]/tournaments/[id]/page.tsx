@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { getCookie } from '@/lib/cookies';
 import { getSupabaseClient } from '@/lib/supabaseRealtime';
+import TournamentBracket from '@/components/shared/TournamentBracket';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -736,16 +737,18 @@ function TeamsTab({ tournament }: { tournament: Tournament }) {
                     <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border ${getMmrRank(mmr).cls} shrink-0`}>
                       {getMmrRank(mmr).label}
                     </span>
-                    
+
                     {/* Level */}
                     <span className="text-[9px] text-neutral-400 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded-md font-bold shrink-0">
                       Lvl {player.level}
                     </span>
                   </div>
                 </div>
-                <div className="shrink-0 flex items-center gap-1 bg-yellow-500/10 border border-yellow-500/20 px-2.5 py-1 rounded-lg">
-                  <Star size={10} className="text-yellow-400" />
-                  <span className="text-[11px] font-black text-yellow-400">{mmr}</span>
+
+                {/* Player MMR */}
+                <div className="shrink-0 flex items-center gap-1 bg-white/5 border border-white/5 px-2 py-1 rounded-lg">
+                  <Zap size={9} className="text-neutral-400" />
+                  <span className="text-[10px] font-black text-neutral-300">{mmr}</span>
                 </div>
               </div>
             )}
@@ -755,6 +758,7 @@ function TeamsTab({ tournament }: { tournament: Tournament }) {
     </div>
   );
 }
+
 function MatchesTab({
   tournament,
   teamNameMap,
@@ -764,6 +768,11 @@ function MatchesTab({
   teamNameMap: Record<string, string>;
   teamLogoMap: Record<string, string>;
 }) {
+  const hasKnockouts = tournament.matches.some((m: any) =>
+    ['ROUND_OF_16', 'QUARTER', 'SEMI', 'FINAL'].includes(m.stage)
+  );
+  const [viewMode, setViewMode] = useState<'list' | 'bracket'>(hasKnockouts ? 'bracket' : 'list');
+
   // Build group name lookup
   const groupNames: Record<string, string> = {};
   tournament.groups.forEach(g => { groupNames[g.id] = g.name; });
@@ -811,7 +820,7 @@ function MatchesTab({
       if (runs === undefined || runs === null) return null;
       const wickets = side === 'A' ? rs.wicketsA : rs.wicketsB;
       const overs = side === 'A' ? rs.oversA : rs.oversB;
-      
+
       const w = wickets !== undefined && wickets !== null ? wickets : 0;
       if (overs === undefined || overs === null || overs === 0) {
         return `${runs}/${w}`;
@@ -836,97 +845,126 @@ function MatchesTab({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* ── Matches list ── */}
-      {hasMatches ? (
-        orderedStages.map(stage => (
-          <div key={stage} className="flex flex-col gap-3">
-            {/* Stage header */}
-            <div className="flex items-center gap-3 mb-1 mt-2">
-              <div className="h-px flex-1 bg-white/5" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500 px-2">
-                {stageLabel[stage] || stage}
-              </span>
-              <div className="h-px flex-1 bg-white/5" />
-            </div>
-
-            <div className="flex flex-col gap-3">
-              {byStage[stage].map((m: any) => {
-                const nameA = resolveTeam(m.teamAId);
-                const nameB = resolveTeam(m.teamBId);
-                const scoreA = getScore(m, 'A');
-                const scoreB = getScore(m, 'B');
-                const isLive = m.status === 'LIVE';
-                const isDone = m.status === 'COMPLETED' || m.status === 'WALKOVER';
-                const winnerIsA = isDone && m.winnerId === m.teamAId;
-                const winnerIsB = isDone && m.winnerId === m.teamBId;
-
-                return (
-                  <div
-                    key={m.id}
-                    className={`bg-neutral-900 border rounded-2xl overflow-hidden ${
-                      isLive ? 'border-red-500/30' : 'border-white/5'
-                    }`}
-                  >
-                    {/* Match meta bar */}
-                    <div className={`flex items-center justify-between px-4 py-2.5 ${isLive ? 'bg-red-500/5' : 'bg-black/30'}`}>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500">
-                        Match {m.matchNumber}
-                        {m.groupId && groupNames[m.groupId] && ` · ${groupNames[m.groupId]}`}
-                        {m.scheduledAt && ` · ${new Date(m.scheduledAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
-                        {m.venue && ` · ${m.venue}`}
-                      </span>
-                      <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${matchStatusStyle(m)}`}>
-                        {isLive && <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 mr-1 animate-pulse" />}
-                        {m.resultSummary?.forfeited ? 'FORFEITED' : m.status.replace(/_/g, ' ')}
-                      </span>
-                    </div>
-
-                    {/* Teams VS Grid */}
-                    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-4 w-full">
-                      {/* Team A */}
-                      <div className={`min-w-0 text-center ${winnerIsA ? 'opacity-100' : isDone ? 'opacity-50' : ''}`}>
-                        <p className={`text-sm font-black truncate ${winnerIsA ? 'text-yellow-400' : 'text-white'}`}>
-                          {nameA}
-                          {winnerIsA && <span className="ml-1 text-[10px]">👑</span>}
-                        </p>
-                        {scoreA !== null && (
-                          <p className={`text-2xl font-black mt-1 ${winnerIsA ? 'text-yellow-400' : 'text-neutral-300'}`}>
-                            {scoreA}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* VS divider */}
-                      <div className={`px-3 py-1.5 rounded-xl shrink-0 ${isLive ? 'bg-red-500/10 border border-red-500/20' : 'bg-neutral-800'}`}>
-                        <p className={`text-xs font-black ${isLive ? 'text-red-400' : 'text-neutral-500'}`}>
-                          {isLive ? 'LIVE' : 'VS'}
-                        </p>
-                      </div>
-
-                      {/* Team B */}
-                      <div className={`min-w-0 text-center ${winnerIsB ? 'opacity-100' : isDone ? 'opacity-50' : ''}`}>
-                        <p className={`text-sm font-black truncate ${winnerIsB ? 'text-yellow-400' : 'text-white'}`}>
-                          {nameB}
-                          {winnerIsB && <span className="ml-1 text-[10px]">👑</span>}
-                        </p>
-                        {scoreB !== null && (
-                          <p className={`text-2xl font-black mt-1 ${winnerIsB ? 'text-yellow-400' : 'text-neutral-300'}`}>
-                            {scoreB}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+      {hasKnockouts && (
+        <div className="flex justify-end shrink-0">
+          <div className="inline-flex bg-neutral-950 border border-white/5 p-1 rounded-xl shadow-lg">
+            <button
+              onClick={() => setViewMode('bracket')}
+              className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                viewMode === 'bracket'
+                  ? 'bg-yellow-500 text-black shadow-md shadow-yellow-500/10'
+                  : 'text-neutral-500 hover:text-white'
+              }`}
+            >
+              Bracket View
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                viewMode === 'list'
+                  ? 'bg-yellow-500 text-black shadow-md shadow-yellow-500/10'
+                  : 'text-neutral-500 hover:text-white'
+              }`}
+            >
+              List View
+            </button>
           </div>
-        ))
+        </div>
+      )}
+
+      {viewMode === 'bracket' ? (
+        <TournamentBracket
+          matches={tournament.matches}
+          teamNameMap={teamNameMap}
+          teamLogoMap={teamLogoMap}
+          sport={tournament.sport}
+        />
       ) : (
-        <div className="py-12 bg-neutral-900 border border-white/5 rounded-2xl text-center flex flex-col items-center p-6 shadow-xl">
-          <Calendar size={32} className="text-neutral-700 mb-2" />
-          <p className="text-neutral-400 text-sm font-black">Matches Not Generated Yet</p>
-          <p className="text-xs text-neutral-500 mt-1">Stage matches will appear once generated.</p>
+        <div className="flex flex-col gap-6">
+          {orderedStages.map(stage => (
+            <div key={stage} className="flex flex-col gap-3">
+              {/* Stage header */}
+              <div className="flex items-center gap-3 mb-1 mt-2">
+                <div className="h-px flex-1 bg-white/5" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500 px-2">
+                  {stageLabel[stage] || stage}
+                </span>
+                <div className="h-px flex-1 bg-white/5" />
+              </div>
+
+              <div className="flex flex-col gap-3">
+                {byStage[stage].map((m: any) => {
+                  const nameA = resolveTeam(m.teamAId);
+                  const nameB = resolveTeam(m.teamBId);
+                  const scoreA = getScore(m, 'A');
+                  const scoreB = getScore(m, 'B');
+                  const isLive = m.status === 'LIVE';
+                  const isDone = m.status === 'COMPLETED' || m.status === 'WALKOVER';
+                  const winnerIsA = isDone && m.winnerId === m.teamAId;
+                  const winnerIsB = isDone && m.winnerId === m.teamBId;
+
+                  return (
+                    <div
+                      key={m.id}
+                      className={`bg-neutral-900 border rounded-2xl overflow-hidden ${
+                        isLive ? 'border-red-500/30' : 'border-white/5'
+                      }`}
+                    >
+                      {/* Match meta bar */}
+                      <div className={`flex items-center justify-between px-4 py-2.5 ${isLive ? 'bg-red-500/5' : 'bg-black/30'}`}>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500">
+                          Match {m.matchNumber}
+                          {m.groupId && groupNames[m.groupId] && ` · ${groupNames[m.groupId]}`}
+                          {m.scheduledAt && ` · ${new Date(m.scheduledAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
+                          {m.venue && ` · ${m.venue}`}
+                        </span>
+                        <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${matchStatusStyle(m)}`}>
+                          {isLive && <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400 mr-1 animate-pulse" />}
+                          {m.resultSummary?.forfeited ? 'FORFEITED' : m.status.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+
+                      {/* Teams VS Grid */}
+                      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-4 w-full">
+                        {/* Team A */}
+                        <div className={`min-w-0 text-center ${winnerIsA ? 'opacity-100' : isDone ? 'opacity-50' : ''}`}>
+                          <p className={`text-sm font-black truncate ${winnerIsA ? 'text-yellow-400' : 'text-white'}`}>
+                            {nameA}
+                            {winnerIsA && <span className="ml-1 text-[10px]">👑</span>}
+                          </p>
+                          {scoreA !== null && (
+                            <p className={`text-2xl font-black mt-1 ${winnerIsA ? 'text-yellow-400' : 'text-neutral-300'}`}>
+                              {scoreA}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* VS divider */}
+                        <div className={`px-3 py-1.5 rounded-xl shrink-0 ${isLive ? 'bg-red-500/10 border border-red-500/20' : 'bg-neutral-800'}`}>
+                          <p className={`text-xs font-black ${isLive ? 'text-red-400' : 'text-neutral-500'}`}>
+                            {isLive ? 'LIVE' : 'VS'}
+                          </p>
+                        </div>
+
+                        {/* Team B */}
+                        <div className={`min-w-0 text-center ${winnerIsB ? 'opacity-100' : isDone ? 'opacity-50' : ''}`}>
+                          <p className={`text-sm font-black truncate ${winnerIsB ? 'text-yellow-400' : 'text-white'}`}>
+                            {nameB}
+                            {winnerIsB && <span className="ml-1 text-[10px]">👑</span>}
+                          </p>
+                          {scoreB !== null && (
+                            <p className={`text-2xl font-black mt-1 ${winnerIsB ? 'text-yellow-400' : 'text-neutral-300'}`}>
+                              {scoreB}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

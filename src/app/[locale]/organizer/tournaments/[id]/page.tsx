@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 const AuctionOrganizerPanel = dynamic(() => import('@/components/admin/tournaments/AuctionOrganizerPanel'), { ssr: false });
 import TournamentSponsorsTab from '@/components/admin/tournaments/TournamentSponsorsTab';
 import { getSupabaseClient } from '@/lib/supabaseRealtime';
+import TournamentBracket from '@/components/shared/TournamentBracket';
 
 export default function OrganizerTournamentDetails() {
   const params = useParams();
@@ -21,6 +22,17 @@ export default function OrganizerTournamentDetails() {
   const [actionLoading, setActionLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'matches' | 'auction' | 'registrations' | 'sponsors' | 'standings'>('registrations');
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
+  const [selectedStage, setSelectedStage] = useState<string>('ALL');
+  const [viewMode, setViewMode] = useState<'list' | 'bracket'>('list');
+
+  useEffect(() => {
+    if (matches && matches.length > 0) {
+      const hasKnockouts = matches.some(m => ['ROUND_OF_16', 'QUARTER', 'SEMI', 'FINAL'].includes(m.stage));
+      if (hasKnockouts) {
+        setViewMode('bracket');
+      }
+    }
+  }, [matches]);
 
   // Build team name and logo map
   const teamNameMap: Record<string, string> = {};
@@ -175,6 +187,30 @@ export default function OrganizerTournamentDetails() {
     }
   };
 
+  const handleCompleteStage = async (stage: string) => {
+    if (!tournamentId) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/dev/tournaments/${tournamentId}/complete-stage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message || `Stage ${stage} matches successfully simulated and completed!`);
+        await loadData();
+      } else {
+        alert('Failed to complete stage: ' + data.error);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Network error trying to complete stage.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleGenerateScorerToken = async (matchId: string) => {
     try {
       const res = await fetch(`/api/t-matches/${matchId}/assign-scorer`, {
@@ -317,20 +353,34 @@ export default function OrganizerTournamentDetails() {
                 </button>
               )}
               {tournament.status === 'ACTIVE' && (
-                <div className="text-xs font-bold text-neutral-400 text-center flex items-center gap-2 justify-center p-2">
-                  <AlertCircle size={14} /> Tournament is Live
+                <div className="flex flex-col gap-3">
+                  {matches.some(m => m.groupId !== null) && 
+                   matches.filter(m => m.groupId !== null).every(m => m.status === 'COMPLETED') && 
+                   matches.every(m => m.groupId !== null) ? (
+                    <button
+                      onClick={() => handleAction('advance')}
+                      disabled={actionLoading}
+                      className="w-full bg-[#00ff41] text-black font-black uppercase tracking-wider px-4 py-3 rounded-xl text-sm hover:bg-[#00cc33] transition-colors flex items-center justify-center gap-2 shadow-lg shadow-[#00ff41]/25 cursor-pointer"
+                    >
+                      {actionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Advance to Knockouts'}
+                    </button>
+                  ) : (
+                    <div className="text-xs font-bold text-neutral-400 text-center flex items-center gap-2 justify-center p-2">
+                      <AlertCircle size={14} /> Tournament is Live
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </div>
 
           {process.env.NODE_ENV !== 'production' && (
-            <div className="bg-purple-950/20 border border-purple-500/30 rounded-2xl p-6 relative overflow-hidden group">
+            <div className="bg-purple-950/20 border border-purple-500/30 rounded-2xl p-6 relative overflow-hidden group flex flex-col gap-3">
               <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-              <h2 className="text-xl font-black uppercase tracking-wider mb-4 text-purple-400 flex items-center gap-2">
+              <h2 className="text-xl font-black uppercase tracking-wider mb-1 text-purple-400 flex items-center gap-2">
                 <span>🧪 Dev Sandbox</span>
               </h2>
-              <p className="text-xs font-semibold text-neutral-400 mb-4 leading-relaxed">
+              <p className="text-xs font-semibold text-neutral-400 leading-relaxed mb-1">
                 Use this to fill registrations with mock teams/players to capacity and test matches or bracket engine in development mode.
               </p>
               <button
@@ -344,6 +394,42 @@ export default function OrganizerTournamentDetails() {
                   "Fill Tournament"
                 )}
               </button>
+              {tournament.status === 'ACTIVE' && matches.some((m: any) => m.stage === 'GROUP' && m.status !== 'COMPLETED') && (
+                <button
+                  onClick={() => handleCompleteStage('GROUP')}
+                  disabled={actionLoading}
+                  className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-black uppercase tracking-wider px-4 py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg border border-blue-400/20 cursor-pointer"
+                >
+                  {actionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Complete Group Stage"}
+                </button>
+              )}
+              {tournament.status === 'ACTIVE' && matches.some((m: any) => m.stage === 'QUARTER' && m.status !== 'COMPLETED' && m.teamAId !== 'TBD' && m.teamBId !== 'TBD') && (
+                <button
+                  onClick={() => handleCompleteStage('QUARTER')}
+                  disabled={actionLoading}
+                  className="w-full bg-orange-600 hover:bg-orange-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-black uppercase tracking-wider px-4 py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg border border-orange-400/20 cursor-pointer"
+                >
+                  {actionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Complete Quarter Finals"}
+                </button>
+              )}
+              {tournament.status === 'ACTIVE' && matches.some((m: any) => m.stage === 'SEMI' && m.status !== 'COMPLETED' && m.teamAId !== 'TBD' && m.teamBId !== 'TBD') && (
+                <button
+                  onClick={() => handleCompleteStage('SEMI')}
+                  disabled={actionLoading}
+                  className="w-full bg-pink-600 hover:bg-pink-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-white font-black uppercase tracking-wider px-4 py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg border border-pink-400/20 cursor-pointer"
+                >
+                  {actionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Complete Semi Finals"}
+                </button>
+              )}
+              {tournament.status === 'ACTIVE' && matches.some((m: any) => m.stage === 'FINAL' && m.status !== 'COMPLETED' && m.teamAId !== 'TBD' && m.teamBId !== 'TBD') && (
+                <button
+                  onClick={() => handleCompleteStage('FINAL')}
+                  disabled={actionLoading}
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-neutral-800 disabled:text-neutral-500 text-black font-black uppercase tracking-wider px-4 py-3 rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg border border-emerald-400/20 cursor-pointer"
+                >
+                  {actionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Complete Finals"}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -412,7 +498,7 @@ export default function OrganizerTournamentDetails() {
             ) : activeTab === 'sponsors' ? (
               <TournamentSponsorsTab tournamentId={String(tournamentId)} />
             ) : activeTab === 'standings' ? (
-              <StandingsTab standings={standings} tournament={tournament} teamNameMap={teamNameMap} />
+              <StandingsTab standings={standings} tournament={tournament} teamNameMap={teamNameMap} matches={matches} />
             ) : activeTab === 'registrations' ? (
               <>
                 <h2 className="text-xl font-black uppercase tracking-wider mb-6">Registered Teams</h2>
@@ -505,67 +591,146 @@ export default function OrganizerTournamentDetails() {
                   </div>
                 )}
               </>
-            ) : activeTab === 'matches' ? (
-              <>
-                <h2 className="text-xl font-black uppercase tracking-wider mb-6">Match Schedule</h2>
+            ) : activeTab === 'matches' ? (() => {
+              const stageOrder: Record<string, number> = {
+                'GROUP': 1,
+                'ROUND_OF_16': 2,
+                'QUARTER': 3,
+                'SEMI': 4,
+                'FINAL': 5
+              };
 
-                {matches.length === 0 ? (
-                  <div className="py-20 text-center flex flex-col items-center">
-                    <Calendar size={48} className="text-neutral-800 mb-4" />
-                    <p className="text-neutral-500 font-bold">No matches scheduled yet.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {matches.map(m => {
-                      const scoreA = getScore(m, 'A');
-                      const scoreB = getScore(m, 'B');
-                      const hasScore = m.status === 'LIVE' || m.status === 'COMPLETED' || m.resultSummary?.forfeited;
-                      return (
-                        <div key={m.id} className="bg-black/50 border border-white/5 hover:border-white/10 transition-colors rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                          <div>
-                            <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-2">
-                              Match {m.matchNumber}{m.groupId && groupNames[m.groupId] && ` • ${groupNames[m.groupId]}`}{m.stage !== 'GROUP' && ` • ${m.stage}`}
-                            </div>
-                            <div className="font-bold text-lg flex items-center gap-2 flex-wrap">
-                              <span className="text-white">{teamNameMap[m.teamAId] || m.teamAId}</span>
-                              {hasScore && (
-                                <span className="bg-neutral-900 border border-white/10 px-2.5 py-0.5 rounded-lg text-sm font-black text-[#00ff41] font-mono mx-1">
-                                  {scoreA} - {scoreB}
-                                </span>
-                              )}
-                              <span className="text-neutral-500 text-sm font-medium">vs</span>
-                              <span className="text-white">{teamNameMap[m.teamBId] || m.teamBId}</span>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-3">
-                            <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg ${
-                              m.resultSummary?.forfeited ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' :
-                              m.status === 'COMPLETED' ? 'bg-[#00ff41]/20 text-[#00ff41]' :
-                              m.status === 'LIVE' ? 'bg-red-500/20 text-red-500' :
-                              m.status === 'SCORER_ASSIGNED' ? 'bg-blue-500/20 text-blue-400' :
-                              'bg-neutral-800 text-neutral-400'
-                            }`}>
-                              {m.resultSummary?.forfeited ? 'FORFEITED' : m.status.replace(/_/g, ' ')}
-                            </span>
-                            
-                            {['SCHEDULED', 'SCORER_ASSIGNED'].includes(m.status) && tournament.status === 'ACTIVE' && (
-                              <button 
-                                onClick={() => handleGenerateScorerToken(m.id)}
-                                className="p-2 bg-neutral-800 text-neutral-300 hover:text-accent hover:bg-neutral-700 rounded-lg transition-colors"
-                                title="Copy Scorer Link"
-                              >
-                                <LinkIcon size={18} />
-                              </button>
-                            )}
-                          </div>
+              const sortedMatches = [...matches].sort((a, b) => {
+                const orderA = stageOrder[a.stage] || 99;
+                const orderB = stageOrder[b.stage] || 99;
+                if (orderA !== orderB) return orderA - orderB;
+                return a.matchNumber - b.matchNumber;
+              });
+
+              const availableStages = Array.from(new Set(matches.map(m => m.stage)));
+              const hasKnockouts = matches.some(m => ['ROUND_OF_16', 'QUARTER', 'SEMI', 'FINAL'].includes(m.stage));
+
+              const filteredMatches = selectedStage === 'ALL'
+                ? sortedMatches
+                : sortedMatches.filter(m => m.stage === selectedStage);
+
+              return (
+                <>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <div className="flex items-center gap-4">
+                      <h2 className="text-xl font-black uppercase tracking-wider">Match Schedule</h2>
+                      
+                      {/* List vs Bracket view toggle */}
+                      {hasKnockouts && (
+                        <div className="inline-flex bg-neutral-950 border border-white/5 p-1 rounded-xl shadow-lg shrink-0">
+                          <button
+                            onClick={() => setViewMode('bracket')}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                              viewMode === 'bracket'
+                                ? 'bg-yellow-500 text-black shadow-md shadow-yellow-500/10'
+                                : 'text-neutral-500 hover:text-white'
+                            }`}
+                          >
+                            Bracket
+                          </button>
+                          <button
+                            onClick={() => setViewMode('list')}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                              viewMode === 'list'
+                                ? 'bg-yellow-500 text-black shadow-md shadow-yellow-500/10'
+                                : 'text-neutral-500 hover:text-white'
+                            }`}
+                          >
+                            List
+                          </button>
                         </div>
-                      );
-                    })}
+                      )}
+                    </div>
+
+                    {viewMode === 'list' && availableStages.length > 1 && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Stage:</span>
+                        <select
+                          value={selectedStage}
+                          onChange={(e) => setSelectedStage(e.target.value)}
+                          className="bg-black/45 border border-white/10 text-white font-black text-xs uppercase tracking-widest rounded-xl px-4 py-2.5 focus:outline-none focus:border-accent cursor-pointer"
+                        >
+                          <option value="ALL">Show All Stages</option>
+                          {availableStages.includes('GROUP') && <option value="GROUP">Group Stage</option>}
+                          {availableStages.includes('ROUND_OF_16') && <option value="ROUND_OF_16">Round of 16</option>}
+                          {availableStages.includes('QUARTER') && <option value="QUARTER">Quarter Finals</option>}
+                          {availableStages.includes('SEMI') && <option value="SEMI">Semi Finals</option>}
+                          {availableStages.includes('FINAL') && <option value="FINAL">Finals</option>}
+                        </select>
+                      </div>
+                    )}
                   </div>
-                )}
-              </>
-            ) : null}
+
+                  {viewMode === 'bracket' ? (
+                    <TournamentBracket
+                      matches={matches}
+                      teamNameMap={teamNameMap}
+                      teamLogoMap={teamLogoMap}
+                      sport={tournament.sport}
+                    />
+                  ) : filteredMatches.length === 0 ? (
+                    <div className="py-20 text-center flex flex-col items-center">
+                      <Calendar size={48} className="text-neutral-800 mb-4" />
+                      <p className="text-neutral-500 font-bold">No matches found for this stage.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {filteredMatches.map(m => {
+                        const scoreA = getScore(m, 'A');
+                        const scoreB = getScore(m, 'B');
+                        const hasScore = m.status === 'LIVE' || m.status === 'COMPLETED' || m.resultSummary?.forfeited;
+                        return (
+                          <div key={m.id} className="bg-black/50 border border-white/5 hover:border-white/10 transition-colors rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div>
+                              <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-2">
+                                Match {m.matchNumber}{m.groupId && groupNames[m.groupId] && ` • ${groupNames[m.groupId]}`}{m.stage !== 'GROUP' && ` • ${m.stage}`}
+                              </div>
+                              <div className="font-bold text-lg flex items-center gap-2 flex-wrap">
+                                <span className="text-white">{teamNameMap[m.teamAId] || m.teamAId}</span>
+                                {hasScore && (
+                                  <span className="bg-neutral-900 border border-white/10 px-2.5 py-0.5 rounded-lg text-sm font-black text-[#00ff41] font-mono mx-1">
+                                    {scoreA} - {scoreB}
+                                  </span>
+                                )}
+                                <span className="text-neutral-500 text-sm font-medium">vs</span>
+                                <span className="text-white">{teamNameMap[m.teamBId] || m.teamBId}</span>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-3">
+                              <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg ${
+                                m.resultSummary?.forfeited ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' :
+                                m.status === 'COMPLETED' ? 'bg-[#00ff41]/20 text-[#00ff41]' :
+                                m.status === 'LIVE' ? 'bg-red-500/20 text-red-500' :
+                                m.status === 'SCORER_ASSIGNED' ? 'bg-blue-500/20 text-blue-400' :
+                                'bg-neutral-800 text-neutral-400'
+                              }`}>
+                                {m.resultSummary?.forfeited ? 'FORFEITED' : m.status.replace(/_/g, ' ')}
+                              </span>
+                              
+                              {['SCHEDULED', 'SCORER_ASSIGNED'].includes(m.status) && tournament.status === 'ACTIVE' && (
+                                <button 
+                                  onClick={() => handleGenerateScorerToken(m.id)}
+                                  className="p-2 bg-neutral-800 text-neutral-300 hover:text-accent hover:bg-neutral-700 rounded-lg transition-colors cursor-pointer"
+                                  title="Copy Scorer Link"
+                                >
+                                  <LinkIcon size={18} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              );
+            })() : null}
           </div>
         </div>
 
@@ -578,10 +743,12 @@ function StandingsTab({
   standings,
   tournament,
   teamNameMap,
+  matches,
 }: {
   standings: any[];
   tournament: any;
   teamNameMap: Record<string, string>;
+  matches: any[];
 }) {
   if (!standings || standings.length === 0) {
     return (
@@ -599,6 +766,8 @@ function StandingsTab({
     tournament.groups.forEach((g: any) => { groupNames[g.id] = g.name; });
   }
 
+  const isGroupStageFinished = matches.length > 0 && matches.some(m => m.stage !== 'GROUP');
+
   // Group standings by groupId (null → 'overall')
   const grouped: Record<string, any[]> = {};
   standings.forEach((s: any) => {
@@ -612,6 +781,43 @@ function StandingsTab({
 
   return (
     <div className="flex flex-col gap-5">
+      {isGroupStageFinished && (
+        <div className="bg-[#00ff41]/5 border border-[#00ff41]/20 rounded-2xl overflow-hidden shadow-lg mb-2">
+          <div className="px-4 py-3 bg-[#00ff41]/10 border-b border-[#00ff41]/20 flex items-center justify-between">
+            <h3 className="font-black uppercase tracking-widest text-sm text-[#00ff41] flex items-center gap-2">
+              🏆 Knockout Qualified Teams
+            </h3>
+            <span className="text-[10px] font-bold text-[#00ff41] bg-[#00ff41]/20 px-2 py-0.5 rounded-full">
+              {standings.filter((s: any) => s.qualified).length} qualified
+            </span>
+          </div>
+          <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 bg-black/40">
+            {standings
+              .filter((s: any) => s.qualified)
+              .sort((a, b) => {
+                if (a.groupId !== b.groupId) return (a.groupId || '').localeCompare(b.groupId || '');
+                return a.position - b.position;
+              })
+              .map((s: any) => {
+                const teamName = teamNameMap[s.teamId] || s.teamId.slice(0, 12) + '…';
+                return (
+                  <div key={s.id} className="flex items-center gap-3 bg-neutral-900 border border-white/5 p-3 rounded-xl">
+                    <div className="w-8 h-8 rounded-full bg-[#00ff41]/10 border border-[#00ff41]/20 flex items-center justify-center shrink-0">
+                      <Trophy size={14} className="text-[#00ff41]" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-black text-white truncate">{teamName}</p>
+                      <p className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest mt-0.5">
+                        {groupNames[s.groupId] || 'Group'} • Pos {s.position}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
       {Object.entries(grouped).map(([groupId, rows]) => {
         const sorted = [...rows].sort((a, b) => a.position - b.position);
         const label = groupId === 'overall'
@@ -619,11 +825,20 @@ function StandingsTab({
           : groupNames[groupId] || 'Group';
 
         return (
-          <div key={groupId} className="bg-neutral-900 border border-white/5 rounded-2xl overflow-hidden shadow-lg">
+          <div key={groupId} className={`bg-neutral-900 border border-white/5 rounded-2xl overflow-hidden shadow-lg transition-all ${
+            isGroupStageFinished ? 'opacity-50 grayscale' : ''
+          }`}>
 
             {/* Group header */}
             <div className="px-4 py-3 bg-yellow-500/10 border-b border-yellow-500/20 flex items-center justify-between">
-              <h3 className="font-black uppercase tracking-widest text-sm text-yellow-400">{label}</h3>
+              <h3 className="font-black uppercase tracking-widest text-sm text-yellow-400 flex items-center gap-2">
+                {label}
+                {isGroupStageFinished && (
+                  <span className="text-[9px] font-black uppercase tracking-widest text-neutral-400 bg-neutral-800 px-2 py-0.5 rounded">
+                    CONCLUDED
+                  </span>
+                )}
+              </h3>
               <span className="text-[10px] font-bold text-neutral-500">{sorted.length} teams</span>
             </div>
 
