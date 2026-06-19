@@ -193,10 +193,10 @@ export async function POST(
   inningsUpdate.currentNonStrikerId = newNonStrikerId;
 
   const updatedInnings = await prisma.cricketInnings.update({ where: { id: innings.id }, data: inningsUpdate });
-  const agreedOvers = (match as any).agreedOvers ?? (match.teamA.sportType === 'CRICKET_7' ? 7 : 20);
+  const agreedOvers = (match as any).agreedOvers ?? ((match.sportType ?? match.teamA.sportType) === 'CRICKET_7' ? 7 : 20);
   
   // 1. All Out Check
-  const maxWickets = match.teamA.sportType === 'CRICKET_7' ? 6 : 10;
+  const maxWickets = (match.sportType ?? match.teamA.sportType) === 'CRICKET_7' ? 6 : 10;
   const isAllOut = updatedInnings.totalWickets >= maxWickets;
 
   // 2. Super Over Limits

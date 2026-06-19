@@ -10,12 +10,9 @@ import type { ShareCardData } from '@/components/match/ShareMatchCard';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function sportLabel(sportType: string): string {
-  if (sportType === 'FUTSAL_5')      return '5-a-side Futsal';
-  if (sportType === 'FUTSAL_6')      return '6-a-side Futsal';
-  if (sportType === 'FUTSAL_7')      return '7-a-side Futsal';
-  if (sportType === 'CRICKET_7')     return '7-a-side Cricket';
-  if (sportType === 'CRICKET_FULL')  return 'Cricket';
-  if (sportType === 'FOOTBALL_FULL') return 'Football';
+  if (sportType === 'FUTSAL' || sportType.startsWith('FUTSAL_')) return 'Futsal';
+  if (sportType === 'FOOTBALL' || sportType === 'FOOTBALL_FULL') return 'Football';
+  if (sportType === 'CRICKET' || sportType.startsWith('CRICKET_')) return 'Cricket';
   return sportType;
 }
 

@@ -87,11 +87,10 @@ export default function HeroBanner({
               <button
                 key={i}
                 onClick={() => setCurrent(i)}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  i === current
+                className={`h-1.5 rounded-full transition-all duration-300 ${i === current
                     ? 'bg-accent w-5 shadow-[0_0_6px_rgba(0,255,65,0.8)]'
                     : 'bg-white/40 w-1.5 hover:bg-white/70'
-                }`}
+                  }`}
               />
             ))}
           </div>

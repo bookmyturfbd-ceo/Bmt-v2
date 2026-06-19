@@ -34,7 +34,7 @@ export async function distributeTournamentMmr(matchId: string) {
   }
 
   // Update Team MMRs
-  const mmrField = isCricket ? 'cricketMmr' : 'footballMmr';
+  const mmrField = isCricket ? 'tournamentCricketMmr' : 'tournamentFootballMmr';
   
   // Fetch team member player IDs for Team A and Team B
   const [teamAMembersList, teamBMembersList] = await Promise.all([

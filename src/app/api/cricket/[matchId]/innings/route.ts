@@ -78,7 +78,7 @@ export async function POST(
     if (!currentInnings.battingOrder || (currentInnings.battingOrder as any[]).length === 0) return null;
     if (!currentInnings.openingBowlerId) return null;
 
-    const agreOvers = (match as any).agreedOvers ?? (match.teamA.sportType === 'CRICKET_7' ? 7 : 20);
+    const agreOvers = (match as any).agreedOvers ?? ((match.sportType ?? match.teamA.sportType) === 'CRICKET_7' ? 7 : 20);
 
     const firstOver = await prisma.cricketOver.create({
       data: { inningsId: currentInnings.id, matchId, overNumber: 1, bowlerId: currentInnings.openingBowlerId },

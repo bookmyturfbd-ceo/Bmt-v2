@@ -77,7 +77,7 @@ export async function POST(
       return NextResponse.json({ error: 'Cannot bowl consecutive overs with the same bowler' }, { status: 400 });
 
     // Enforce max overs per bowler
-    const sport = match.teamA.sportType;
+    const sport = match.sportType ?? match.teamA.sportType;
     const maxBowlerOvers = sport === 'CRICKET_7' ? 2 : Math.ceil(((match as any).agreedOvers ?? 20) / 5);
     const bowlerPerf = innings.bowlingPerfs.find(p => p.playerId === nextBowlerId);
     const bowlerOvers = bowlerPerf ? Math.floor(bowlerPerf.legalBalls / 6) : 0;

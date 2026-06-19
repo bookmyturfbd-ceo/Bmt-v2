@@ -243,9 +243,8 @@ export default function ProfilePage() {
 
   const showcasedBadges = (profile?.badges || []).filter((b: any) => b.isShowcased).slice(0, 3);
   
-  // Split team memberships into Rank and Tournament
-  const rankTeams = profile?.teamMemberships?.map((m: any) => m.team)?.filter((t: any) => t && t.teamType === 'REGULAR') || [];
-  const tourneyTeams = profile?.teamMemberships?.map((m: any) => m.team)?.filter((t: any) => t && t.teamType === 'TOURNAMENT') || [];
+  // Consolidated team memberships
+  const allTeams = profile?.teamMemberships?.map((m: any) => m.team)?.filter(Boolean) || [];
 
   // Group stats by sport (only for the active tab)
   const statsBySport = activeMatchStats.reduce((acc: any, stat: any) => {
@@ -423,11 +422,11 @@ export default function ProfilePage() {
             </div>
             
             {/* dynamic teams list */}
-            {rankTab === 'RANK' && rankTeams.length > 0 && (
+            {allTeams.length > 0 && (
                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-3 flex flex-col gap-2 relative overflow-hidden group">
-                 <p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)] px-1 mb-1">{t('rankTeams')}</p>
+                 <p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)] px-1 mb-1">{t('myTeams') || t('rankTeams') || 'My Teams'}</p>
                  <div className="flex flex-col gap-1.5">
-                   {rankTeams.map((t: any) => (
+                   {allTeams.map((t: any) => (
                      <div key={t.id} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5">
                         <div className="flex items-center gap-2 min-w-0">
                           {t.logoUrl ? <img src={t.logoUrl} className="w-6 h-6 rounded-md object-cover bg-neutral-800 shrink-0" onError={(e: any) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden'); }} /> : null}
@@ -437,22 +436,6 @@ export default function ProfilePage() {
                         {t.isSubscribed || t.challengeSubscription?.active ? (
                           <span className="text-[9px] font-black uppercase text-fuchsia-400 bg-fuchsia-500/10 px-2 py-1 rounded-md border border-fuchsia-500/20 shrink-0 shadow-[0_0_10px_rgba(255,0,255,0.1)]">{t('listed')}</span>
                         ) : null}
-                     </div>
-                   ))}
-                 </div>
-               </div>
-            )}
-            {rankTab === 'TOURNAMENT' && tourneyTeams.length > 0 && (
-               <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-3 flex flex-col gap-2 relative overflow-hidden group">
-                 <p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)] px-1 mb-1">{t('tournamentTeams')}</p>
-                 <div className="flex flex-col gap-1.5">
-                   {tourneyTeams.map((t: any) => (
-                     <div key={t.id} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5">
-                        <div className="flex items-center gap-2 min-w-0">
-                          {t.logoUrl ? <img src={t.logoUrl} className="w-6 h-6 rounded-md object-cover bg-neutral-800 shrink-0" onError={(e: any) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling?.classList.remove('hidden'); }} /> : null}
-                          <Shield size={16} className={`text-[var(--muted)] shrink-0 ${t.logoUrl ? 'hidden' : ''}`} />
-                          <span className="text-xs font-bold text-white truncate leading-tight">{t.name}</span>
-                        </div>
                      </div>
                    ))}
                  </div>

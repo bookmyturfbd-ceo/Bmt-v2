@@ -12,15 +12,20 @@ import { getRankData, TIER_RANGES, BADGES_BY_SPORT, maxBadges, type BadgeDef } f
 import { useMatchResult } from '@/context/MatchResultContext';
 
 const sportName = (s: string) => {
-  if (s === 'FUTSAL_5') return '5-a-side Futsal';
-  if (s === 'FUTSAL_6') return '6-a-side Futsal';
-  if (s === 'FUTSAL_7') return '7-a-side Futsal';
-  if (s === 'CRICKET_7') return '7-a-side Cricket';
-  if (s === 'FOOTBALL_FULL') return 'Football (Full 11v11)';
-  if (s === 'CRICKET_FULL') return 'Cricket (Full 11v11)';
-  return '5-a-side Futsal';
+  if (s === 'FUTSAL' || s.startsWith('FUTSAL_')) return 'Futsal';
+  if (s === 'FOOTBALL' || s === 'FOOTBALL_FULL') return 'Football';
+  if (s === 'CRICKET' || s.startsWith('CRICKET_')) return 'Cricket';
+  return s || 'Futsal';
 };
 const sportEmoji = (s: string) => s?.includes('CRICKET') ? '🏏' : '⚽';
+
+const getSportFamily = (sport: string): string => {
+  if (!sport) return '';
+  if (sport === 'FUTSAL' || sport.startsWith('FUTSAL_')) return 'FUTSAL';
+  if (sport === 'FOOTBALL' || sport === 'FOOTBALL_FULL') return 'FOOTBALL';
+  if (sport === 'CRICKET' || sport.startsWith('CRICKET_')) return 'CRICKET';
+  return sport;
+};
 
 type MasterTab = 'discover' | 'active' | 'history';
 
@@ -83,6 +88,7 @@ export default function MarketPage() {
   const [showChallengeModal, setShowChallengeModal] = useState<any>(null);
   const [eligibleTeams,      setEligibleTeams]      = useState<any[]>([]);
   const [selectedChallenger, setSelectedChallenger] = useState('');
+  const [selectedFormat,     setSelectedFormat]     = useState('');
   const [chalSending,        setChalSending]        = useState(false);
   const [chalMsg,            setChalMsg]            = useState('');
   const [teamDetailModal,    setTeamDetailModal]    = useState<any>(null);
@@ -201,7 +207,7 @@ export default function MarketPage() {
   // ── Discover helpers ────────────────────────────────────────────────────────
   const [minMmr, maxMmr] = TIER_RANGES[divisionFilter] ?? [0, 9999];
   const filteredTeams = otherTeams.filter(t => {
-    const matchesFilters = (sportFilter === 'ALL' || t.sportType === sportFilter) &&
+    const matchesFilters = (sportFilter === 'ALL' || getSportFamily(t.sportType) === sportFilter) &&
       (t.teamMmr ?? 1000) >= minMmr && (t.teamMmr ?? 1000) <= maxMmr;
     
     if (!matchesFilters) return false;
@@ -219,10 +225,15 @@ export default function MarketPage() {
 
   const handleChallengeAttempt = (e: React.MouseEvent, target: any) => {
     e.stopPropagation();
-    const eligible = myTeams.filter(t => t.isSubscribed && t.sportType === target.sportType);
+    const targetFamily = getSportFamily(target.sportType);
+    const eligible = myTeams.filter(t => t.isSubscribed && getSportFamily(t.sportType) === targetFamily);
     setEligibleTeams(eligible);
     setSelectedChallenger(eligible[0]?.id || '');
     setChalMsg('');
+    
+    // Initialize default format based on family
+    setSelectedFormat(targetFamily);
+    
     setShowChallengeModal(target);
   };
 
@@ -233,7 +244,11 @@ export default function MarketPage() {
       const res  = await fetch('/api/interact/challenge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ challengerTeamId: selectedChallenger, opponentTeamId: showChallengeModal.id }),
+        body: JSON.stringify({
+          challengerTeamId: selectedChallenger,
+          opponentTeamId: showChallengeModal.id,
+          sportType: selectedFormat,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -269,7 +284,7 @@ export default function MarketPage() {
              const mRes = await fetch(`/api/interact/match/${matchId}`);
              const d = await mRes.json();
              if (d.match?.status === 'LIVE') {
-               const isCricket = ['CRICKET_7', 'CRICKET_FULL'].includes(d.match.teamA?.sportType);
+               const isCricket = getSportFamily(d.match.teamA?.sportType) === 'CRICKET';
                const liveRoute = isCricket ? `/${locale}/matches/${matchId}/cricket` : `/${locale}/matches/${matchId}/live`;
                router.push(liveRoute);
                return;
@@ -290,7 +305,7 @@ export default function MarketPage() {
   const submitScore = async () => {
     if (!scoreModalMatch) return;
     const amA       = myTeams.some((t: any) => t.id === scoreModalMatch.teamA_Id);
-    const isCricket = scoreModalMatch.teamA.sportType === 'CRICKET_7';
+    const isCricket = (scoreModalMatch.sportType ?? scoreModalMatch.teamA.sportType)?.startsWith('CRICKET');
     const body = isCricket
       ? { myScore: Number(myRunInput), runs: Number(myRunInput), wickets: Number(wicketInput), overs: Number(overInput) }
       : { myScore: Number(myGoalInput), goals: Number(myGoalInput) };
@@ -636,7 +651,7 @@ export default function MarketPage() {
                   <button onClick={() => {setSportFilter('ALL'); setShowSportMenu(false)}} className={`w-full py-4 px-5 rounded-2xl text-left border cursor-pointer ${sportFilter === 'ALL' ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]' : 'border-white/5 bg-neutral-900 text-white'}`}>
                     <span className="font-black text-sm">🌐 {trans('discover') === 'খুঁজুন' ? 'সব খেলা' : 'All Sports'}</span>
                   </button>
-                  {[['FUTSAL_5', '5-a-side Futsal'], ['FUTSAL_6', '6-a-side Futsal'], ['FUTSAL_7', '7-a-side Futsal'], ['CRICKET_7', '7-a-side Cricket'], ['FOOTBALL_FULL', 'Football (Full 11v11)'], ['CRICKET_FULL', 'Cricket (Full 11v11)']].map(([val, label]) => (
+                  {[['FUTSAL', 'Futsal'], ['FOOTBALL', 'Football'], ['CRICKET', 'Cricket']].map(([val, label]) => (
                     <button key={val} onClick={() => {setSportFilter(val); setShowSportMenu(false)}} className={`w-full py-4 px-5 rounded-2xl text-left border flex items-center gap-3 cursor-pointer ${sportFilter === val ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]' : 'border-white/5 bg-neutral-900 hover:bg-white/5 text-white'}`}>
                       <span className="text-lg">{sportEmoji(val)}</span>
                       <span className="font-black text-sm">{label}</span>
@@ -900,7 +915,7 @@ export default function MarketPage() {
 
                     {isLive && (() => {
                       const sport = m.teamA?.sportType ?? '';
-                      const isCricket = ['CRICKET_7', 'CRICKET_FULL'].includes(sport);
+                      const isCricket = getSportFamily(sport) === 'CRICKET';
                       const liveRoute = isCricket ? `/${locale}/matches/${m.id}/cricket` : `/${locale}/matches/${m.id}/live`;
                       return (
                         <button onClick={() => router.push(liveRoute)}
@@ -1139,15 +1154,17 @@ export default function MarketPage() {
                 <p className="text-[10px] font-bold text-red-400 uppercase tracking-wider mb-2">Access Denied</p>
                 <p className="text-[11px] text-white/80 leading-relaxed">No subscribed CM team in <b>{sportName(showChallengeModal.sportType)}</b>.</p>
               </div>
-            ) : (
-              <div className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 mb-5 text-left">
-                <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-2">Challenging as</p>
-                <select value={selectedChallenger} onChange={e => setSelectedChallenger(e.target.value)}
-                  className="w-full bg-neutral-800 text-xs text-white px-3 py-2 rounded-lg border border-white/10 outline-none focus:border-[#00ff41]/50 mb-3">
-                  {eligibleTeams.map(et => <option key={et.id} value={et.id}>{et.name}</option>)}
-                </select>
-              </div>
-            )}
+            ) : (() => {
+              return (
+                <div className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 mb-5 text-left">
+                  <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-2">Challenging as</p>
+                  <select value={selectedChallenger} onChange={e => setSelectedChallenger(e.target.value)}
+                    className="w-full bg-neutral-800 text-xs text-white px-3 py-2 rounded-lg border border-white/10 outline-none focus:border-[#00ff41]/50">
+                    {eligibleTeams.map(et => <option key={et.id} value={et.id}>{et.name}</option>)}
+                  </select>
+                </div>
+              );
+            })()}
             {chalMsg && <p className={`text-xs font-bold mb-4 ${chalMsg.startsWith('✅') ? 'text-[#00ff41]' : 'text-red-400'}`}>{chalMsg}</p>}
             <div className="w-full flex gap-3">
               <button onClick={() => setShowChallengeModal(null)} className="flex-1 py-3 bg-neutral-800 hover:bg-neutral-700 font-bold rounded-xl text-sm transition-colors">
@@ -1167,9 +1184,9 @@ export default function MarketPage() {
       {/* ═══ PLAYER STATS MODAL ═══ */}
       {statsModal && (() => {
         const { myScore, sport, players, starterIds } = statsModal;
-        const isCricket  = ['CRICKET_7','CRICKET_FULL'].includes(sport);
+        const isCricket  = getSportFamily(sport) === 'CRICKET';
         const isFutsal   = !isCricket;
-        const sportBadges: BadgeDef[]  = BADGES_BY_SPORT[sport] ?? BADGES_BY_SPORT['FUTSAL_5'];
+        const sportBadges: BadgeDef[]  = BADGES_BY_SPORT[sport] ?? (isCricket ? BADGES_BY_SPORT['CRICKET_7'] : BADGES_BY_SPORT['FUTSAL_5']);
         const badgeLimit = maxBadges(sport);
         const assignedCount = Object.values(statsData).filter((s: any) => s.badge && s.badge !== 'NONE').length;
         const upd = (pid: string, field: string, val: any) =>
@@ -1386,7 +1403,7 @@ export default function MarketPage() {
       {/* ═══ SCORE ENTRY MODAL ═══ */}
       {scoreModalId && scoreModalMatch && (() => {
         const amA         = myTeams.some((t: any) => t.id === scoreModalMatch.teamA_Id);
-        const isCricket   = scoreModalMatch.teamA.sportType === 'CRICKET_7';
+        const isCricket   = (scoreModalMatch.sportType ?? scoreModalMatch.teamA.sportType)?.startsWith('CRICKET');
         const myTeamH     = amA ? scoreModalMatch.teamA : scoreModalMatch.teamB;
         const oppH        = amA ? scoreModalMatch.teamB : scoreModalMatch.teamA;
         const mySubmitted = amA ? scoreModalMatch.scoreSubmittedByA : scoreModalMatch.scoreSubmittedByB;

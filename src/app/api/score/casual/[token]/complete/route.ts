@@ -59,7 +59,7 @@ export async function POST(
                    : scoreB > scoreA ? match.teamB_Id
                    : null;
 
-    const sportType = match.teamA.sportType as any;
+    const sportType = (match.sportType ?? match.teamA.sportType) as any;
     const { mmrChangeA, mmrChangeB, mmrField } = calcTeamMMR(match.teamA_Id, match.teamB_Id, winnerId, sportType);
 
     // MMR cap check: max 2 games per week between same teams

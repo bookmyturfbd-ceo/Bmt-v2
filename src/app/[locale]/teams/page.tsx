@@ -33,28 +33,22 @@ function getSportEmoji(name: string) {
 }
 
 const COMPETITIVE_MODES = [
-  { id: 'FUTSAL_5',      name: 'Futsal (5-a-side)' },
-  { id: 'FUTSAL_6',      name: 'Futsal (6-a-side)' },
-  { id: 'FUTSAL_7',      name: 'Futsal (7-a-side)' },
-  { id: 'CRICKET_7',     name: 'Cricket (7-a-side)' },
-  { id: 'FOOTBALL_FULL', name: 'Football (Full 11v11)' },
-  { id: 'CRICKET_FULL',  name: 'Cricket (Full 11v11)' },
+  { id: 'FUTSAL',   name: 'Futsal' },
+  { id: 'FOOTBALL', name: 'Football' },
+  { id: 'CRICKET',  name: 'Cricket' },
 ];
 
 // ── Create Team Modal ──────────────────────────────────────────────────────────
 function CreateTeamModal({
   onClose,
   onCreated,
-  defaultType,
 }: {
   onClose: () => void;
   onCreated: () => void;
-  defaultType: TeamType;
 }) {
   const trans = useTranslations('Teams');
   const [name,      setName]      = useState('');
   const [sport,     setSport]     = useState('');
-  const [teamType,  setTeamType]  = useState<TeamType>(defaultType);
   const [logoUrl,   setLogoUrl]   = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [saving,    setSaving]    = useState(false);
@@ -78,7 +72,7 @@ function CreateTeamModal({
     const res = await fetch('/api/teams', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), sport, logoUrl, teamType }),
+      body: JSON.stringify({ name: name.trim(), sport, logoUrl, teamType: 'REGULAR' }),
     });
     const data = await res.json();
     if (!res.ok) { setError(data.error || 'Failed to create team'); setSaving(false); return; }
@@ -87,14 +81,12 @@ function CreateTeamModal({
     onClose();
   };
 
-  const isTournament = teamType === 'TOURNAMENT';
-
   return (
     <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={onClose} />
       <div className="relative w-full max-w-md glass-panel rounded-3xl border border-[var(--panel-border)] shadow-2xl z-10 overflow-hidden">
-        {/* Top accent bar — green for regular, amber for tournament */}
-        <div className={`h-1 w-full bg-gradient-to-r ${isTournament ? 'from-amber-500/0 via-amber-400 to-amber-500/0' : 'from-accent/0 via-accent to-accent/0'}`} />
+        {/* Top accent bar */}
+        <div className="h-1 w-full bg-gradient-to-r from-accent/0 via-accent to-accent/0" />
         <div className="p-6 flex flex-col gap-5">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-black">{trans('newTeam')}</h2>
@@ -103,33 +95,9 @@ function CreateTeamModal({
             </button>
           </div>
 
-          {/* Team type selector */}
-          <div className="flex gap-2">
-            {(['REGULAR', 'TOURNAMENT'] as TeamType[]).map(type => (
-              <button
-                key={type}
-                onClick={() => setTeamType(type)}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border-2 text-xs font-black transition-all cursor-pointer ${
-                  teamType === type
-                    ? type === 'TOURNAMENT'
-                      ? 'bg-amber-500/15 border-amber-400/60 text-amber-300'
-                      : 'bg-accent/10 border-accent text-accent'
-                    : 'bg-[var(--panel-bg)] border-[var(--panel-border)] text-[var(--muted)] hover:border-accent/30'
-                }`}
-              >
-                {type === 'TOURNAMENT' ? <Trophy size={13} /> : <Swords size={13} />}
-                {type === 'REGULAR' ? trans('regular') : trans('tournament')}
-              </button>
-            ))}
-          </div>
-
           {/* Info strip */}
-          <div className={`px-3 py-2 rounded-xl text-[11px] font-medium leading-relaxed ${
-            isTournament ? 'bg-amber-500/8 border border-amber-500/20 text-amber-300' : 'bg-accent/5 border border-accent/15 text-accent/80'
-          }`}>
-            {isTournament
-              ? trans('tournamentTeamsContext')
-              : trans('regularTeamsContext')}
+          <div className="px-3 py-2 rounded-xl text-[11px] font-medium leading-relaxed bg-accent/5 border border-accent/15 text-accent/80">
+            {trans('regularTeamsContext')}
           </div>
 
           {/* Logo upload */}
@@ -197,11 +165,7 @@ function CreateTeamModal({
           <button
             onClick={submit}
             disabled={saving || uploading || !name.trim() || !sport}
-            className={`flex items-center justify-center gap-2 py-3.5 font-black text-sm rounded-2xl transition-all disabled:opacity-40 cursor-pointer ${
-              isTournament
-                ? 'bg-amber-400 text-black hover:brightness-110 shadow-[0_4px_20px_rgba(251,191,36,0.3)]'
-                : 'bg-accent text-black hover:brightness-110 shadow-[0_4px_20px_rgba(0,255,65,0.3)]'
-            }`}
+            className="flex items-center justify-center gap-2 py-3.5 font-black text-sm rounded-2xl transition-all disabled:opacity-40 cursor-pointer bg-accent text-black hover:brightness-110 shadow-[0_4px_20px_rgba(0,255,65,0.3)]"
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} strokeWidth={3} />}
             {saving ? trans('creating') : trans('createTeam')}
@@ -215,7 +179,6 @@ function CreateTeamModal({
 // ── Team Card ─────────────────────────────────────────────────────────────────
 function TeamCard({ team }: { team: Team }) {
   const trans = useTranslations('Teams');
-  const isTournament = team.teamType === 'TOURNAMENT';
   return (
     <Link
       href={`/teams/${team.id}`}
@@ -234,9 +197,6 @@ function TeamCard({ team }: { team: Team }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <p className="font-black text-base truncate">{team.name}</p>
-          {isTournament && (
-            <Trophy size={11} className="text-amber-400 shrink-0" />
-          )}
         </div>
         <div className="flex items-center gap-1.5 mt-0.5">
           <span className="text-sm">{getSportEmoji(team.sport)}</span>
@@ -296,7 +256,6 @@ function EmptyState({ type, onCreate }: { type: TeamType; onCreate: () => void }
 // ── Main Teams Page ───────────────────────────────────────────────────────────
 export default function TeamsPage() {
   const trans = useTranslations('Teams');
-  const [activeTab,  setActiveTab]  = useState<TeamType>('REGULAR');
   const [allTeams,   setAllTeams]   = useState<Team[]>([]);
   const [invitations, setInvitations] = useState<any[]>([]);
   const [inviteActionId, setInviteActionId] = useState<string | null>(null);
@@ -350,14 +309,6 @@ export default function TeamsPage() {
 
   useEffect(() => { load(); }, []);
 
-  const teams = allTeams.filter(t => t.teamType === activeTab);
-  const activeInvitations = invitations.filter(inv => inv.team?.teamType === activeTab);
-
-  const TABS: { key: TeamType; label: string; icon: typeof Swords }[] = [
-    { key: 'REGULAR',    label: trans('rankTeams'),    icon: Swords  },
-    { key: 'TOURNAMENT', label: trans('tournamentTeams'), icon: Trophy  },
-  ];
-
   return (
     <div className="flex flex-col min-h-screen bg-background pb-24 pt-2">
       <div className="w-full max-w-md mx-auto flex flex-col">
@@ -373,61 +324,19 @@ export default function TeamsPage() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 px-4 pt-3 pb-1">
-          {TABS.map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border text-xs font-black transition-all cursor-pointer ${
-                activeTab === tab.key
-                  ? tab.key === 'TOURNAMENT'
-                    ? 'bg-amber-400/15 border-amber-400/50 text-amber-300'
-                    : 'bg-accent/15 border-accent/40 text-accent'
-                  : 'bg-[var(--panel-bg)] border-[var(--panel-border)] text-[var(--muted)] hover:text-foreground'
-              }`}
-            >
-              <tab.icon size={13} />
-              {tab.label}
-              {!loading && (
-                <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black ${
-                  activeTab === tab.key
-                    ? tab.key === 'TOURNAMENT'
-                      ? 'bg-amber-400/20 text-amber-300'
-                      : 'bg-accent/20 text-accent'
-                    : 'bg-neutral-800 text-neutral-500'
-                }`}>
-                  {allTeams.filter(t => t.teamType === tab.key).length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* Context description */}
-        <div className="px-4 py-2">
-          <p className="text-[11px] text-[var(--muted)] font-medium">
-            {activeTab === 'REGULAR'
-              ? trans('regularTeamsContext')
-              : trans('tournamentTeamsContext')}
-          </p>
-        </div>
-
         {/* Content */}
-        <div className="flex flex-col gap-3 px-4 pt-1">
+        <div className="flex flex-col gap-3 px-4 pt-4">
           {/* Pending Invitations Banner */}
-          {activeInvitations.length > 0 && (
+          {invitations.length > 0 && (
             <div className="flex flex-col gap-2 shrink-0 mb-2">
               <h3 className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)] flex items-center gap-1.5">
-                <span>✉️ {trans('pendingInvites')} ({activeInvitations.length})</span>
+                <span>✉️ {trans('pendingInvites')} ({invitations.length})</span>
               </h3>
               
               <div className="flex flex-col gap-2.5">
-                {activeInvitations.map((invite) => {
-                  const isTourney = invite.team?.teamType === 'TOURNAMENT';
-                  const accentColorClass = isTourney ? 'border-amber-500/30 bg-amber-500/5' : 'border-accent/30 bg-accent/5';
-                  const textColorClass = isTourney ? 'text-amber-400' : 'text-accent';
-                  const glowShadow = isTourney ? 'shadow-[0_0_15px_rgba(251,191,36,0.08)]' : 'shadow-[0_0_15px_rgba(0,255,65,0.08)]';
+                {invitations.map((invite) => {
+                  const accentColorClass = 'border-accent/30 bg-accent/5';
+                  const glowShadow = 'shadow-[0_0_15px_rgba(0,255,65,0.08)]';
 
                   return (
                     <div
@@ -458,8 +367,7 @@ export default function TeamsPage() {
                         <button
                           onClick={() => handleInviteResponse(invite.id, 'accept')}
                           disabled={inviteActionId !== null}
-                          className={`flex-grow py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all text-black hover:brightness-110 active:scale-95 disabled:opacity-40 cursor-pointer
-                            ${isTourney ? 'bg-amber-400 shadow-[0_4px_12px_rgba(251,191,36,0.2)]' : 'bg-accent shadow-[0_4px_12px_rgba(0,255,65,0.2)]'}`}
+                          className="flex-grow py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all text-black hover:brightness-110 active:scale-95 disabled:opacity-40 cursor-pointer bg-accent shadow-[0_4px_12px_rgba(0,255,65,0.2)]"
                         >
                           {inviteActionId === invite.id ? (
                             <Loader2 size={12} className="animate-spin text-black" />
@@ -485,11 +393,7 @@ export default function TeamsPage() {
           {/* Create button */}
           <button
             onClick={() => loggedIn ? setShowCreate(true) : null}
-            className={`flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl border-2 border-dashed font-black text-sm hover:brightness-110 transition-all cursor-pointer ${
-              activeTab === 'TOURNAMENT'
-                ? 'border-amber-400/40 text-amber-400 hover:bg-amber-400/5 hover:border-amber-400/70'
-                : 'border-accent/40 text-accent hover:bg-accent/5 hover:border-accent/70'
-            }`}
+            className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl border-2 border-dashed font-black text-sm hover:brightness-110 transition-all cursor-pointer border-accent/40 text-accent hover:bg-accent/5 hover:border-accent/70"
           >
             <Plus size={16} strokeWidth={3} />
             {trans('createTeam')}
@@ -505,10 +409,10 @@ export default function TeamsPage() {
             <div className="flex items-center justify-center py-16">
               <Loader2 size={28} className="text-accent animate-spin" />
             </div>
-          ) : teams.length === 0 ? (
-            <EmptyState type={activeTab} onCreate={() => setShowCreate(true)} />
+          ) : allTeams.length === 0 ? (
+            <EmptyState type="REGULAR" onCreate={() => setShowCreate(true)} />
           ) : (
-            teams.map(team => <TeamCard key={team.id} team={team} />)
+            allTeams.map(team => <TeamCard key={team.id} team={team} />)
           )}
         </div>
       </div>
@@ -517,7 +421,6 @@ export default function TeamsPage() {
         <CreateTeamModal
           onClose={() => setShowCreate(false)}
           onCreated={() => { load(); }}
-          defaultType={activeTab}
         />
       )}
     </div>

@@ -92,7 +92,7 @@ export async function POST(
                    : finalScoreB > finalScoreA ? match.teamB_Id
                    : null;
 
-    const sportType = match.teamA.sportType as any;
+    const sportType = (match.sportType ?? match.teamA.sportType) as any;
     const { mmrChangeA, mmrChangeB, mmrField } = calcTeamMMR(match.teamA_Id, match.teamB_Id, winnerId, sportType);
 
     const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);

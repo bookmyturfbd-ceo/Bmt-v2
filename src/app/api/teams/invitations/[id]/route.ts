@@ -49,10 +49,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     // On accept:
     // 1. Double check team is not already full
-    let maxRosterSize = 9; // FUTSAL_5 default
-    if (invite.team.sportType === 'FUTSAL_6') maxRosterSize = 10;
-    if (invite.team.sportType === 'FUTSAL_7' || invite.team.sportType === 'CRICKET_7') maxRosterSize = 11;
-    if (invite.team.sportType === 'FOOTBALL_FULL' || invite.team.sportType === 'CRICKET_FULL') maxRosterSize = 15;
+    const maxRosterSize = 15; // Unified max roster size
 
     const currentMembersCount = await prisma.teamMember.count({
       where: { teamId: invite.teamId },
@@ -81,17 +78,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ ok: true, status: 'ACCEPTED' });
     }
 
-    // 3. Check not already in another team of the same sport AND same teamType
+    // 3. Check not already in another team of the same sport category
     const inSameSport = await prisma.teamMember.findFirst({
       where: {
         playerId: invite.playerId,
-        team: { sportType: invite.team.sportType, teamType: invite.team.teamType }
+        team: {
+          OR: [
+            { sportType: invite.team.sportType },
+            ...(invite.team.sportType === 'FUTSAL' ? [{ sportType: 'FUTSAL_5' as any }, { sportType: 'FUTSAL_6' as any }, { sportType: 'FUTSAL_7' as any }] : []),
+            ...(invite.team.sportType === 'CRICKET' ? [{ sportType: 'CRICKET_7' as any }, { sportType: 'CRICKET_FULL' as any }] : []),
+            ...(invite.team.sportType === 'FOOTBALL' ? [{ sportType: 'FOOTBALL_FULL' as any }] : []),
+          ]
+        }
       },
-      include: { team: { select: { name: true } } }
+      include: { team: { select: { name: true, sportType: true } } }
     });
     if (inSameSport) {
-      const typeLabel = invite.team.teamType === 'TOURNAMENT' ? 'tournament' : 'regular';
-      return NextResponse.json({ error: `You are already in a ${invite.team.sportType} ${typeLabel} team (${inSameSport.team.name}). Leave it first.` }, { status: 400 });
+      return NextResponse.json({ error: `You are already in a ${inSameSport.team.name} team (${inSameSport.team.name}). Leave it first.` }, { status: 400 });
     }
 
     // 4. Create Member and set invitation status to ACCEPTED
@@ -109,10 +112,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }),
     ]);
 
-    if (invite.team.teamType === 'TOURNAMENT') {
-      const { syncTournamentTeamMmr } = await import('@/lib/teamMmr');
-      await syncTournamentTeamMmr(invite.teamId);
-    }
+    const { syncTournamentTeamMmr } = await import('@/lib/teamMmr');
+    await syncTournamentTeamMmr(invite.teamId);
 
     return NextResponse.json({ ok: true, status: 'ACCEPTED' });
   } catch (error: any) {

@@ -13,13 +13,13 @@ export async function syncTournamentTeamMmr(teamId: string) {
       include: { members: { include: { player: true } } }
     });
 
-    if (!team || team.teamType !== 'TOURNAMENT') return;
+    if (!team) return;
 
     if (team.members.length === 0) {
       // Default to 1000 if empty
       await prisma.team.update({
         where: { id: teamId },
-        data: { footballMmr: 1000, cricketMmr: 1000, teamMmr: 1000 }
+        data: { tournamentFootballMmr: 1000, tournamentCricketMmr: 1000 }
       });
       return;
     }
@@ -32,14 +32,14 @@ export async function syncTournamentTeamMmr(teamId: string) {
       const avg = Math.round(total / players.length);
       await prisma.team.update({
         where: { id: teamId },
-        data: { cricketMmr: avg, teamMmr: avg }
+        data: { tournamentCricketMmr: avg }
       });
     } else {
       const total = players.reduce((sum, p) => sum + (p.tournamentFootballMmr || 1000), 0);
       const avg = Math.round(total / players.length);
       await prisma.team.update({
         where: { id: teamId },
-        data: { footballMmr: avg, teamMmr: avg }
+        data: { tournamentFootballMmr: avg }
       });
     }
   } catch (error) {

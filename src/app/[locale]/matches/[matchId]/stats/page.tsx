@@ -49,7 +49,7 @@ export default function PlayerStatsPage() {
 
     const mt: Team = d.isTeamA ? d.match.teamA : d.match.teamB;
     setMyTeam(mt);
-    const sport = mt.sportType as string;
+    const sport = (d.match.sportType ?? mt.sportType) as string;
     setSportType(sport);
     setIsCricket(['CRICKET_7','CRICKET_FULL'].includes(sport));
 

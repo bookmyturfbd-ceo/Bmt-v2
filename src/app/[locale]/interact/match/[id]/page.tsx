@@ -9,10 +9,9 @@ import {
 } from 'lucide-react';
 import { getRankData } from '@/lib/rankUtils';
 
-// Sport-specific constants
 const FUTSAL5_FORMATIONS = ['2-2', '2-1-1', '1-2-1', '3-1', '1-3'];
 const FUTSAL6_FORMATIONS = ['3-2', '2-3', '2-2-1', '1-3-1', '3-1-1'];
-const MIN_STARTERS: Record<string, number> = { FUTSAL_5: 5, FUTSAL_6: 6, FUTSAL_7: 7, CRICKET_7: 7, CRICKET_FULL: 11, FOOTBALL_FULL: 11 };
+const MIN_STARTERS: Record<string, number> = { FUTSAL: 5, FUTSAL_5: 5, FUTSAL_6: 6, FUTSAL_7: 7, CRICKET: 7, CRICKET_7: 7, CRICKET_FULL: 11, FOOTBALL: 11, FOOTBALL_FULL: 11 };
 
 export default function InteractionBoardPage() {
   const { id: matchId, locale } = useParams() as { id: string; locale: string };
@@ -201,7 +200,7 @@ export default function InteractionBoardPage() {
   useEffect(() => {
     const vt = venueTypeLocal ?? matchData?.match.venueType;
     if (currentStep === 3 && vt === 'BMT' && matchData) {
-      loadVenues(matchData.match.teamA.sportType);
+      loadVenues(matchData.match.sportType ?? matchData.match.teamA.sportType);
     }
   }, [currentStep, venueTypeLocal]);
 
@@ -209,7 +208,7 @@ export default function InteractionBoardPage() {
   useEffect(() => {
     const vt = venueTypeLocal ?? matchData?.match.venueType;
     if (currentStep === 3 && vt === 'BMT' && matchData) {
-      loadVenues(matchData.match.teamA.sportType);
+      loadVenues(matchData.match.sportType ?? matchData.match.teamA.sportType);
     }
   }, [venueDate]);
 
@@ -307,10 +306,10 @@ export default function InteractionBoardPage() {
   const opponent = isTeamA ? match.teamB : match.teamA;
   const amLocked = isTeamA ? match.rosterLockedA : match.rosterLockedB;
   const opponentLocked = isTeamA ? match.rosterLockedB : match.rosterLockedA;
-  const sportType: string = match.teamA.sportType;
-  const isCricket = sportType === 'CRICKET_7' || sportType === 'CRICKET_FULL';
-  const isFutsal = !isCricket && sportType !== 'FOOTBALL_FULL';
-  const formations = sportType === 'FUTSAL_5' ? FUTSAL5_FORMATIONS : sportType === 'FUTSAL_6' ? FUTSAL6_FORMATIONS : [];
+  const sportType: string = match.sportType ?? match.teamA.sportType;
+  const isCricket = sportType === 'CRICKET_7' || sportType === 'CRICKET_FULL' || sportType === 'CRICKET';
+  const isFutsal = sportType === 'FUTSAL' || sportType.startsWith('FUTSAL_');
+  const formations = sportType === 'FUTSAL' ? [...FUTSAL5_FORMATIONS, ...FUTSAL6_FORMATIONS] : sportType === 'FUTSAL_5' ? FUTSAL5_FORMATIONS : sportType === 'FUTSAL_6' ? FUTSAL6_FORMATIONS : [];
   const minStarters = MIN_STARTERS[sportType] ?? 5;
 
   const getSportMmr = (entity: any) => {
@@ -383,12 +382,9 @@ export default function InteractionBoardPage() {
             </span>
             <span className="text-[10px] font-black text-neutral-500">VS</span>
             <span className="text-[7px] text-neutral-700 font-bold uppercase tracking-wide">
-              {sportType === 'CRICKET_7' ? '7-a-side Cricket'
-                : sportType === 'CRICKET_FULL' ? 'Full Cricket'
-                : sportType === 'FUTSAL_5' ? '5-a-side'
-                : sportType === 'FUTSAL_6' ? '6-a-side'
-                : sportType === 'FUTSAL_7' ? '7-a-side'
-                : sportType === 'FOOTBALL_FULL' ? 'Full 11v11'
+              {sportType === 'CRICKET_7' || sportType === 'CRICKET_FULL' || sportType === 'CRICKET' ? 'Cricket'
+                : sportType.startsWith('FUTSAL') ? 'Futsal'
+                : sportType.startsWith('FOOTBALL') ? 'Football'
                 : sportType}
             </span>
           </div>
@@ -1061,7 +1057,7 @@ export default function InteractionBoardPage() {
                   placeholder="Search turfs…"
                   className="w-full bg-neutral-900 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white outline-none focus:border-fuchsia-500/50 placeholder:text-neutral-600" />
               </div>
-              <input type="date" value={venueDate} onChange={e => { setVenueDate(e.target.value); loadVenues(matchData?.match.teamA.sportType ?? ''); }}
+              <input type="date" value={venueDate} onChange={e => { setVenueDate(e.target.value); loadVenues(matchData?.match.sportType ?? matchData?.match.teamA.sportType ?? ''); }}
                 className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-fuchsia-500/50 shrink-0 w-36" />
             </div>
 

@@ -85,7 +85,7 @@ export async function POST(
   } else {
     if (innings2.totalRuns >= target) {
       winnerId = innings2.battingTeamId;
-      const maxWickets = match.teamA.sportType === 'CRICKET_7' ? 6 : 10;
+      const maxWickets = (match.sportType ?? match.teamA.sportType) === 'CRICKET_7' ? 6 : 10;
       const wicketsWonBy = maxWickets - innings2.totalWickets;
       victoryString = `${winnerId === match.teamA_Id ? match.teamA.name : match.teamB.name} won by ${Math.max(1, wicketsWonBy)} Wickets`;
     } else if (innings2.totalRuns === target - 1) {
@@ -102,7 +102,7 @@ export async function POST(
   const scoreB = innings.reduce((s: number, i: any) => i.battingTeamId === match.teamB_Id ? s + i.totalRuns : s, 0);
 
   // ── MMR calculation ─────────────────────────────────────────────────────────
-  const sportType = match.teamA.sportType as any;
+  const sportType = (match.sportType ?? match.teamA.sportType) as any;
   const { mmrChangeA, mmrChangeB, mmrField } = calcTeamMMR(match.teamA_Id, match.teamB_Id, winnerId, sportType);
 
   // Gather rostered players and apply base player MMR

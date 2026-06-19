@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter, usePathname } from 'next/navigation';
-import { Loader2, ArrowLeft, Users, Trophy, Play, GitMerge, Link as LinkIcon, AlertCircle, Calendar, Gavel, ChevronDown, ChevronUp, Shield, Star } from 'lucide-react';
+import { Loader2, ArrowLeft, Users, Trophy, Play, GitMerge, Link as LinkIcon, AlertCircle, Calendar, Gavel, ChevronDown, ChevronUp, Shield, Star, X, Edit, Check } from 'lucide-react';
 import dynamic from 'next/dynamic';
 const AuctionOrganizerPanel = dynamic(() => import('@/components/admin/tournaments/AuctionOrganizerPanel'), { ssr: false });
 import TournamentSponsorsTab from '@/components/admin/tournaments/TournamentSponsorsTab';
@@ -20,10 +20,16 @@ export default function OrganizerTournamentDetails() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'matches' | 'auction' | 'registrations' | 'sponsors' | 'standings'>('registrations');
+  const [activeTab, setActiveTab] = useState<'matches' | 'auction' | 'registrations' | 'sponsors' | 'standings' | 'timeline'>('registrations');
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [selectedStage, setSelectedStage] = useState<string>('ALL');
   const [viewMode, setViewMode] = useState<'list' | 'bracket'>('list');
+
+  // Edit Match & Group Modals State
+  const [editingMatch, setEditingMatch] = useState<any>(null);
+  const [editMatchModalOpen, setEditMatchModalOpen] = useState(false);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [editGroupModalOpen, setEditGroupModalOpen] = useState(false);
 
   useEffect(() => {
     if (matches && matches.length > 0) {
@@ -490,6 +496,16 @@ export default function OrganizerTournamentDetails() {
             >
               <Trophy size={14} /> Standings
             </button>
+            <button
+              onClick={() => setActiveTab('timeline')}
+              className={`flex-1 min-w-[120px] py-3.5 text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                activeTab === 'timeline'
+                  ? 'text-yellow-400 border-b-2 border-yellow-400'
+                  : 'text-neutral-500 hover:text-white'
+              }`}
+            >
+              <Calendar size={14} /> Timeline
+            </button>
           </div>
 
           <div className="flex-1 p-6 overflow-y-auto">
@@ -498,7 +514,9 @@ export default function OrganizerTournamentDetails() {
             ) : activeTab === 'sponsors' ? (
               <TournamentSponsorsTab tournamentId={String(tournamentId)} />
             ) : activeTab === 'standings' ? (
-              <StandingsTab standings={standings} tournament={tournament} teamNameMap={teamNameMap} matches={matches} />
+              <StandingsTab standings={standings} tournament={tournament} teamNameMap={teamNameMap} matches={matches} onEditGroup={(gid) => { setEditingGroupId(gid); setEditGroupModalOpen(true); }} />
+            ) : activeTab === 'timeline' ? (
+              <TimelineTab tournament={tournament} />
             ) : activeTab === 'registrations' ? (
               <>
                 <h2 className="text-xl font-black uppercase tracking-wider mb-6">Registered Teams</h2>
@@ -703,6 +721,14 @@ export default function OrganizerTournamentDetails() {
                             </div>
                             
                             <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => { setEditingMatch(m); setEditMatchModalOpen(true); }}
+                                className="p-2 bg-neutral-800 text-neutral-300 hover:text-accent hover:bg-neutral-700 rounded-lg transition-colors cursor-pointer flex items-center justify-center shrink-0"
+                                title="Edit Match Details / Score"
+                              >
+                                <Edit size={16} />
+                              </button>
+
                               <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg ${
                                 m.resultSummary?.forfeited ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' :
                                 m.status === 'COMPLETED' ? 'bg-[#00ff41]/20 text-[#00ff41]' :
@@ -735,6 +761,32 @@ export default function OrganizerTournamentDetails() {
         </div>
 
       </main>
+
+      {editMatchModalOpen && editingMatch && (
+        <EditMatchModal
+          match={editingMatch}
+          tournament={tournament}
+          onClose={() => { setEditingMatch(null); setEditMatchModalOpen(false); }}
+          onSaved={async () => {
+            setEditingMatch(null);
+            setEditMatchModalOpen(false);
+            await loadData();
+          }}
+        />
+      )}
+
+      {editGroupModalOpen && editingGroupId && (
+        <EditGroupModal
+          groupId={editingGroupId}
+          tournament={tournament}
+          onClose={() => { setEditingGroupId(null); setEditGroupModalOpen(false); }}
+          onSaved={async () => {
+            setEditingGroupId(null);
+            setEditGroupModalOpen(false);
+            await loadData();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -744,11 +796,13 @@ function StandingsTab({
   tournament,
   teamNameMap,
   matches,
+  onEditGroup
 }: {
   standings: any[];
   tournament: any;
   teamNameMap: Record<string, string>;
   matches: any[];
+  onEditGroup: (groupId: string) => void;
 }) {
   if (!standings || standings.length === 0) {
     return (
@@ -766,158 +820,672 @@ function StandingsTab({
     tournament.groups.forEach((g: any) => { groupNames[g.id] = g.name; });
   }
 
-  const isGroupStageFinished = matches.length > 0 && matches.some(m => m.stage !== 'GROUP');
-
-  // Group standings by groupId (null → 'overall')
-  const grouped: Record<string, any[]> = {};
-  standings.forEach((s: any) => {
-    const key = s.groupId || 'overall';
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(s);
-  });
-
   const isCricket = tournament.sport === 'CRICKET';
   const isFootball = tournament.sport === 'FOOTBALL';
 
+  // Group standings by groupId
+  const groupStandings: Record<string, any[]> = {};
+  standings.forEach((s: any) => {
+    if (!s.groupId) return;
+    if (!groupStandings[s.groupId]) groupStandings[s.groupId] = [];
+    groupStandings[s.groupId].push(s);
+  });
+
+  const groupIds = Object.keys(groupStandings);
+  const groupStageComplete = groupIds.length > 0 && groupIds.every(gid =>
+    (groupStandings[gid] || []).every((s: any) => {
+      const groupMatches = matches.filter((m: any) => m.groupId === gid);
+      return groupMatches.length > 0 && groupMatches.every((m: any) => m.status === 'COMPLETED');
+    })
+  );
+
+  const isGroupStageFinished = matches.length > 0 && matches.some(m => m.stage !== 'GROUP');
+
+  // ── Knockout stage analysis ─────────────────────────────────────────────────
+  const qfMatches = matches.filter((m: any) => m.stage === 'QUARTER');
+  const sfMatches = matches.filter((m: any) => m.stage === 'SEMI');
+  const finalMatches = matches.filter((m: any) => m.stage === 'FINAL');
+
+  const qfDone = qfMatches.length > 0 && qfMatches.every((m: any) => m.status === 'COMPLETED');
+  const sfDone = sfMatches.length > 0 && sfMatches.every((m: any) => m.status === 'COMPLETED');
+  const finalDone = finalMatches.length > 0 && finalMatches.every((m: any) => m.status === 'COMPLETED');
+
+  // Teams advancing through knockout stages
+  const qfTeamIds = qfMatches.length > 0
+    ? [...new Set(qfMatches.flatMap((m: any) => [m.teamAId, m.teamBId]).filter(Boolean))]
+    : [];
+  const sfTeamIds = sfMatches.length > 0
+    ? [...new Set(sfMatches.flatMap((m: any) => [m.teamAId, m.teamBId]).filter(Boolean))]
+    : [];
+  const finalTeamIds = finalMatches.length > 0
+    ? [...new Set(finalMatches.flatMap((m: any) => [m.teamAId, m.teamBId]).filter(Boolean))]
+    : [];
+  const championId = finalDone ? finalMatches[0]?.winnerId : null;
+
+  // ── Overall team standings ──────────────────────────────────────────────────
+  const allTeamIds = tournament.registrations
+    ? tournament.registrations.filter((r: any) => r.entityType === 'TEAM').map((r: any) => r.entityId)
+    : [];
+
+  function stageReached(teamId: string): number {
+    if (championId === teamId) return 6;
+    if (finalTeamIds.includes(teamId)) return 5;
+    if (sfTeamIds.includes(teamId)) return 4;
+    if (qfTeamIds.includes(teamId)) return 3;
+    if (groupStageComplete && standings.some((s: any) => s.teamId === teamId && s.qualified)) return 2;
+    return 1;
+  }
+
+  function isEliminated(teamId: string): boolean {
+    if (groupStageComplete) {
+      const s = standings.find((x: any) => x.teamId === teamId);
+      if (s && !s.qualified && !qfTeamIds.includes(teamId)) return true;
+    }
+    if (qfDone && qfTeamIds.includes(teamId) && !sfTeamIds.includes(teamId)) return true;
+    if (sfDone && sfTeamIds.includes(teamId) && !finalTeamIds.includes(teamId)) return true;
+    if (finalDone && finalTeamIds.includes(teamId) && championId !== teamId) return true;
+    return false;
+  }
+
+  const sortedOverall = [...allTeamIds].sort((a, b) => {
+    const elimA = isEliminated(a);
+    const elimB = isEliminated(b);
+    if (elimA !== elimB) return elimA ? 1 : -1;
+    const stageA = stageReached(a);
+    const stageB = stageReached(b);
+    if (stageA !== stageB) return stageB - stageA;
+    const standingA = standings.find((s: any) => s.teamId === a);
+    const standingB = standings.find((s: any) => s.teamId === b);
+    return (standingB?.points ?? 0) - (standingA?.points ?? 0);
+  });
+
+  const stageLabel: Record<string, string> = {
+    QUARTER: 'Quarter Finals',
+    SEMI: 'Semi Finals',
+    FINAL: 'Grand Final',
+  };
+
+  function StandingRow({ s, idx }: { s: any; idx: number }) {
+    const teamName = teamNameMap[s.teamId] || s.teamId;
+    const logo = s.team?.logoUrl || s.player?.avatarUrl;
+    const isTop = idx < 2;
+    const nrr = s.nrr >= 0 ? `+${s.nrr.toFixed(2)}` : s.nrr.toFixed(2);
+    const gd = s.goalDifference >= 0 ? `+${s.goalDifference}` : String(s.goalDifference);
+    return (
+      <div className={`grid grid-cols-[1.5rem_1fr_auto] sm:grid-cols-[2rem_1fr_auto] gap-0 items-center px-2 sm:px-4 py-2.5 sm:py-3 ${isTop ? 'bg-yellow-500/[0.03]' : ''}`}>
+        <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black ${
+          idx === 0 ? 'bg-yellow-500/25 text-yellow-400' :
+          idx === 1 ? 'bg-neutral-400/20 text-neutral-300' :
+          'bg-white/5 text-neutral-500'
+        }`}>{s.position || idx + 1}</span>
+        <div className="flex items-center gap-1.5 min-w-0 pl-1 sm:pl-2">
+          {logo && <img src={logo} alt="" className="w-4 h-4 sm:w-5 sm:h-5 rounded-full object-cover shrink-0 border border-white/10" />}
+          <span className="text-xs sm:text-sm font-bold text-white break-words leading-tight pr-1">{teamName}</span>
+          {s.qualified && (
+            <span className="shrink-0 text-[7px] sm:text-[8px] font-black uppercase tracking-widest text-[#00ff41] bg-[#00ff41]/10 px-1 sm:px-1.5 py-0.5 rounded-full">Q</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 sm:gap-3 text-[10px] sm:text-xs font-black shrink-0">
+          <span className="w-4 sm:w-5 text-center text-neutral-400">{s.played}</span>
+          <span className="w-4 sm:w-5 text-center text-[#00ff41]">{s.won}</span>
+          <span className="w-4 sm:w-5 text-center text-red-400">{s.lost}</span>
+          {isFootball && <span className="w-4 sm:w-5 text-center text-neutral-400">{s.drawn}</span>}
+          {isCricket && <span className="w-4 sm:w-5 text-center text-neutral-400">{s.noResult}</span>}
+          {isFootball && <span className={`w-5 sm:w-6 text-center text-[10px] sm:text-xs font-bold ${s.goalDifference > 0 ? 'text-[#00ff41]' : s.goalDifference < 0 ? 'text-red-400' : 'text-neutral-500'}`}>{gd}</span>}
+          {isCricket && <span className={`w-6 sm:w-8 text-center text-[10px] sm:text-xs font-bold ${s.nrr > 0 ? 'text-[#00ff41]' : s.nrr < 0 ? 'text-red-400' : 'text-neutral-500'}`}>{nrr}</span>}
+          <span className="w-6 sm:w-7 text-center text-white font-black">{s.points}</span>
+        </div>
+      </div>
+    );
+  }
+
+  function StandingColHeaders() {
+    return (
+      <div className="grid grid-cols-[1.5rem_1fr_auto] sm:grid-cols-[2rem_1fr_auto] gap-0 px-2 sm:px-4 py-2 border-b border-white/5 bg-black/20">
+        <span className="text-[9px] font-black uppercase tracking-widest text-neutral-600">#</span>
+        <span className="text-[9px] font-black uppercase tracking-widest text-neutral-600 pl-1 sm:pl-2">Team</span>
+        <div className="flex items-center gap-1.5 sm:gap-3 text-[9px] font-black uppercase tracking-widest text-neutral-600">
+          <span className="w-4 sm:w-5 text-center" title="Played">P</span>
+          <span className="w-4 sm:w-5 text-center" title="Won">W</span>
+          <span className="w-4 sm:w-5 text-center" title="Lost">L</span>
+          {isFootball && <span className="w-4 sm:w-5 text-center" title="Drawn">D</span>}
+          {isCricket && <span className="w-4 sm:w-5 text-center" title="No Result">NR</span>}
+          {isFootball && <span className="w-5 sm:w-6 text-center" title="Goal Difference">GD</span>}
+          {isCricket && <span className="w-6 sm:w-8 text-center" title="Net Run Rate">NRR</span>}
+          <span className="w-6 sm:w-7 text-center text-white" title="Points">Pts</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-5">
-      {isGroupStageFinished && (
-        <div className="bg-[#00ff41]/5 border border-[#00ff41]/20 rounded-2xl overflow-hidden shadow-lg mb-2">
-          <div className="px-4 py-3 bg-[#00ff41]/10 border-b border-[#00ff41]/20 flex items-center justify-between">
-            <h3 className="font-black uppercase tracking-widest text-sm text-[#00ff41] flex items-center gap-2">
-              🏆 Knockout Qualified Teams
-            </h3>
-            <span className="text-[10px] font-bold text-[#00ff41] bg-[#00ff41]/20 px-2 py-0.5 rounded-full">
-              {standings.filter((s: any) => s.qualified).length} qualified
-            </span>
+    <div className="flex flex-col gap-6">
+      {/* Group Stage Standings */}
+      {groupIds.length > 0 && (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">Group Stage</h3>
+            {groupStageComplete && (
+              <span className="text-[9px] font-black uppercase tracking-widest text-[#00ff41] bg-[#00ff41]/10 px-2 py-0.5 rounded-full">Concluded ✓</span>
+            )}
           </div>
-          <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-3 bg-black/40">
-            {standings
-              .filter((s: any) => s.qualified)
-              .sort((a, b) => {
-                if (a.groupId !== b.groupId) return (a.groupId || '').localeCompare(b.groupId || '');
-                return a.position - b.position;
-              })
-              .map((s: any) => {
-                const teamName = teamNameMap[s.teamId] || s.teamId.slice(0, 12) + '…';
-                return (
-                  <div key={s.id} className="flex items-center gap-3 bg-neutral-900 border border-white/5 p-3 rounded-xl">
-                    <div className="w-8 h-8 rounded-full bg-[#00ff41]/10 border border-[#00ff41]/20 flex items-center justify-center shrink-0">
-                      <Trophy size={14} className="text-[#00ff41]" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-black text-white truncate">{teamName}</p>
-                      <p className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest mt-0.5">
-                        {groupNames[s.groupId] || 'Group'} • Pos {s.position}
-                      </p>
+
+          {groupIds
+            .sort((a, b) => (groupNames[a] || '').localeCompare(groupNames[b] || ''))
+            .map(groupId => {
+              const rows = [...(groupStandings[groupId] || [])].sort((a, b) => a.position - b.position || b.points - a.points);
+              const label = groupNames[groupId] || 'Group';
+
+              return (
+                <div key={groupId} className="bg-neutral-900 border border-white/5 rounded-2xl overflow-hidden shadow-lg">
+                  <div className="px-4 py-3 bg-yellow-500/10 border-b border-yellow-500/20 flex items-center justify-between">
+                    <h3 className="font-black uppercase tracking-widest text-sm text-yellow-400 flex items-center gap-2">
+                      {label}
+                      {isGroupStageFinished && (
+                        <span className="text-[9px] font-black uppercase tracking-widest text-neutral-400 bg-neutral-800 px-2 py-0.5 rounded">
+                          CONCLUDED
+                        </span>
+                      )}
+                    </h3>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => onEditGroup(groupId)}
+                        className="px-2 py-1 text-[10px] font-black uppercase tracking-wider border border-accent/20 bg-accent/5 text-accent hover:bg-accent/20 hover:text-white rounded transition-colors cursor-pointer"
+                      >
+                        Edit Group
+                      </button>
+                      <span className="text-[10px] font-bold text-neutral-500">{rows.length} teams</span>
                     </div>
                   </div>
-                );
-              })}
-          </div>
+
+                  <StandingColHeaders />
+                  <div className="divide-y divide-white/5">
+                    {rows.map((s: any, idx: number) => <StandingRow key={s.id} s={s} idx={idx} />)}
+                  </div>
+                </div>
+              );
+            })}
         </div>
       )}
 
-      {Object.entries(grouped).map(([groupId, rows]) => {
-        const sorted = [...rows].sort((a, b) => a.position - b.position);
-        const label = groupId === 'overall'
-          ? 'Overall Standings'
-          : groupNames[groupId] || 'Group';
+      {/* Knockout Stage Progress */}
+      {(qfMatches.length > 0 || sfMatches.length > 0 || finalMatches.length > 0) && (
+        <div className="flex flex-col gap-3">
+          <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">Knockout Stages</h3>
 
-        return (
-          <div key={groupId} className={`bg-neutral-900 border border-white/5 rounded-2xl overflow-hidden shadow-lg transition-all ${
-            isGroupStageFinished ? 'opacity-50 grayscale' : ''
-          }`}>
-
-            {/* Group header */}
-            <div className="px-4 py-3 bg-yellow-500/10 border-b border-yellow-500/20 flex items-center justify-between">
-              <h3 className="font-black uppercase tracking-widest text-sm text-yellow-400 flex items-center gap-2">
-                {label}
-                {isGroupStageFinished && (
-                  <span className="text-[9px] font-black uppercase tracking-widest text-neutral-400 bg-neutral-800 px-2 py-0.5 rounded">
-                    CONCLUDED
-                  </span>
-                )}
-              </h3>
-              <span className="text-[10px] font-bold text-neutral-500">{sorted.length} teams</span>
-            </div>
-
-            {/* Column headers */}
-            <div className="grid grid-cols-[2rem_1fr_auto] gap-0 px-4 py-2 border-b border-white/5 bg-black/20">
-              <span className="text-[9px] font-black uppercase tracking-widest text-neutral-600">#</span>
-              <span className="text-[9px] font-black uppercase tracking-widest text-neutral-600">Team</span>
-              <div className="flex items-center gap-3 text-[9px] font-black uppercase tracking-widest text-neutral-600">
-                <span className="w-5 text-center" title="Played">P</span>
-                <span className="w-5 text-center" title="Won">W</span>
-                <span className="w-5 text-center" title="Lost">L</span>
-                {isFootball && <span className="w-5 text-center" title="Drawn">D</span>}
-                {isCricket  && <span className="w-5 text-center" title="No Result">NR</span>}
-                {isFootball && <span className="w-6 text-center" title="Goal Difference">GD</span>}
-                {isCricket  && <span className="w-8 text-center" title="Net Run Rate">NRR</span>}
-                <span className="w-7 text-center text-white" title="Points">Pts</span>
+          {[
+            { stage: 'QUARTER', teamIds: qfTeamIds, done: qfDone, matches: qfMatches },
+            { stage: 'SEMI', teamIds: sfTeamIds, done: sfDone, matches: sfMatches },
+            { stage: 'FINAL', teamIds: finalTeamIds, done: finalDone, matches: finalMatches },
+          ].filter(({ teamIds }) => teamIds.length > 0).map(({ stage, teamIds, done, matches: stageMatches }) => (
+            <div key={stage} className={`border rounded-2xl overflow-hidden ${
+              stage === 'FINAL' ? 'border-yellow-500/20 bg-yellow-950/10' :
+              stage === 'SEMI' ? 'border-purple-500/20 bg-purple-950/10' :
+              'border-blue-500/20 bg-blue-950/10'
+            }`}>
+              <div className={`px-4 py-2.5 border-b flex items-center justify-between ${
+                stage === 'FINAL' ? 'border-yellow-500/20' :
+                stage === 'SEMI' ? 'border-purple-500/20' :
+                'border-blue-500/20'
+              }`}>
+                <h4 className={`font-black uppercase tracking-widest text-xs ${
+                  stage === 'FINAL' ? 'text-yellow-400' :
+                  stage === 'SEMI' ? 'text-purple-400' :
+                  'text-blue-400'
+                }`}>{stageLabel[stage]}</h4>
+                {done && <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full text-[#00ff41] bg-[#00ff41]/10">Done ✓</span>}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
+                {teamIds.map(tid => {
+                  const isWinner = done && stageMatches.some((m: any) => m.winnerId === tid);
+                  const isLoser = done && stageMatches.some((m: any) => m.winnerId && m.winnerId !== tid && (m.teamAId === tid || m.teamBId === tid));
+                  return (
+                    <div key={tid} className={`flex items-center gap-2 rounded-xl px-3 py-2 ${
+                      tid === championId ? 'bg-yellow-500/10 border border-yellow-500/20' :
+                      isWinner ? 'bg-[#00ff41]/5 border border-[#00ff41]/10' :
+                      isLoser ? 'opacity-40 bg-black/20 border border-white/5' :
+                      'bg-black/20 border border-white/5'
+                    }`}>
+                      <div className="w-6 h-6 rounded-full bg-neutral-900 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                        <Shield size={12} className="text-neutral-600" />
+                      </div>
+                      <span className={`text-[10px] font-black truncate ${
+                        tid === championId ? 'text-yellow-400' : isWinner ? 'text-[#00ff41]' : 'text-white'
+                      }`}>
+                        {teamNameMap[tid] || '?'}
+                      </span>
+                      {tid === championId && <Trophy size={10} className="text-yellow-400 shrink-0" />}
+                    </div>
+                  );
+                })}
               </div>
             </div>
+          ))}
+        </div>
+      )}
 
-            {/* Rows */}
+      {/* Overall team rankings */}
+      {sortedOverall.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">Overall Team Rankings</h3>
+          <div className="bg-neutral-900 border border-white/5 rounded-2xl overflow-hidden">
             <div className="divide-y divide-white/5">
-              {sorted.map((s: any, idx: number) => {
-                const teamName = teamNameMap[s.teamId] || s.teamId.slice(0, 12) + '…';
-                const isTop = idx < 2;
-                const nrr = s.nrr >= 0 ? `+${s.nrr.toFixed(3)}` : s.nrr.toFixed(3);
-                const gd = s.goalDifference >= 0 ? `+${s.goalDifference}` : String(s.goalDifference);
+              {sortedOverall.map((teamId, rank) => {
+                const name = teamNameMap[teamId] || teamId;
+                const elim = isEliminated(teamId);
+                const stage = stageReached(teamId);
+                const stageBadge = championId === teamId ? { label: '🏆 Champion', cls: 'text-yellow-400 bg-yellow-500/10' }
+                  : stage >= 5 ? { label: 'Finalist', cls: 'text-yellow-400/70 bg-yellow-500/10' }
+                  : stage >= 4 ? { label: 'Semi Finals', cls: 'text-purple-400 bg-purple-500/10' }
+                  : stage >= 3 ? { label: 'Quarter Finals', cls: 'text-blue-400 bg-blue-500/10' }
+                  : stage >= 2 ? { label: 'Qualified', cls: 'text-[#00ff41] bg-[#00ff41]/10' }
+                  : null;
 
                 return (
-                  <div key={s.id} className={`grid grid-cols-[2rem_1fr_auto] gap-0 items-center px-4 py-3 ${
-                    isTop ? 'bg-yellow-500/[0.03]' : ''
-                  }`}>
-                    {/* Position */}
-                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
-                      idx === 0 ? 'bg-yellow-500/25 text-yellow-400' :
-                      idx === 1 ? 'bg-neutral-400/20 text-neutral-300' :
-                      idx === 2 ? 'bg-amber-700/20 text-amber-600' :
+                  <div key={teamId} className={`flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2.5 sm:py-3 transition-all ${elim ? 'opacity-40' : ''}`}>
+                    <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black shrink-0 ${
+                      rank === 0 ? 'bg-yellow-500/25 text-yellow-400' :
+                      rank === 1 ? 'bg-neutral-400/20 text-neutral-300' :
+                      rank === 2 ? 'bg-amber-700/20 text-amber-600' :
                       'bg-white/5 text-neutral-500'
-                    }`}>
-                      {s.position}
-                    </span>
-
-                    {/* Team name + qualified badge */}
-                    <div className="flex items-center gap-2 min-w-0 pl-2">
-                      <span className="text-sm font-bold text-white truncate">{teamName}</span>
-                      {s.qualified && (
-                        <span className="shrink-0 text-[8px] font-black uppercase tracking-widest text-[#00ff41] bg-[#00ff41]/10 px-1.5 py-0.5 rounded-full">
-                          Q
-                        </span>
-                      )}
+                    }`}>{rank + 1}</span>
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-neutral-950 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                      <Shield size={14} className="text-neutral-600" />
                     </div>
-
-                    {/* Stats */}
-                    <div className="flex items-center gap-3 text-xs font-black shrink-0">
-                      <span className="w-5 text-center text-neutral-400">{s.played}</span>
-                      <span className="w-5 text-center text-[#00ff41]">{s.won}</span>
-                      <span className="w-5 text-center text-red-400">{s.lost}</span>
-                      {isFootball && <span className="w-5 text-center text-neutral-400">{s.drawn}</span>}
-                      {isCricket  && <span className="w-5 text-center text-neutral-400">{s.noResult}</span>}
-                      {isFootball && (
-                        <span className={`w-6 text-center text-xs font-bold ${
-                          s.goalDifference > 0 ? 'text-[#00ff41]' :
-                          s.goalDifference < 0 ? 'text-red-400' : 'text-neutral-500'
-                        }`}>{gd}</span>
-                      )}
-                      {isCricket && (
-                        <span className={`w-8 text-center text-xs font-bold ${
-                          s.nrr > 0 ? 'text-[#00ff41]' :
-                          s.nrr < 0 ? 'text-red-400' : 'text-neutral-500'
-                        }`}>{nrr}</span>
-                      )}
-                      <span className="w-7 text-center text-white font-black">{s.points}</span>
+                    <div className="flex-1 min-w-0 pl-1">
+                      <p className="text-xs sm:text-sm font-black text-white break-words leading-tight pr-1">{name}</p>
+                      {elim && <p className="text-[8px] sm:text-[9px] font-bold text-neutral-600 uppercase tracking-wider mt-0.5">Eliminated</p>}
                     </div>
+                    {stageBadge && (
+                      <span className={`text-[8px] sm:text-[9px] font-black uppercase tracking-widest px-1.5 sm:px-2 py-0.5 rounded-full shrink-0 ${stageBadge.cls}`}>
+                        {stageBadge.label}
+                      </span>
+                    )}
                   </div>
                 );
               })}
             </div>
           </div>
-        );
-      })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TimelineTab({ tournament }: { tournament: any }) {
+  const events = Array.isArray(tournament.timeline)
+    ? [...tournament.timeline].sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    : [];
+
+  if (events.length === 0) {
+    return (
+      <div className="py-20 flex flex-col items-center text-center">
+        <Calendar size={48} className="text-neutral-800 mb-4" />
+        <p className="text-neutral-500 font-bold">No timeline updates yet.</p>
+        <p className="text-neutral-600 text-xs mt-1">Changes made by you will appear here.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-xl mx-auto py-4">
+      <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400 mb-6">Tournament Timeline</h3>
+      <div className="relative border-l-2 border-white/10 pl-6 space-y-8 ml-2">
+        {events.map((e: any) => (
+          <div key={e.id} className="relative">
+            <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-yellow-500 border-4 border-[#0a0a0a]" />
+            <div className="text-xs text-neutral-500 font-bold">
+              {new Date(e.timestamp).toLocaleString()}
+            </div>
+            <h4 className="text-sm font-black text-white mt-1 leading-relaxed">
+              {e.message}
+            </h4>
+            <span className="inline-block mt-2 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-white/5 border border-white/10 text-neutral-400">
+              {e.type.replace(/_/g, ' ')}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EditMatchModal({
+  match,
+  tournament,
+  onClose,
+  onSaved
+}: {
+  match: any;
+  tournament: any;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [status, setStatus] = useState(match.status);
+  const [venue, setVenue] = useState(match.venue || '');
+  const [scheduledAt, setScheduledAt] = useState(
+    match.scheduledAt ? new Date(match.scheduledAt).toISOString().slice(0, 16) : ''
+  );
+  const [winnerId, setWinnerId] = useState(match.winnerId || 'none');
+
+  // Score states
+  const isFootball = tournament.sport === 'FOOTBALL';
+  const isCricket = tournament.sport === 'CRICKET';
+
+  // Football scores
+  const [goalsA, setGoalsA] = useState(match.resultSummary?.goalsA ?? 0);
+  const [goalsB, setGoalsB] = useState(match.resultSummary?.goalsB ?? 0);
+
+  // Cricket scores
+  const [runsA, setRunsA] = useState(match.resultSummary?.runsA ?? 0);
+  const [wicketsA, setWicketsA] = useState(match.resultSummary?.wicketsA ?? 0);
+  const [oversA, setOversA] = useState(match.resultSummary?.oversA ?? 0);
+  const [runsB, setRunsB] = useState(match.resultSummary?.runsB ?? 0);
+  const [wicketsB, setWicketsB] = useState(match.resultSummary?.wicketsB ?? 0);
+  const [oversB, setOversB] = useState(match.resultSummary?.oversB ?? 0);
+
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  // Fetch team names
+  const teamNameMap: Record<string, string> = {};
+  if (tournament.registrations) {
+    tournament.registrations.forEach((r: any) => {
+      const isTeam = r.entityType === 'TEAM';
+      const entity = isTeam ? r.team : r.player;
+      if (entity) teamNameMap[r.entityId] = entity.name || entity.fullName || '';
+    });
+  }
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      const payload: any = {
+        status,
+        venue,
+        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+        winnerId: winnerId === 'none' ? null : winnerId,
+        resultSummary: {}
+      };
+
+      if (isFootball) {
+        payload.resultSummary = { goalsA: Number(goalsA), goalsB: Number(goalsB) };
+      } else if (isCricket) {
+        payload.resultSummary = {
+          runsA: Number(runsA), wicketsA: Number(wicketsA), oversA: Number(oversA),
+          runsB: Number(runsB), wicketsB: Number(wicketsB), oversB: Number(oversB)
+        };
+      }
+
+      const res = await fetch(`/api/t-matches/${match.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        onSaved();
+      } else {
+        setError(data.error || 'Failed to update match');
+      }
+    } catch (e: any) {
+      setError(e.message || 'An error occurred');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
+      <div className="bg-zinc-950 border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl">
+        <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between bg-black/40">
+          <h3 className="font-black text-lg text-white">Edit Match {match.matchNumber}</h3>
+          <button onClick={onClose} className="p-1 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors cursor-pointer">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto font-bold text-sm text-neutral-300">
+          {error && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-center font-semibold">{error}</div>}
+
+          {/* Teams Header */}
+          <div className="text-center py-2 border-b border-white/5 mb-4">
+            <span className="text-white text-base font-black">
+              {teamNameMap[match.teamAId] || match.teamAId} vs {teamNameMap[match.teamBId] || match.teamBId}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-wider text-neutral-500">Status</label>
+              <select value={status} onChange={e => setStatus(e.target.value)} className="bg-black/50 border border-white/10 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-accent">
+                <option value="SCHEDULED">Scheduled</option>
+                <option value="SCORER_ASSIGNED">Scorer Assigned</option>
+                <option value="LIVE">Live</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="WALKOVER">Walkover</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-wider text-neutral-500">Winner</label>
+              <select value={winnerId} onChange={e => setWinnerId(e.target.value)} className="bg-black/50 border border-white/10 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-accent">
+                <option value="none">None / Draw</option>
+                <option value={match.teamAId}>{teamNameMap[match.teamAId] || match.teamAId}</option>
+                <option value={match.teamBId}>{teamNameMap[match.teamBId] || match.teamBId}</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-wider text-neutral-500">Scheduled Date/Time</label>
+              <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} className="bg-black/50 border border-white/10 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-accent" />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] uppercase tracking-wider text-neutral-500">Venue</label>
+              <input type="text" value={venue} onChange={e => setVenue(e.target.value)} placeholder="Pitch name / Turf location" className="bg-black/50 border border-white/10 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-accent" />
+            </div>
+          </div>
+
+          {/* Football Scores */}
+          {isFootball && (status === 'COMPLETED' || status === 'LIVE') && (
+            <div className="bg-black/20 p-4 border border-white/5 rounded-xl space-y-3">
+              <h4 className="text-[10px] uppercase tracking-wider text-neutral-400">Goals Summary</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs text-neutral-400">{teamNameMap[match.teamAId] || 'Team A'}</label>
+                  <input type="number" min="0" value={goalsA} onChange={e => setGoalsA(Number(e.target.value))} className="bg-black/50 border border-white/10 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-accent" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs text-neutral-400">{teamNameMap[match.teamBId] || 'Team B'}</label>
+                  <input type="number" min="0" value={goalsB} onChange={e => setGoalsB(Number(e.target.value))} className="bg-black/50 border border-white/10 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-accent" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Cricket Scores */}
+          {isCricket && (status === 'COMPLETED' || status === 'LIVE') && (
+            <div className="bg-black/20 p-4 border border-white/5 rounded-xl space-y-4">
+              <h4 className="text-[10px] uppercase tracking-wider text-neutral-400">Cricket Scores Summary</h4>
+              
+              {/* Team A */}
+              <div className="space-y-2">
+                <p className="text-xs font-black text-white">{teamNameMap[match.teamAId] || 'Team A'}</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] text-neutral-500">Runs</label>
+                    <input type="number" min="0" value={runsA} onChange={e => setRunsA(Number(e.target.value))} className="bg-black/50 border border-white/10 text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-accent text-xs" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] text-neutral-500">Wickets</label>
+                    <input type="number" min="0" max="10" value={wicketsA} onChange={e => setWicketsA(Number(e.target.value))} className="bg-black/50 border border-white/10 text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-accent text-xs" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] text-neutral-500">Overs</label>
+                    <input type="number" step="0.1" min="0" value={oversA} onChange={e => setOversA(Number(e.target.value))} className="bg-black/50 border border-white/10 text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-accent text-xs" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Team B */}
+              <div className="space-y-2">
+                <p className="text-xs font-black text-white">{teamNameMap[match.teamBId] || 'Team B'}</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] text-neutral-500">Runs</label>
+                    <input type="number" min="0" value={runsB} onChange={e => setRunsB(Number(e.target.value))} className="bg-black/50 border border-white/10 text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-accent text-xs" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] text-neutral-500">Wickets</label>
+                    <input type="number" min="0" max="10" value={wicketsB} onChange={e => setWicketsB(Number(e.target.value))} className="bg-black/50 border border-white/10 text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-accent text-xs" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] text-neutral-500">Overs</label>
+                    <input type="number" step="0.1" min="0" value={oversB} onChange={e => setOversB(Number(e.target.value))} className="bg-black/50 border border-white/10 text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-accent text-xs" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="p-6 border-t border-white/5 bg-black/40 flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 bg-neutral-900 border border-white/5 text-neutral-400 hover:text-white rounded-xl uppercase font-black tracking-wider text-xs transition-colors cursor-pointer">
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={saving} className="flex-1 py-3 bg-accent text-black hover:brightness-110 rounded-xl uppercase font-black tracking-wider text-xs transition-all shadow-[0_4px_15px_rgba(0,255,65,0.2)] flex items-center justify-center gap-2 cursor-pointer">
+            {saving ? <Loader2 className="animate-spin w-4 h-4" /> : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditGroupModal({
+  groupId,
+  tournament,
+  onClose,
+  onSaved
+}: {
+  groupId: string;
+  tournament: any;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const group = tournament.groups.find((g: any) => g.id === groupId);
+  const [name, setName] = useState(group?.name || '');
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(group?.teamIds || []);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const registeredTeams = tournament.registrations
+    ? tournament.registrations.filter((r: any) => r.entityType === 'TEAM' && r.team)
+    : [];
+
+  const handleToggleTeam = (teamId: string) => {
+    setSelectedTeamIds(prev =>
+      prev.includes(teamId)
+        ? prev.filter(id => id !== teamId)
+        : [...prev, teamId]
+    );
+  };
+
+  const handleSave = async () => {
+    if (!name.trim()) return setError('Group name is required');
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/tournaments/${tournament.id}/groups`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          groupId,
+          name: name.trim(),
+          teamIds: selectedTeamIds
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        onSaved();
+      } else {
+        setError(data.error || 'Failed to update group');
+      }
+    } catch (e: any) {
+      setError(e.message || 'An error occurred');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
+      <div className="bg-zinc-950 border border-white/10 rounded-2xl w-full max-w-md overflow-hidden flex flex-col shadow-2xl">
+        <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between bg-black/40">
+          <h3 className="font-black text-lg text-white">Edit Group</h3>
+          <button onClick={onClose} className="p-1 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors cursor-pointer">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto font-bold text-sm text-neutral-300">
+          {error && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-center font-semibold">{error}</div>}
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] uppercase tracking-wider text-neutral-500">Group Name</label>
+            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Group A" className="bg-black/50 border border-white/10 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-accent" />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-[10px] uppercase tracking-wider text-neutral-500">Select Teams in Group</label>
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {registeredTeams.map((r: any) => {
+                const isSelected = selectedTeamIds.includes(r.entityId);
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => handleToggleTeam(r.entityId)}
+                    className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-accent/10 border-accent text-accent'
+                        : 'bg-black/30 border-white/5 text-white hover:border-white/20'
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-neutral-900 border border-white/10 flex items-center justify-center shrink-0 overflow-hidden">
+                      {r.team.logoUrl ? (
+                        <img src={r.team.logoUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <Shield size={14} className="text-neutral-500" />
+                      )}
+                    </div>
+                    <span className="flex-1 text-sm truncate">{r.team.name}</span>
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${isSelected ? 'border-accent bg-accent text-black' : 'border-white/20'}`}>
+                      {isSelected && <Check size={10} strokeWidth={4} />}
+                    </div>
+                  </button>
+                );
+              })}
+              {registeredTeams.length === 0 && (
+                <p className="text-xs text-neutral-500 text-center py-4">No registered teams yet.</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 border-t border-white/5 bg-black/40 flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 bg-neutral-900 border border-white/5 text-neutral-400 hover:text-white rounded-xl uppercase font-black tracking-wider text-xs transition-colors cursor-pointer">
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={saving} className="flex-1 py-3 bg-accent text-black hover:brightness-110 rounded-xl uppercase font-black tracking-wider text-xs transition-all shadow-[0_4px_15px_rgba(0,255,65,0.2)] flex items-center justify-center gap-2 cursor-pointer">
+            {saving ? <Loader2 className="animate-spin w-4 h-4" /> : 'Save Group'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

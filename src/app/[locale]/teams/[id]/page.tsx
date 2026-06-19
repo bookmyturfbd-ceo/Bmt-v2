@@ -179,23 +179,22 @@ export default function SingleTeamPage() {
 
   if (!team) return <div className="text-center p-8">Team not found</div>;
 
-  let sportName = '5-a-side Futsal';
-  if (team.sportType === 'FUTSAL_6') sportName = '6-a-side Futsal';
-  if (team.sportType === 'FUTSAL_7') sportName = '7-a-side Futsal';
-  if (team.sportType === 'CRICKET_7') sportName = '7-a-side Cricket';
-  if (team.sportType === 'FOOTBALL_FULL') sportName = 'Football (Full 11v11)';
-  if (team.sportType === 'CRICKET_FULL') sportName = 'Cricket (Full 11v11)';
+  let sportName = 'Futsal';
+  if (team.sportType === 'FOOTBALL' || team.sportType === 'FOOTBALL_FULL') sportName = 'Football';
+  else if (team.sportType === 'CRICKET' || team.sportType === 'CRICKET_7' || team.sportType === 'CRICKET_FULL') sportName = 'Cricket';
   
   const sportEmoji = team.sportType?.includes('CRICKET') ? '🏏' : '⚽';
   
-  let maxRosterLimit = 9;
-  if (team.sportType === 'FUTSAL_6') maxRosterLimit = 10;
-  if (team.sportType === 'FUTSAL_7' || team.sportType === 'CRICKET_7') maxRosterLimit = 11;
-  if (team.sportType === 'FOOTBALL_FULL' || team.sportType === 'CRICKET_FULL') maxRosterLimit = 15;
+  let maxRosterLimit = 15;
 
-  const rankData = getRankData(team.teamMmr ?? 1000);
+  const isCricketSport = team.sportType?.includes('CRICKET') || team.sportType === 'CRICKET';
+  const rankedMmr = isCricketSport ? (team.cricketMmr ?? 1000) : (team.footballMmr ?? 1000);
+  const tournamentMmr = isCricketSport ? (team.tournamentCricketMmr ?? 1000) : (team.tournamentFootballMmr ?? 1000);
+
+  const rankData = getRankData(rankedMmr);
+  const rankedRankData = getRankData(rankedMmr);
+  const tournamentRankData = getRankData(tournamentMmr);
   const isSubActive = team.challengeSubscription?.active === true;
-  const isTournament = team.teamType === 'TOURNAMENT';
 
   // API Handlers
   const handleUpdateAreas = async (newCityIds: string[]) => {
@@ -326,231 +325,136 @@ export default function SingleTeamPage() {
         {/* Rank-colored background glow */}
         <div
           className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 rounded-full blur-3xl pointer-events-none"
-          style={{ background: `rgba(${rankData.glow}, 0.08)` }}
+          style={{ background: `rgba(${rankedRankData.glow}, 0.08)` }}
         />
 
         {/* ── BANNER SECTION ── */}
-        {isTournament ? (
-          // SINGLE WIDE BANNER FOR TOURNAMENT TEAMS
-          <div className="max-w-md mx-auto relative z-10 pt-2 px-2">
-            <div className="w-full relative overflow-hidden rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.5)] border-2" style={{ borderColor: `${rankData.color}40` }}>
-              
-              {/* SVG Background Layer */}
-              <div className="absolute inset-0 w-full h-full pointer-events-none">
-                {/* The SVG as a texture */}
-                <img src="/banners/tournament-team-banner.svg" className="absolute inset-0 w-full h-full object-cover scale-110 opacity-70" alt="" />
-                {/* Dynamic rank tint */}
-                <div className="absolute inset-0 w-full h-full mix-blend-color object-cover" style={{ backgroundColor: rankData.color, opacity: 0.95 }} />
-                {/* Vignette/Gradient for text readability */}
-                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-black/80 via-black/40 to-black/80" />
+        <div className="max-w-md mx-auto grid grid-cols-3 items-start gap-2 relative z-10">
+
+          {/* Left Banner: Ranked Rank & MMR */}
+          <div className="flex flex-col items-center relative z-0">
+            <div
+              style={{
+                clipPath: 'polygon(0% 0%, 100% 0%, 95% 5%, 95% 85%, 100% 90%, 80% 90%, 50% 100%, 20% 90%, 0% 90%, 5% 85%, 5% 5%)',
+                background: `linear-gradient(to bottom, rgba(${rankedRankData.glow},0.4), rgba(10,10,10,0.9))`
+              }}
+              className="w-full h-80 backdrop-blur-md flex flex-col items-center justify-start pt-8 pb-10 shadow-2xl relative overflow-hidden group"
+            >
+              <img src="/banners/Banner%2001.svg" className="absolute top-0 left-0 w-full h-full object-cover mix-blend-overlay opacity-60 group-hover:scale-105 transition-transform duration-700 pointer-events-none" alt="" />
+              <div
+                className="absolute inset-[2px] pointer-events-none"
+                style={{
+                  clipPath: 'polygon(0% 0%, 100% 0%, 95% 5%, 95% 85%, 100% 90%, 80% 90%, 50% 100%, 20% 90%, 0% 90%, 5% 85%, 5% 5%)',
+                  background: `linear-gradient(to bottom, rgba(${rankedRankData.glow},0.2), transparent)`
+                }}
+              />
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#00ff41] leading-tight">RANKED</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#00ff41] leading-tight mb-1">MMR</p>
+              <p className="text-sm font-black tracking-widest">{rankedMmr}</p>
+              <div className="w-8 h-[1px] my-2" style={{ background: `rgba(${rankedRankData.glow},0.4)` }} />
+              <div className="mt-auto flex flex-col items-center w-full">
+                <img src={rankedRankData.icon} className="w-20 h-20 object-contain drop-shadow-[0_4px_16px_rgba(255,255,255,0.25)]" alt="Rank" />
+                <p className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: rankedRankData.color }}>Rank</p>
+                <p className="text-xs font-black text-white text-center leading-tight px-1" style={{ color: rankedRankData.color }}>
+                  {rankedRankData.label}
+                </p>
               </div>
-              
-              {/* Content */}
-              <div className="p-6 flex flex-col gap-5 relative z-10">
-                
-                {/* Top Row: Logo & Main Info */}
-                <div className="flex items-center gap-4">
-                  {/* Logo */}
-                  <div className="w-20 h-20 rounded-full border-4 shadow-[0_0_20px_rgba(0,0,0,0.6)] shrink-0 overflow-hidden bg-neutral-800 flex items-center justify-center relative" style={{ borderColor: rankData.color }}>
-                    {team.logoUrl ? (
-                      <img src={team.logoUrl} alt={team.name} className="w-full h-full object-cover relative z-10" />
-                    ) : (
-                      <span className="text-3xl relative z-10">{sportEmoji}</span>
-                    )}
-                    {/* Inner glow */}
-                    <div className="absolute inset-0 shadow-[inset_0_0_15px_rgba(0,0,0,0.8)] z-20 pointer-events-none" />
-                  </div>
+            </div>
+          </div>
 
-                  {/* Info */}
-                  <div className="flex flex-col flex-grow">
-                    <h1 className="text-2xl font-black text-white leading-tight drop-shadow-md break-words">{team.name}</h1>
-                    {team.teamCode && (
-                      <div className="inline-flex items-center self-start text-[10px] font-black text-accent bg-accent/10 px-2 py-0.5 rounded border border-accent/20 my-0.5">
-                        CODE: {team.teamCode}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="text-sm">{sportEmoji}</span>
-                      <span className="text-[11px] font-bold tracking-wide text-white/80 uppercase drop-shadow-sm">{sportName}</span>
-                      {isOM && (
-                        <button
-                          onClick={() => { setNewSportType(team.sportType); setShowSportModal(true); }}
-                          className="ml-1 opacity-60 hover:opacity-100 hover:text-accent transition-opacity p-0.5"
-                          title="Change Sport Type"
-                        >
-                          ✏️
-                        </button>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center gap-2 mt-2">
-                      <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 border shadow-inner backdrop-blur-sm" style={{ borderColor: `${rankData.color}30` }}>
-                        <Users size={12} className="text-white/80" />
-                        <span className="text-[11px] font-bold text-white tracking-wide">{team.members?.length || 1} / {maxRosterLimit}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+          {/* Middle: Logo, Name, Sport & subscription pill */}
+          <div className="flex flex-col items-center mt-6 relative z-20">
+            <div className="w-24 h-24 rounded-full border-4 border-[#0a0a0a] ring-2 ring-accent/60 shadow-[0_0_20px_rgba(0,255,65,0.2)] overflow-hidden flex items-center justify-center bg-neutral-800">
+              {team.logoUrl ? (
+                <img src={team.logoUrl} alt={team.name} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-4xl">{sportEmoji}</span>
+              )}
+            </div>
+            <h1 className="mt-3 text-xl font-black text-center leading-tight whitespace-nowrap">{team.name}</h1>
+            {team.teamCode && (
+              <div className="inline-flex items-center justify-center text-[10px] font-black text-accent bg-accent/10 px-2 py-0.5 rounded-lg border border-accent/20 mt-1">
+                CODE: {team.teamCode}
+              </div>
+            )}
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="text-xs">{sportEmoji}</span>
+              <span className="text-[11px] font-bold tracking-wide text-[var(--muted)]">{sportName}</span>
+              {isOM && (
+                <button
+                  onClick={() => { setNewSportType(team.sportType); setShowSportModal(true); }}
+                  className="ml-1 opacity-60 hover:opacity-100 hover:text-accent transition-opacity p-0.5"
+                  title="Change Sport Type"
+                >
+                  ✏️
+                </button>
+              )}
+            </div>
 
-                {/* Divider */}
-                <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-
-                {/* Bottom Row: Rank & Badges */}
-                <div className="flex items-center justify-between">
-                  {/* Rank & MMR */}
-                  <div className="flex items-center gap-3">
-                    <img src={rankData.icon} className="w-12 h-12 object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.6)]" alt="Rank" />
-                    <div className="flex flex-col">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#00ff41] drop-shadow-md">MMR {team.teamMmr ?? 1000}</span>
-                      <span className="text-[14px] font-black uppercase tracking-widest drop-shadow-md" style={{ color: rankData.color }}>{rankData.label}</span>
-                    </div>
-                  </div>
-
-                  {/* Tournament Badge */}
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border shadow-lg backdrop-blur-md" style={{ borderColor: `${rankData.color}60`, backgroundColor: `${rankData.color}20` }}>
-                    <Trophy size={14} style={{ color: rankData.color }} className="drop-shadow-md" />
-                    <span className="text-[10px] font-black uppercase tracking-widest drop-shadow-md" style={{ color: rankData.color }}>Tournament</span>
-                  </div>
-                </div>
-
+            <div className="flex items-center gap-2 mt-2">
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 border border-white/10 shadow-inner backdrop-blur-sm">
+                <Users size={12} className="text-white/80" />
+                <span className="text-[11px] font-bold text-white tracking-wide">{team.members?.length || 1} / {maxRosterLimit} Players</span>
               </div>
             </div>
 
-            {/* Team Scroll Action */}
-            <div className="mt-5 flex justify-center w-full relative z-20">
-              <button onClick={() => setShowAnnouncements(true)} className="flex items-center gap-2 px-6 py-2.5 bg-neutral-800/90 hover:bg-neutral-800 rounded-full text-xs font-black uppercase border transition-colors shadow-xl backdrop-blur-sm" style={{ color: rankData.color, borderColor: `${rankData.color}40` }}>
+            <div className="mt-3 w-full flex flex-col items-center gap-2 z-30">
+              {/* CM Subscription Status Pill */}
+              <button onClick={() => setShowSubModal(true)} className="relative group focus:outline-none">
+                {isSubActive ? (
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-fuchsia-600/20 border border-fuchsia-500/40 text-[10px] font-black text-fuchsia-400 uppercase tracking-wider group-hover:bg-fuchsia-600/30 transition-colors">
+                    <Swords size={10} />
+                    CM Subscribed
+                  </div>
+                ) : (
+                  <div className="relative flex items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-800/60 border border-white/10 text-[10px] font-black text-white/30 uppercase tracking-wider overflow-hidden group-hover:bg-neutral-800 transition-colors">
+                    <Swords size={10} />
+                    <span>Subscribed</span>
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="w-[85%] h-[2px] bg-red-500/80 -rotate-2 mix-blend-screen" />
+                    </div>
+                  </div>
+                )}
+              </button>
+
+              {/* Team Announcements Trigger */}
+              <button onClick={() => setShowAnnouncements(true)} className="flex items-center gap-1.5 px-5 py-1 bg-neutral-800/80 hover:bg-neutral-800 rounded-full text-[10px] font-black uppercase text-amber-500 border border-amber-500/30 transition-colors shadow-[0_0_10px_rgba(245,158,11,0.1)]">
                 📜 Team Scroll
               </button>
             </div>
           </div>
-        ) : (
-          // REGULAR: original 3-column layout
-          <div className="max-w-md mx-auto grid grid-cols-3 items-start gap-2 relative z-10">
 
-            {/* Left Banner: Rank & MMR */}
-            <div className="flex flex-col items-center relative z-0">
+          {/* Right Banner: Tournament Rank & MMR */}
+          <div className="flex flex-col items-center relative z-0">
+            <div
+              style={{
+                clipPath: 'polygon(0% 0%, 100% 0%, 95% 5%, 95% 85%, 100% 90%, 80% 90%, 50% 100%, 20% 90%, 0% 90%, 5% 85%, 5% 5%)',
+                background: `linear-gradient(to bottom, rgba(${tournamentRankData.glow},0.4), rgba(10,10,10,0.9))`
+              }}
+              className="w-full h-80 backdrop-blur-md flex flex-col items-center justify-start pt-8 pb-10 shadow-2xl relative overflow-hidden group"
+            >
+              <img src="/banners/Banner%2001.svg" className="absolute top-0 left-0 w-full h-full object-cover mix-blend-overlay opacity-60 group-hover:scale-105 transition-transform duration-700 pointer-events-none" alt="" />
               <div
+                className="absolute inset-[2px] pointer-events-none"
                 style={{
                   clipPath: 'polygon(0% 0%, 100% 0%, 95% 5%, 95% 85%, 100% 90%, 80% 90%, 50% 100%, 20% 90%, 0% 90%, 5% 85%, 5% 5%)',
-                  background: `linear-gradient(to bottom, rgba(${rankData.glow},0.4), rgba(10,10,10,0.9))`
+                  background: `linear-gradient(to bottom, rgba(${tournamentRankData.glow},0.2), transparent)`
                 }}
-                className="w-full h-80 backdrop-blur-md flex flex-col items-center justify-start pt-8 pb-10 shadow-2xl relative overflow-hidden group"
-              >
-                <img src="/banners/Banner%2001.svg" className="absolute top-0 left-0 w-full h-full object-cover mix-blend-overlay opacity-60 group-hover:scale-105 transition-transform duration-700 pointer-events-none" alt="" />
-                <div
-                  className="absolute inset-[2px] pointer-events-none"
-                  style={{
-                    clipPath: 'polygon(0% 0%, 100% 0%, 95% 5%, 95% 85%, 100% 90%, 80% 90%, 50% 100%, 20% 90%, 0% 90%, 5% 85%, 5% 5%)',
-                    background: `linear-gradient(to bottom, rgba(${rankData.glow},0.2), transparent)`
-                  }}
-                />
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#00ff41]">MMR</p>
-                <p className="text-sm font-black tracking-widest">{team.teamMmr ?? 1000}</p>
-                <div className="w-8 h-[1px] my-2" style={{ background: `rgba(${rankData.glow},0.4)` }} />
-                <div className="mt-auto flex flex-col items-center w-full">
-                  <img src={rankData.icon} className="w-20 h-20 object-contain drop-shadow-[0_4px_16px_rgba(255,255,255,0.25)]" alt="Rank" />
-                  <p className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: rankData.color }}>Rank</p>
-                  <p className="text-xs font-black text-white text-center leading-tight px-1" style={{ color: rankData.color }}>
-                    {rankData.label}
-                  </p>
-                </div>
+              />
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#d4af37] leading-tight">TOURNAMENT</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#d4af37] leading-tight mb-1">MMR</p>
+              <p className="text-sm font-black tracking-widest">{tournamentMmr}</p>
+              <div className="w-8 h-[1px] my-2" style={{ background: `rgba(${tournamentRankData.glow},0.4)` }} />
+              <div className="mt-auto flex flex-col items-center w-full">
+                <img src={tournamentRankData.icon} className="w-20 h-20 object-contain drop-shadow-[0_4px_16px_rgba(255,255,255,0.25)]" alt="Tournament Rank" />
+                <p className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: tournamentRankData.color }}>Rank</p>
+                <p className="text-xs font-black text-white text-center leading-tight px-1" style={{ color: tournamentRankData.color }}>
+                  {tournamentRankData.label}
+                </p>
               </div>
             </div>
-
-            {/* Middle: Logo, Name, Sport & subscription pill */}
-            <div className="flex flex-col items-center mt-6 relative z-20">
-              <div className="w-24 h-24 rounded-full border-4 border-[#0a0a0a] ring-2 ring-accent/60 shadow-[0_0_20px_rgba(0,255,65,0.2)] overflow-hidden flex items-center justify-center bg-neutral-800">
-                {team.logoUrl ? (
-                  <img src={team.logoUrl} alt={team.name} className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-4xl">{sportEmoji}</span>
-                )}
-              </div>
-              <h1 className="mt-3 text-xl font-black text-center leading-tight whitespace-nowrap">{team.name}</h1>
-              {team.teamCode && (
-                <div className="inline-flex items-center justify-center text-[10px] font-black text-accent bg-accent/10 px-2 py-0.5 rounded-lg border border-accent/20 mt-1">
-                  CODE: {team.teamCode}
-                </div>
-              )}
-              <div className="flex items-center gap-1.5 mt-1">
-                <span className="text-xs">{sportEmoji}</span>
-                <span className="text-[11px] font-bold tracking-wide text-[var(--muted)]">{sportName}</span>
-                {isOM && (
-                  <button
-                    onClick={() => { setNewSportType(team.sportType); setShowSportModal(true); }}
-                    className="ml-1 opacity-60 hover:opacity-100 hover:text-accent transition-opacity p-0.5"
-                    title="Change Sport Type"
-                  >
-                    ✏️
-                  </button>
-                )}
-              </div>
-
-              <div className="mt-2 w-full flex flex-col items-center gap-2 z-30">
-                {/* CM Subscription Status Pill */}
-                <button onClick={() => setShowSubModal(true)} className="relative group focus:outline-none">
-                  {isSubActive ? (
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-fuchsia-600/20 border border-fuchsia-500/40 text-[10px] font-black text-fuchsia-400 uppercase tracking-wider group-hover:bg-fuchsia-600/30 transition-colors">
-                      <Swords size={10} />
-                      CM Subscribed
-                    </div>
-                  ) : (
-                    <div className="relative flex items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-800/60 border border-white/10 text-[10px] font-black text-white/30 uppercase tracking-wider overflow-hidden group-hover:bg-neutral-800 transition-colors">
-                      <Swords size={10} />
-                      <span>Subscribed</span>
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <div className="w-[85%] h-[2px] bg-red-500/80 -rotate-2 mix-blend-screen" />
-                      </div>
-                    </div>
-                  )}
-                </button>
-
-                {/* Team Announcements Trigger */}
-                <button onClick={() => setShowAnnouncements(true)} className="flex items-center gap-1.5 px-5 py-1 bg-neutral-800/80 hover:bg-neutral-800 rounded-full text-[10px] font-black uppercase text-amber-500 border border-amber-500/30 transition-colors shadow-[0_0_10px_rgba(245,158,11,0.1)]">
-                  📜 Team Scroll
-                </button>
-              </div>
-            </div>
-
-            {/* Right Banner: Roster & Season */}
-            <div className="flex flex-col items-center relative z-0">
-              <div
-                style={{ clipPath: 'polygon(0% 0%, 100% 0%, 95% 5%, 95% 85%, 100% 90%, 80% 90%, 50% 100%, 20% 90%, 0% 90%, 5% 85%, 5% 5%)' }}
-                className="w-full h-80 bg-gradient-to-b from-amber-700/80 via-neutral-900/40 via-60% to-neutral-900/90 backdrop-blur-md flex flex-col items-center justify-start pt-8 pb-10 shadow-2xl relative overflow-hidden group"
-              >
-                <img src="/banners/Banner%2001.svg" className="absolute top-0 left-0 w-full h-full object-cover mix-blend-overlay opacity-60 group-hover:scale-105 transition-transform duration-700 pointer-events-none" alt="" />
-                <div
-                  className="absolute inset-[2px] bg-gradient-to-b from-amber-500/20 via-amber-500/5 to-transparent pointer-events-none"
-                  style={{ clipPath: 'polygon(0% 0%, 100% 0%, 95% 5%, 95% 85%, 100% 90%, 80% 90%, 50% 100%, 20% 90%, 0% 90%, 5% 85%, 5% 5%)' }}
-                />
-                <Users size={16} className="text-amber-500 mb-1" />
-                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500/80">Roster</p>
-                <p className="text-sm font-black">{team.members?.length || 1} / {maxRosterLimit}</p>
-                <div className="mt-auto flex flex-col items-center w-full">
-                  <div className="w-8 h-[1px] bg-amber-500/30 my-2" />
-                  {activeSeason && isSubActive ? (
-                    <>
-                      <Clock size={11} className="text-fuchsia-400 mb-0.5" />
-                      <p className="text-[8px] font-bold uppercase tracking-widest text-fuchsia-400/80 leading-none">Season Ends</p>
-                      <p className="text-[9px] font-black font-mono text-white mt-1 text-center leading-tight px-1">{seasonCountdown}</p>
-                    </>
-                  ) : activeSeason ? (
-                    <>
-                      <p className="text-[8px] font-bold uppercase tracking-widest text-amber-500/60">Season</p>
-                      <p className="text-[9px] font-black text-white/40 font-mono mt-0.5">{activeSeason.name}</p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500/80">Season</p>
-                      <p className="text-[11px] font-bold font-mono text-white/50">OFF</p>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-
           </div>
-        )}
+        </div>
 
         {/* Level Bar */}
         <div className="max-w-[280px] mx-auto mt-6 relative z-10">
@@ -573,110 +477,104 @@ export default function SingleTeamPage() {
       {/* STRATEGY & INFO SECTIONS */}
       <div className="max-w-md mx-auto px-4 mt-6 flex flex-col gap-4">
         
-        {/* Home Areas Box - Hidden for Tournaments */}
-        {team.teamType !== 'TOURNAMENT' && (
-          <div className="glass-panel p-1.5 rounded-lg border border-[var(--panel-border)]">
-            <div className="flex items-center gap-1.5 mb-1">
-              <MapPin size={10} className="text-accent" />
-              <h3 className="font-black text-[9px] tracking-widest uppercase">Home Areas</h3>
-              <span className="text-[8px] text-[var(--muted)] ml-auto font-semibold">Max 3</span>
-            </div>
-            
-            <div className="flex flex-wrap gap-2">
-              {team.homeAreas?.length === 0 ? (
-                <p className="text-xs text-[var(--muted)] italic w-full text-center py-2">No home operating zones set.</p>
-              ) : (
-                team.homeAreas?.map((area: any) => (
-                  <div key={area.id} className="text-[9px] font-bold px-2 py-1 rounded-full bg-neutral-800/80 border border-white/10 flex items-center gap-1 group whitespace-nowrap">
-                    <MapPin size={8} className="text-accent" />
-                    <span className="truncate max-w-[120px]">{area.name}</span>
-                    {isOM && (
-                      <button 
-                        onClick={() => handleUpdateAreas(team.homeAreas.filter((a: any) => a.id !== area.id).map((a: any) => a.id))}
-                        className="ml-0.5 opacity-40 hover:opacity-100 hover:text-red-400 transition-opacity"
-                      >
-                        <X size={10} />
-                      </button>
-                    )}
-                  </div>
-                ))
-              )}
-              
-              {isOM && (team.homeAreas?.length || 0) < 3 && (
-                <button 
-                  onClick={() => { setSearch(''); setShowAreaModal(true); }}
-                  className="text-[11px] font-bold px-3 py-1.5 rounded-xl border border-dashed border-accent/40 text-accent hover:bg-accent/10 transition-colors flex items-center gap-1"
-                  disabled={saving}
-                >
-                  + Add Area
-                </button>
-              )}
-            </div>
+        {/* Home Areas Box */}
+        <div className="glass-panel p-1.5 rounded-lg border border-[var(--panel-border)]">
+          <div className="flex items-center gap-1.5 mb-1">
+            <MapPin size={10} className="text-accent" />
+            <h3 className="font-black text-[9px] tracking-widest uppercase">Home Areas</h3>
+            <span className="text-[8px] text-[var(--muted)] ml-auto font-semibold">Max 3</span>
           </div>
-        )}
+          
+          <div className="flex flex-wrap gap-2">
+            {team.homeAreas?.length === 0 ? (
+              <p className="text-xs text-[var(--muted)] italic w-full text-center py-2">No home operating zones set.</p>
+            ) : (
+              team.homeAreas?.map((area: any) => (
+                <div key={area.id} className="text-[9px] font-bold px-2 py-1 rounded-full bg-neutral-800/80 border border-white/10 flex items-center gap-1 group whitespace-nowrap">
+                  <MapPin size={8} className="text-accent" />
+                  <span className="truncate max-w-[120px]">{area.name}</span>
+                  {isOM && (
+                    <button 
+                      onClick={() => handleUpdateAreas(team.homeAreas.filter((a: any) => a.id !== area.id).map((a: any) => a.id))}
+                      className="ml-0.5 opacity-40 hover:opacity-100 hover:text-red-400 transition-opacity"
+                    >
+                      <X size={10} />
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
+            
+            {isOM && (team.homeAreas?.length || 0) < 3 && (
+              <button 
+                onClick={() => { setSearch(''); setShowAreaModal(true); }}
+                className="text-[11px] font-bold px-3 py-1.5 rounded-xl border border-dashed border-accent/40 text-accent hover:bg-accent/10 transition-colors flex items-center gap-1"
+                disabled={saving}
+              >
+                + Add Area
+              </button>
+            )}
+          </div>
+        </div>
 
-        {/* Home Turfs Box - Hidden for Tournaments */}
-        {team.teamType !== 'TOURNAMENT' && (
-          <div className="glass-panel p-1.5 rounded-lg border border-[var(--panel-border)]">
-            <div className="flex items-center gap-1.5 mb-1">
-              <Tent size={10} className="text-accent" />
-              <h3 className="font-black text-[9px] tracking-widest uppercase">Home Turfs</h3>
-              <span className="text-[8px] text-[var(--muted)] ml-auto font-semibold">Max 3</span>
-            </div>
-            
-            <div className="flex flex-wrap gap-2">
-              {team.homeTurfs?.length === 0 ? (
-                <p className="text-xs text-[var(--muted)] italic w-full text-center py-2">No preferred venues set.</p>
-              ) : (
-                team.homeTurfs?.map((turf: any) => (
-                  <div key={turf.id} className="text-[9px] font-bold px-2 py-1 rounded-full bg-neutral-800/80 border border-white/10 flex items-center gap-1 group whitespace-nowrap">
-                    <Tent size={8} className="text-accent" />
-                    <span className="truncate max-w-[120px]">{turf.name}</span>
-                    {isOM && (
-                      <button 
-                        onClick={() => handleUpdateTurfs(team.homeTurfs.filter((t: any) => t.id !== turf.id).map((t: any) => t.id))}
-                        className="ml-0.5 opacity-40 hover:opacity-100 hover:text-red-400 transition-opacity"
-                      >
-                        <X size={10} />
-                      </button>
-                    )}
-                  </div>
-                ))
-              )}
-              
-              {isOM && (team.homeTurfs?.length || 0) < 3 && (
-                <button 
-                  onClick={() => { setSearch(''); setShowTurfModal(true); }}
-                  className="text-xs w-full py-2.5 rounded-xl border border-dashed border-white/20 text-[var(--muted)] hover:border-accent/40 hover:text-accent font-bold transition-colors"
-                  disabled={saving}
-                >
-                  + Connect Turf
-                </button>
-              )}
-            </div>
+        {/* Home Turfs Box */}
+        <div className="glass-panel p-1.5 rounded-lg border border-[var(--panel-border)]">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Tent size={10} className="text-accent" />
+            <h3 className="font-black text-[9px] tracking-widest uppercase">Home Turfs</h3>
+            <span className="text-[8px] text-[var(--muted)] ml-auto font-semibold">Max 3</span>
           </div>
-        )}
+          
+          <div className="flex flex-wrap gap-2">
+            {team.homeTurfs?.length === 0 ? (
+              <p className="text-xs text-[var(--muted)] italic w-full text-center py-2">No preferred venues set.</p>
+            ) : (
+              team.homeTurfs?.map((turf: any) => (
+                <div key={turf.id} className="text-[9px] font-bold px-2 py-1 rounded-full bg-neutral-800/80 border border-white/10 flex items-center gap-1 group whitespace-nowrap">
+                  <Tent size={8} className="text-accent" />
+                  <span className="truncate max-w-[120px]">{turf.name}</span>
+                  {isOM && (
+                    <button 
+                      onClick={() => handleUpdateTurfs(team.homeTurfs.filter((t: any) => t.id !== turf.id).map((t: any) => t.id))}
+                      className="ml-0.5 opacity-40 hover:opacity-100 hover:text-red-400 transition-opacity"
+                    >
+                      <X size={10} />
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
+            
+            {isOM && (team.homeTurfs?.length || 0) < 3 && (
+              <button 
+                onClick={() => { setSearch(''); setShowTurfModal(true); }}
+                className="text-xs w-full py-2.5 rounded-xl border border-dashed border-white/20 text-[var(--muted)] hover:border-accent/40 hover:text-accent font-bold transition-colors"
+                disabled={saving}
+              >
+                + Connect Turf
+              </button>
+            )}
+          </div>
+        </div>
 
       </div>
 
       <div className="max-w-md mx-auto px-4 mt-6">
-        {/* CM Booking History Box — only for Rank teams */}
-        {!isTournament && (
-          <div className="mt-4 glass-panel border border-[var(--panel-border)] rounded-2xl overflow-hidden mb-6 relative">
-            <div className="px-4 py-3.5 flex items-center justify-between relative z-10">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center"><Clock size={13} className="text-blue-400" /></div>
-                <p className="font-black text-sm">CM Joint Bookings</p>
-              </div>
-            </div>
-            <div className="border-t border-white/5 p-4 flex flex-col gap-3 relative z-10">
-              <button onClick={() => setShowCMHistory(true)} className="w-full py-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 font-bold text-xs rounded-xl transition-colors border border-blue-500/30">
-                View Shared Ledgers
-              </button>
+        {/* CM Booking History Box */}
+        <div className="mt-4 glass-panel border border-[var(--panel-border)] rounded-2xl overflow-hidden mb-6 relative">
+          <div className="px-4 py-3.5 flex items-center justify-between relative z-10">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center"><Clock size={13} className="text-blue-400" /></div>
+              <p className="font-black text-sm">CM Joint Bookings</p>
             </div>
           </div>
-        )}
-        <SquadManager team={team} setTeam={setTeam} myRole={myRole} />
+          <div className="border-t border-white/5 p-4 flex flex-col gap-3 relative z-10">
+            <button onClick={() => setShowCMHistory(true)} className="w-full py-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 font-bold text-xs rounded-xl transition-colors border border-blue-500/30">
+              View Shared Ledgers
+            </button>
+          </div>
+        </div>
+        <SquadManager team={team} setTeam={setTeam} myRole={myRole} tournamentMatches={team.tournamentMatches || []} />
         
         {/* TEAM DANGER ZONE */}
         {myRole === 'owner' && (
@@ -1039,12 +937,9 @@ export default function SingleTeamPage() {
 
             <div className="flex flex-col gap-2 mb-6">
               {[
-                { value: 'FUTSAL_5', label: '5-a-side Futsal', emoji: '⚽' },
-                { value: 'FUTSAL_6', label: '6-a-side Futsal', emoji: '⚽' },
-                { value: 'FUTSAL_7', label: '7-a-side Futsal', emoji: '⚽' },
-                { value: 'CRICKET_7', label: '7-a-side Cricket', emoji: '🏏' },
-                { value: 'FOOTBALL_FULL', label: 'Football (Full 11v11)', emoji: '⚽' },
-                { value: 'CRICKET_FULL', label: 'Cricket (Full 11v11)', emoji: '🏏' },
+                { value: 'FUTSAL', label: 'Futsal', emoji: '⚽' },
+                { value: 'FOOTBALL', label: 'Football', emoji: '⚽' },
+                { value: 'CRICKET', label: 'Cricket', emoji: '🏏' },
               ].map((sport) => (
                 <button
                   key={sport.value}

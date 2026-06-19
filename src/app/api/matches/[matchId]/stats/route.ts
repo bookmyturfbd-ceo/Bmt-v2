@@ -77,7 +77,7 @@ export async function POST(
       return NextResponse.json({ error: 'No stats provided' }, { status: 400 });
 
     // ── Badge validation ──────────────────────────────────────────────────────
-    const sportType = match.teamA.sportType as string;
+    const sportType = (match.sportType ?? match.teamA.sportType) as string;
     const badgedPlayers = stats.filter(s => s.badgeKey && s.badgeKey !== 'NONE');
     const badgeMax = maxBadges(sportType);
 

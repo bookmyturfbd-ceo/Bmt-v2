@@ -16,13 +16,10 @@ type LeaderboardTab = 'sports' | 'organizer' | 'professional';
 type ProCategory = 'ALL' | 'COACH' | 'REF' | 'TRAINER';
 
 const SPORTS = [
-  { key: 'ALL',          emoji: '🏆' },
-  { key: 'FUTSAL_5',     emoji: '⚽' },
-  { key: 'FUTSAL_6',     emoji: '⚽' },
-  { key: 'FUTSAL_7',     emoji: '⚽' },
-  { key: 'FOOTBALL_FULL',emoji: '⚽' },
-  { key: 'CRICKET_7',    emoji: '🏏' },
-  { key: 'CRICKET_FULL', emoji: '🏏' },
+  { key: 'ALL',      emoji: '🏆' },
+  { key: 'FUTSAL',   emoji: '⚽' },
+  { key: 'FOOTBALL', emoji: '⚽' },
+  { key: 'CRICKET',  emoji: '🏏' },
 ];
 
 const TIER_CONFIG: Record<string, { color: string; glow: string; icon: string }> = {
@@ -91,23 +88,29 @@ const translateSportLabel = (key: string, locale: string) => {
   if (locale === 'bn') {
     const map: Record<string, string> = {
       'ALL': 'সব খেলা',
-      'FUTSAL_5': '৫-এ-সাইড ফুটসাল',
-      'FUTSAL_6': '৬-এ-সাইড ফুটসাল',
-      'FUTSAL_7': '৭-এ-সাইড ফুটসাল',
-      'FOOTBALL_FULL': '১১ বনাম ১১ ফুটবল',
-      'CRICKET_7': '৭-এ-সাইড ক্রিকেট',
-      'CRICKET_FULL': '১১ বনাম ১১ ক্রিকেট',
+      'FUTSAL': 'ফুটসাল',
+      'FOOTBALL': 'ফুটবল',
+      'CRICKET': 'ক্রিকেট',
+      'FUTSAL_5': 'ফুটসাল',
+      'FUTSAL_6': 'ফুটসাল',
+      'FUTSAL_7': 'ফুটসাল',
+      'FOOTBALL_FULL': 'ফুটবল',
+      'CRICKET_7': 'ক্রিকেট',
+      'CRICKET_FULL': 'ক্রিকেট',
     };
     return map[key] ?? key;
   }
   const mapEn: Record<string, string> = {
     'ALL': 'All Sports',
-    'FUTSAL_5': '5-a-side Futsal',
-    'FUTSAL_6': '6-a-side Futsal',
-    'FUTSAL_7': '7-a-side Futsal',
-    'FOOTBALL_FULL': '11v11 Football',
-    'CRICKET_7': '7-a-side Cricket',
-    'CRICKET_FULL': '11v11 Cricket',
+    'FUTSAL': 'Futsal',
+    'FOOTBALL': 'Football',
+    'CRICKET': 'Cricket',
+    'FUTSAL_5': 'Futsal',
+    'FUTSAL_6': 'Futsal',
+    'FUTSAL_7': 'Futsal',
+    'FOOTBALL_FULL': 'Football',
+    'CRICKET_7': 'Cricket',
+    'CRICKET_FULL': 'Cricket',
   };
   return mapEn[key] ?? key;
 };
@@ -150,7 +153,11 @@ const formatNumber = (num: number | string, locale: string) => {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function sportEmoji(s: string) {
-  return SPORTS.find(x => x.key === s)?.emoji ?? '🏆';
+  let key = s;
+  if (s.startsWith('FUTSAL')) key = 'FUTSAL';
+  else if (s.startsWith('FOOTBALL')) key = 'FOOTBALL';
+  else if (s.startsWith('CRICKET')) key = 'CRICKET';
+  return SPORTS.find(x => x.key === key)?.emoji ?? '🏆';
 }
 
 function rankIcon(tier: string) {

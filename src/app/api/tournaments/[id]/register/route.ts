@@ -47,26 +47,36 @@ export async function POST(
       });
       if (!team) return NextResponse.json({ success: false, error: 'Team not found' }, { status: 404 });
       
-      // Rank teams cannot join tournaments
-      if (team.teamType !== 'TOURNAMENT') {
-        return NextResponse.json({ success: false, error: 'Rank teams cannot join tournaments. You must use a Tournament Team.' }, { status: 400 });
-      }
-
       const formatCfg = tournament.formatConfig as any;
       const variant = formatCfg?.sportVariant;
       
+      const getSportFamily = (sport: string): 'FUTSAL' | 'FOOTBALL' | 'CRICKET' | null => {
+        if (sport === 'FUTSAL' || sport.startsWith('FUTSAL_')) return 'FUTSAL';
+        if (sport === 'FOOTBALL' || sport === 'FOOTBALL_FULL') return 'FOOTBALL';
+        if (sport === 'CRICKET' || sport.startsWith('CRICKET_')) return 'CRICKET';
+        return null;
+      };
+
+      const isSportCompatible = (teamSport: string, tourneyVariant: string): boolean => {
+        const teamFamily = getSportFamily(teamSport);
+        const tourneyFamily = getSportFamily(tourneyVariant);
+        return teamFamily !== null && teamFamily === tourneyFamily;
+      };
+
       // Strict Variant Match
-      if (variant && team.sportType !== variant) {
-        return NextResponse.json({ success: false, error: `Tournament requires a ${variant.replace('_', ' ')} team, but yours is ${team.sportType.replace('_', ' ')}.` }, { status: 400 });
+      if (variant && !isSportCompatible(team.sportType, variant)) {
+        return NextResponse.json({ success: false, error: `Tournament requires a ${variant.replace('_', ' ')} team, but yours is a ${team.sportType.replace('_', ' ')} team.` }, { status: 400 });
       }
 
       // Minimum Roster Validation
       let requiredPlayers = 5;
-      if (team.sportType === 'FUTSAL_6') requiredPlayers = 6;
-      if (team.sportType === 'FUTSAL_7' || team.sportType === 'CRICKET_7') requiredPlayers = 7;
-      if (team.sportType.includes('FULL')) requiredPlayers = 11;
+      const targetVariant = variant || team.sportType;
+      if (targetVariant === 'FUTSAL_6') requiredPlayers = 6;
+      else if (targetVariant === 'FUTSAL_7' || targetVariant === 'CRICKET_7') requiredPlayers = 7;
+      else if (targetVariant.includes('FULL') || targetVariant === 'FOOTBALL' || targetVariant === 'FOOTBALL_FULL') requiredPlayers = 11;
+      else if (targetVariant === 'CRICKET') requiredPlayers = 7;
+      else if (targetVariant === 'FUTSAL') requiredPlayers = 5;
       
-      // Fallback required size if variant isn't explicitly set but we can guess it from the team they are using
       if (team.members.length < requiredPlayers) {
         return NextResponse.json({ success: false, error: `Your team must have at least ${requiredPlayers} players to join.` }, { status: 400 });
       }

@@ -62,7 +62,7 @@ export async function GET(
     const currentInnings = innings.find(i => i.status === 'IN_PROGRESS') ?? innings[innings.length - 1] ?? null;
 
     const agreedOvers = (match as any).agreedOvers
-      ?? (match.teamA.sportType === 'CRICKET_7' ? 7 : 20);
+      ?? ((match.sportType ?? match.teamA.sportType) === 'CRICKET_7' ? 7 : 20);
 
     // Build matchResult if match is already completed
     let matchResult = null;

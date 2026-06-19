@@ -1484,7 +1484,7 @@ function OverCompleteModal({ over, innings, match, myTeamId, isOMC, onConfirmOve
   const bowlingTeam = match.teamA_Id === bowlingTeamId ? match.teamA : match.teamB;
 
   // Get bowler max overs
-  const sport = match.teamA.sportType;
+  const sport = match.sportType ?? match.teamA.sportType;
   const agreedOvers = (match as any).agreedOvers ?? (sport === 'CRICKET_7' ? 7 : 20);
   const maxBowlerOvers = sport === 'CRICKET_7' ? 2 : Math.ceil(agreedOvers / 5);
 
@@ -1875,7 +1875,7 @@ export default function CricketScoringPage() {
     if (!m || !tid) return;
 
     const mmrDelta  = amA ? matchResult.mmrChangeA : matchResult.mmrChangeB;
-    const sportType = m.teamA?.sportType ?? 'CRICKET_7';
+    const sportType = m.sportType ?? m.teamA?.sportType ?? 'CRICKET_7';
     const myTeam    = amA ? m.teamA : m.teamB;
     const oppTeam   = amA ? m.teamB : m.teamA;
     const isCricketMatch = sportType.includes('CRICKET');

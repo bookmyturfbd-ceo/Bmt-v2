@@ -95,8 +95,10 @@ export async function POST(request: Request) {
       startDate: startDate ? new Date(startDate) : null,
       endDate: endDate ? new Date(endDate) : null,
       startTime: startTime || null,
-      status: 'DRAFT' as any,
+      isRegistrationOpen: operatorType === 'ORGANIZER',
+      status: (operatorType === 'ORGANIZER' ? 'REGISTRATION_OPEN' : 'DRAFT') as any,
     };
+
 
     let newTournament;
 

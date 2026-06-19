@@ -23,15 +23,21 @@ function getInitials(name: string): string {
 }
 
 const SPORT_LABELS: Record<string, string> = {
-  FUTSAL_5: '5-a-side Futsal',
-  FUTSAL_6: '6-a-side Futsal',
-  FUTSAL_7: '7-a-side Futsal',
-  FOOTBALL_FULL: '11v11 Football',
-  CRICKET_7: '7-a-side Cricket',
-  CRICKET_FULL: '11v11 Cricket',
+  FUTSAL: 'Futsal',
+  FOOTBALL: 'Football',
+  CRICKET: 'Cricket',
+  FUTSAL_5: 'Futsal',
+  FUTSAL_6: 'Futsal',
+  FUTSAL_7: 'Futsal',
+  FOOTBALL_FULL: 'Football',
+  CRICKET_7: 'Cricket',
+  CRICKET_FULL: 'Cricket',
 };
 
 const SPORT_EMOJIS: Record<string, string> = {
+  FUTSAL: '⚽',
+  FOOTBALL: '⚽',
+  CRICKET: '🏏',
   FUTSAL_5: '⚽',
   FUTSAL_6: '⚽',
   FUTSAL_7: '⚽',
@@ -86,7 +92,7 @@ export default async function RootPage({ params }: { params: Promise<{ locale: s
       take: 5,
     }),
     prisma.team.findMany({
-      where: { teamType: 'REGULAR', isDisbanded: false },
+      where: { isDisbanded: false },
       orderBy: { footballMmr: 'desc' },
       take: 5,
       select: {

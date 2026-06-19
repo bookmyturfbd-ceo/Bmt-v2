@@ -1984,6 +1984,7 @@ model Tournament {
   // Registration gate — countdown + open/close control
   registrationOpenAt   DateTime?         // one-time countdown target; null = not set
   isRegistrationOpen   Boolean           @default(false) // manual toggle
+  timeline             Json              @default("[]")
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
 

@@ -7,7 +7,14 @@ export async function POST(req: NextRequest) {
   if (!playerId) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
 
   try {
-    const { challengerTeamId, opponentTeamId } = await req.json();
+    function getSportFamily(sport: string): 'FUTSAL' | 'FOOTBALL' | 'CRICKET' | null {
+      if (sport === 'FUTSAL' || sport.startsWith('FUTSAL_')) return 'FUTSAL';
+      if (sport === 'FOOTBALL' || sport === 'FOOTBALL_FULL') return 'FOOTBALL';
+      if (sport === 'CRICKET' || sport.startsWith('CRICKET_')) return 'CRICKET';
+      return null;
+    }
+
+    const { challengerTeamId, opponentTeamId, sportType } = await req.json();
     if (!challengerTeamId || !opponentTeamId) {
       return NextResponse.json({ error: 'Missing team IDs' }, { status: 400 });
     }
@@ -47,8 +54,21 @@ export async function POST(req: NextRequest) {
     if (!isFree && (!opponentTeam.isSubscribed || !opponentTeam.challengeSubscription?.active)) {
       return NextResponse.json({ error: 'Opponent team is not in Challenge Market' }, { status: 400 });
     }
-    if (opponentTeam.sportType !== challengerTeam.sportType) {
-      return NextResponse.json({ error: 'Teams must be the same sport type' }, { status: 400 });
+
+    const challengerFamily = getSportFamily(challengerTeam.sportType);
+    const opponentFamily = getSportFamily(opponentTeam.sportType);
+    if (!challengerFamily || !opponentFamily || challengerFamily !== opponentFamily) {
+      return NextResponse.json({ error: 'Teams must be of the same sport type category' }, { status: 400 });
+    }
+
+    let matchSportType = sportType;
+    if (!matchSportType) {
+      matchSportType = challengerFamily;
+    } else {
+      const matchFamily = getSportFamily(matchSportType);
+      if (matchFamily !== challengerFamily) {
+        return NextResponse.json({ error: `Selected format ${matchSportType} is not compatible with team sport family ${challengerFamily}` }, { status: 400 });
+      }
     }
 
     // Prevent duplicate pending challenge between same pair
@@ -70,6 +90,7 @@ export async function POST(req: NextRequest) {
         teamA_Id: challengerTeamId,
         teamB_Id: opponentTeamId,
         status: 'PENDING',
+        sportType: matchSportType,
       },
       include: {
         teamA: { select: { id: true, name: true } },

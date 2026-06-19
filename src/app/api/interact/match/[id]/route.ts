@@ -240,8 +240,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const notes = `Challenge Market — ${match.teamA.name} vs ${match.teamB.name}`;
 
       await prisma.$transaction([
-        prisma.booking.create({ data: { playerId: match.teamA.ownerId, slotId: match.selectedSlotId!, turfId: turf.id, date: match.matchDate!, price: halfCost, ownerShare: ownerShareA, bmtCut: bmtCutA, status: 'confirmed', selectedSport: match.teamA.sportType, bookingCode: code, source: 'challenge_market', notes } }),
-        prisma.booking.create({ data: { playerId: match.teamB.ownerId, slotId: match.selectedSlotId!, turfId: turf.id, date: match.matchDate!, price: halfCost, ownerShare: ownerShareB, bmtCut: bmtCutB, status: 'confirmed', selectedSport: match.teamB.sportType, bookingCode: code, source: 'challenge_market', notes } }),
+        prisma.booking.create({ data: { playerId: match.teamA.ownerId, slotId: match.selectedSlotId!, turfId: turf.id, date: match.matchDate!, price: halfCost, ownerShare: ownerShareA, bmtCut: bmtCutA, status: 'confirmed', selectedSport: match.sportType ?? match.teamA.sportType, bookingCode: code, source: 'challenge_market', notes } }),
+        prisma.booking.create({ data: { playerId: match.teamB.ownerId, slotId: match.selectedSlotId!, turfId: turf.id, date: match.matchDate!, price: halfCost, ownerShare: ownerShareB, bmtCut: bmtCutB, status: 'confirmed', selectedSport: match.sportType ?? match.teamB.sportType, bookingCode: code, source: 'challenge_market', notes } }),
         prisma.player.update({ where: { id: match.teamA.ownerId }, data: { walletBalance: { decrement: halfCost } } }),
         prisma.player.update({ where: { id: match.teamB.ownerId }, data: { walletBalance: { decrement: halfCost } } }),
         prisma.owner.updateMany({ where: { turfs: { some: { id: turf.id } } }, data: { walletBalance: { increment: ownerShareA + ownerShareB } } }),
@@ -371,8 +371,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const notes = `Challenge Market — ${match.teamA.name} vs ${match.teamB.name}`;
 
       await prisma.$transaction([
-        prisma.booking.create({ data: { playerId: match.teamA.ownerId, slotId: match.selectedSlotId!, turfId: turf.id, date: match.matchDate!, price: halfCost, ownerShare, bmtCut, status: 'confirmed', selectedSport: match.teamA.sportType, bookingCode: code, source: 'challenge_market', notes } }),
-        prisma.booking.create({ data: { playerId: match.teamB.ownerId, slotId: match.selectedSlotId!, turfId: turf.id, date: match.matchDate!, price: halfCost, ownerShare, bmtCut, status: 'confirmed', selectedSport: match.teamB.sportType, bookingCode: code, source: 'challenge_market', notes } }),
+        prisma.booking.create({ data: { playerId: match.teamA.ownerId, slotId: match.selectedSlotId!, turfId: turf.id, date: match.matchDate!, price: halfCost, ownerShare, bmtCut, status: 'confirmed', selectedSport: match.sportType ?? match.teamA.sportType, bookingCode: code, source: 'challenge_market', notes } }),
+        prisma.booking.create({ data: { playerId: match.teamB.ownerId, slotId: match.selectedSlotId!, turfId: turf.id, date: match.matchDate!, price: halfCost, ownerShare, bmtCut, status: 'confirmed', selectedSport: match.sportType ?? match.teamB.sportType, bookingCode: code, source: 'challenge_market', notes } }),
         prisma.player.update({ where: { id: match.teamA.ownerId }, data: { walletBalance: { decrement: halfCost } } }),
         prisma.player.update({ where: { id: match.teamB.ownerId }, data: { walletBalance: { decrement: halfCost } } }),
         prisma.owner.updateMany({ where: { turfs: { some: { id: turf.id } } }, data: { walletBalance: { increment: ownerShare * 2 } } }),

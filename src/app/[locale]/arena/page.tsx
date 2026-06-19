@@ -77,22 +77,28 @@ export default function ArenaPage() {
   const translateVariant = (variant: string) => {
     if (locale === 'bn') {
       const map: Record<string, string> = {
-        'FUTSAL_5': '৫-এ-সাইড ফুটসাল',
-        'FUTSAL_6': '৬-এ-সাইড',
-        'FUTSAL_7': '৭-এ-সাইড',
-        'FOOTBALL_FULL': '১১ বনাম ১১',
-        'CRICKET_7': '৭-এ-সাইড ক্রিকেট',
-        'CRICKET_FULL': '১১ বনাম ১১ ক্রিকেট',
+        'FUTSAL': 'ফুটসাল',
+        'FOOTBALL': 'ফুটবল',
+        'CRICKET': 'ক্রিকেট',
+        'FUTSAL_5': 'ফুটসাল',
+        'FUTSAL_6': 'ফুটসাল',
+        'FUTSAL_7': 'ফুটসাল',
+        'FOOTBALL_FULL': 'ফুটবল',
+        'CRICKET_7': 'ক্রিকেট',
+        'CRICKET_FULL': 'ক্রিকেট',
       };
       return map[variant] ?? variant;
     }
     const mapEn: Record<string, string> = {
-      'FUTSAL_5': '5-a-side Futsal',
-      'FUTSAL_6': '6-a-side Futsal',
-      'FUTSAL_7': '7-a-side Futsal',
-      'FOOTBALL_FULL': '11-a-side',
-      'CRICKET_7': '7-a-side Cricket',
-      'CRICKET_FULL': '11-a-side Cricket',
+      'FUTSAL': 'Futsal',
+      'FOOTBALL': 'Football',
+      'CRICKET': 'Cricket',
+      'FUTSAL_5': 'Futsal',
+      'FUTSAL_6': 'Futsal',
+      'FUTSAL_7': 'Futsal',
+      'FOOTBALL_FULL': 'Football',
+      'CRICKET_7': 'Cricket',
+      'CRICKET_FULL': 'Cricket',
     };
     return mapEn[variant] ?? variant;
   };

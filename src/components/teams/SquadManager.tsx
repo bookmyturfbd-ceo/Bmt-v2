@@ -8,6 +8,7 @@ interface SquadManagerProps {
   team: any;
   setTeam: (t: any) => void;
   myRole: string;
+  tournamentMatches?: any[];
 }
 
 const FUTSAL_ROLES  = ['Forward', 'Midfielder', 'Defender', 'Goalkeeper'];
@@ -135,19 +136,22 @@ function PlayerCard({ m, isOMC, isPitch, onClick, isCricket }: { m: any; isOMC: 
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────
-export default function SquadManager({ team, setTeam, myRole }: SquadManagerProps) {
+export default function SquadManager({ team, setTeam, myRole, tournamentMatches = [] }: SquadManagerProps) {
   const params = useParams();
   const locale = params?.locale || 'en';
-  const isCricket  = team.sportType?.includes('CRICKET');
-  const isFull     = team.sportType?.includes('FULL');
+  const isCricket  = team.sportType?.includes('CRICKET') || team.sportType === 'CRICKET';
+  const isFull     = team.sportType?.includes('FULL') || team.sportType === 'FOOTBALL';
   const roleOptions = isCricket ? CRICKET_ROLES : FUTSAL_ROLES;
   const isOMC = ['owner', 'manager', 'captain'].includes(myRole);
   const isOM  = ['owner', 'manager'].includes(myRole);
 
   let maxPlayers = 5;
   if (team.sportType === 'FUTSAL_6') maxPlayers = 6;
-  if (team.sportType === 'FUTSAL_7' || team.sportType === 'CRICKET_7') maxPlayers = 7;
+  if (team.sportType === 'FUTSAL_7' || team.sportType === 'CRICKET_7' || team.sportType === 'CRICKET') maxPlayers = 7;
   if (isFull) maxPlayers = 11;
+
+  const rankedMmr = isCricket ? (team.cricketMmr ?? 1000) : (team.footballMmr ?? 1000);
+  const tournamentMmr = isCricket ? (team.tournamentCricketMmr ?? 1000) : (team.tournamentFootballMmr ?? 1000);
 
   const activeFormation = (team.formation && FORMATIONS[team.formation])
     ? team.formation
@@ -169,6 +173,7 @@ export default function SquadManager({ team, setTeam, myRole }: SquadManagerProp
   const [cmFee,        setCmFee]        = useState<number | null>(null);
   const [showSubConfirm, setShowSubConfirm] = useState(false);
   const [subscribing,  setSubscribing]  = useState(false);
+  const [historyTab,   setHistoryTab]   = useState<'RANKED' | 'TOURNAMENT'>('RANKED');
 
   // Fetch CM fee for the subscribe button
   useMemo(() => {
@@ -201,21 +206,76 @@ export default function SquadManager({ team, setTeam, myRole }: SquadManagerProp
       .sort((a: any, b: any) => (ROLE_WEIGHT[b.role] || 0) - (ROLE_WEIGHT[a.role] || 0)),
     [team.members, maxPlayers]);
 
-  const matches = useMemo(() => {
+  const rankedMatches = useMemo(() => {
     const all = [...(team.matchesAsTeamA || []), ...(team.matchesAsTeamB || [])];
     return all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [team.matchesAsTeamA, team.matchesAsTeamB]);
 
-  const stats = useMemo(() => {
+  const tMatches = useMemo(() => {
+    const all = tournamentMatches || [];
+    return [...all].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [tournamentMatches]);
+
+  const rankedStats = useMemo(() => {
     let w = 0, l = 0, d = 0;
-    matches.forEach(m => {
+    rankedMatches.forEach(m => {
       if (m.status !== 'COMPLETED') return;
       if (m.winnerId === team.id) w++;
       else if (m.winnerId === null && m.scoreA === m.scoreB) d++;
       else l++;
     });
     return { w, l, d, played: w + l + d };
-  }, [matches, team.id]);
+  }, [rankedMatches, team.id]);
+
+  const tournamentStats = useMemo(() => {
+    let w = 0, l = 0, d = 0;
+    tMatches.forEach(m => {
+      if (m.status !== 'COMPLETED') return;
+      if (m.winnerId === team.id) w++;
+      else if (m.winnerId === null) d++;
+      else l++;
+    });
+    return { w, l, d, played: w + l + d };
+  }, [tMatches, team.id]);
+
+  const getTournamentMatchScore = useCallback((m: any) => {
+    if (!m.resultSummary) return { myScore: '-', oppScore: '-' };
+    const rs = m.resultSummary as any;
+    const isTeamA = m.teamAId === team.id;
+    if (isCricket) {
+      const runsA = rs.runsA ?? 0;
+      const wicketsA = rs.wicketsA ?? 0;
+      const runsB = rs.runsB ?? 0;
+      const wicketsB = rs.wicketsB ?? 0;
+      
+      const scoreAStr = `${runsA}/${wicketsA}`;
+      const scoreBStr = `${runsB}/${wicketsB}`;
+      
+      return {
+        myScore: isTeamA ? scoreAStr : scoreBStr,
+        oppScore: isTeamA ? scoreBStr : scoreAStr
+      };
+    } else {
+      const goalsA = rs.goalsA ?? 0;
+      const goalsB = rs.goalsB ?? 0;
+      return {
+        myScore: isTeamA ? goalsA : goalsB,
+        oppScore: isTeamA ? goalsB : goalsA
+      };
+    }
+  }, [isCricket, team.id]);
+
+  const getTournamentMmrChange = useCallback((m: any) => {
+    if (!m.tournament || !m.tournament.mmrEnabled || m.status !== 'COMPLETED') return 0;
+    const mult = m.tournament.mmrMultiplier ?? 1;
+    if (m.winnerId === team.id) {
+      return 25 * mult;
+    } else if (m.winnerId === null) {
+      return 5 * mult;
+    } else {
+      return -15 * mult;
+    }
+  }, [team.id]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const patch = (body: object) =>
@@ -499,73 +559,135 @@ export default function SquadManager({ team, setTeam, myRole }: SquadManagerProp
         <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
           <History size={14} className="text-accent" />
           <h3 className="font-black text-[11px] uppercase tracking-widest">Match History</h3>
-          <span className="ml-auto text-[8px] font-black uppercase text-accent bg-accent/10 px-2 py-0.5 rounded-full border border-accent/20">Season 1</span>
+          <div className="ml-auto flex bg-neutral-800/80 p-0.5 rounded-lg border border-white/5">
+            <button
+              onClick={() => setHistoryTab('RANKED')}
+              className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-md transition-colors ${
+                historyTab === 'RANKED'
+                  ? 'bg-accent text-black'
+                  : 'text-white/60 hover:text-white'
+              }`}
+            >
+              Ranked
+            </button>
+            <button
+              onClick={() => setHistoryTab('TOURNAMENT')}
+              className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-md transition-colors ${
+                historyTab === 'TOURNAMENT'
+                  ? 'bg-[#d4af37] text-black'
+                  : 'text-white/60 hover:text-white'
+              }`}
+            >
+              Tourney
+            </button>
+          </div>
         </div>
         <div className="p-4">
           <div className="flex items-center justify-between gap-4 mb-5 p-3 rounded-xl bg-neutral-800/30 border border-white/5">
             <div className="flex items-center gap-4">
-              <StatDonut w={stats.w} l={stats.l} d={stats.d} size={60} />
-              <div className="flex flex-col">
-                <span className="text-xs font-black text-white">{stats.played} <span className="text-[10px] text-[var(--muted)] uppercase tracking-wider font-bold">Played</span></span>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <div className="flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-[#00ff41] shrink-0"></span><span className="text-[10px] font-bold text-white">{stats.w} W</span></div>
-                  <div className="flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span><span className="text-[10px] font-bold text-white">{stats.l} L</span></div>
-                  <div className="flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span><span className="text-[10px] font-bold text-white">{stats.d} D</span></div>
-                </div>
-              </div>
+              {(() => {
+                const activeStats = historyTab === 'RANKED' ? rankedStats : tournamentStats;
+                return (
+                  <>
+                    <StatDonut w={activeStats.w} l={activeStats.l} d={activeStats.d} size={60} />
+                    <div className="flex flex-col">
+                      <span className="text-xs font-black text-white">{activeStats.played} <span className="text-[10px] text-[var(--muted)] uppercase tracking-wider font-bold">Played</span></span>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <div className="flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-[#00ff41] shrink-0"></span><span className="text-[10px] font-bold text-white">{activeStats.w} W</span></div>
+                        <div className="flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span><span className="text-[10px] font-bold text-white">{activeStats.l} L</span></div>
+                        <div className="flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span><span className="text-[10px] font-bold text-white">{activeStats.d} D</span></div>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
             <div className="shrink-0 flex flex-col items-center">
-              <RankBadge mmr={team.teamMmr} />
+              <RankBadge mmr={historyTab === 'RANKED' ? rankedMmr : tournamentMmr} />
             </div>
           </div>
 
           <h4 className="text-[10px] uppercase font-black tracking-widest text-[var(--muted)] mb-3">Recent Matches</h4>
-          {matches.length === 0 ? (
-            <p className="text-xs text-white/30 italic text-center py-4 bg-neutral-800/30 rounded-xl border border-white/5">No matches played yet.</p>
-          ) : (
-            <div className="flex overflow-x-auto snap-x snap-mandatory gap-3 pb-2 scrollbar-none">
-              {matches.slice(0, 10).map((match: any) => {
-                const isTeamA = match.teamA_Id === team.id;
-                const opp = isTeamA ? match.teamB : match.teamA;
-                const oppScore = isTeamA ? match.scoreB : match.scoreA;
-                const myScore = isTeamA ? match.scoreA : match.scoreB;
-                const mmrChg = isTeamA ? match.mmrChangeA : match.mmrChangeB;
-                
-                let resClass = 'bg-neutral-800/50 border-white/5 text-[var(--muted)]';
-                let IconCode = Minus;
-                if (match.status === 'COMPLETED') {
-                  if (match.winnerId === team.id) { resClass = 'bg-accent/10 border-accent/20 text-accent'; IconCode = TrendingUp; }
-                  else if (match.winnerId === null && myScore === oppScore) { resClass = 'bg-blue-500/10 border-blue-500/20 text-blue-400'; IconCode = Minus; }
-                  else { resClass = 'bg-red-500/10 border-red-500/20 text-red-500'; IconCode = TrendingDown; }
-                }
+          {(() => {
+            const activeMatches = historyTab === 'RANKED' ? rankedMatches : tMatches;
+            if (activeMatches.length === 0) {
+              return (
+                <p className="text-xs text-white/30 italic text-center py-4 bg-neutral-800/30 rounded-xl border border-white/5">No matches played yet.</p>
+              );
+            }
+            return (
+              <div className="flex overflow-x-auto snap-x snap-mandatory gap-3 pb-2 scrollbar-none">
+                {activeMatches.slice(0, 10).map((match: any) => {
+                  const isTeamA = match.teamA_Id === team.id || match.teamAId === team.id;
+                  
+                  let oppName = 'Unknown';
+                  let oppLogo = null;
+                  let myScore: any = '-';
+                  let oppScore: any = '-';
+                  let mmrChg = 0;
+                  
+                  if (historyTab === 'RANKED') {
+                    const opp = isTeamA ? match.teamB : match.teamA;
+                    oppName = opp?.name || 'Unknown';
+                    oppLogo = opp?.logoUrl;
+                    oppScore = isTeamA ? match.scoreB : match.scoreA;
+                    myScore = isTeamA ? match.scoreA : match.scoreB;
+                    mmrChg = isTeamA ? match.mmrChangeA : match.mmrChangeB;
+                  } else {
+                    const opp = match.opponent;
+                    oppName = opp?.name || 'Unknown';
+                    oppLogo = opp?.logoUrl;
+                    const scores = getTournamentMatchScore(match);
+                    myScore = scores.myScore;
+                    oppScore = scores.oppScore;
+                    mmrChg = getTournamentMmrChange(match);
+                  }
+                  
+                  let resClass = 'bg-neutral-800/50 border-white/5 text-[var(--muted)]';
+                  let IconCode = Minus;
+                  if (match.status === 'COMPLETED') {
+                    if (match.winnerId === team.id) { resClass = 'bg-accent/10 border-accent/20 text-accent'; IconCode = TrendingUp; }
+                    else if (match.winnerId === null) { resClass = 'bg-blue-500/10 border-blue-500/20 text-blue-400'; IconCode = Minus; }
+                    else { resClass = 'bg-red-500/10 border-red-500/20 text-red-500'; IconCode = TrendingDown; }
+                  }
 
-                return (
-                  <div key={match.id} className="snap-start shrink-0 w-[200px] p-3 rounded-xl border bg-neutral-800/80 border-white/10 flex flex-col justify-between">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center border ${resClass}`}>
-                        <IconCode size={14} />
+                  const tournamentName = match.tournament?.name;
+
+                  return (
+                    <div key={match.id} className="snap-start shrink-0 w-[200px] p-3 rounded-xl border bg-neutral-800/80 border-white/10 flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center border ${resClass}`}>
+                          <IconCode size={14} />
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-black block">{myScore} - {oppScore}</span>
+                          {match.status === 'COMPLETED' && (
+                            <span className={`text-[10px] font-bold ${mmrChg > 0 ? 'text-[#00ff41]' : mmrChg < 0 ? 'text-red-500' : 'text-zinc-400'}`}>
+                              {mmrChg > 0 ? '+' : ''}{mmrChg} MMR
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <span className="text-xs font-black block">{myScore} - {oppScore}</span>
-                        {match.status === 'COMPLETED' && (
-                          <span className={`text-[10px] font-bold ${mmrChg > 0 ? 'text-accent' : mmrChg < 0 ? 'text-red-500' : 'text-zinc-400'}`}>
-                            {mmrChg > 0 ? '+' : ''}{mmrChg} MMR
-                          </span>
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center gap-2">
+                          {oppLogo ? <img src={oppLogo} className="w-5 h-5 rounded-full object-cover" /> : <div className="w-5 h-5 rounded-full bg-neutral-700" />}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[10px] font-bold truncate">vs {oppName}</p>
+                            <p className="text-[8px] text-[var(--muted)]">{new Date(match.createdAt).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+                        {tournamentName && (
+                          <p className="text-[8px] text-amber-500/80 font-black uppercase tracking-wider truncate border-t border-white/5 pt-1 mt-0.5">
+                            🏆 {tournamentName}
+                          </p>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                       {opp?.logoUrl ? <img src={opp.logoUrl} className="w-5 h-5 rounded-full object-cover" /> : <div className="w-5 h-5 rounded-full bg-neutral-700" />}
-                       <div className="min-w-0">
-                         <p className="text-[10px] font-bold truncate">vs {opp?.name || 'Unknown'}</p>
-                         <p className="text-[8px] text-[var(--muted)]">{new Date(match.createdAt).toLocaleDateString()}</p>
-                       </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -592,20 +714,19 @@ export default function SquadManager({ team, setTeam, myRole }: SquadManagerProp
         </div>
       </div>
 
-      {/* ── Look for Tournament Button (Tournament Teams) ── */}
-      {team.teamType === 'TOURNAMENT' && (
-        <a href={`/${locale}/arena?tab=tournaments`} className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 transition-all shadow-[0_0_20px_rgba(245,158,11,0.2)] border border-white/20 font-black text-sm uppercase tracking-widest text-white mt-2 group relative overflow-hidden">
+      {/* ── Matchmaking & Tournament Actions ── */}
+      <div className="flex flex-col gap-3 mt-2">
+        {/* Look for Tournament Button */}
+        <a href={`/${locale}/arena?tab=tournaments`} className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 transition-all shadow-[0_0_20px_rgba(245,158,11,0.2)] border border-white/20 font-black text-sm uppercase tracking-widest text-white group relative overflow-hidden">
           <div className="absolute top-0 right-0 p-3 opacity-20 transform translate-x-1/4 -translate-y-1/4 group-hover:scale-110 transition-transform">
             <Trophy size={64} />
           </div>
           <Trophy size={18} className="relative z-10" />
           <span className="relative z-10">Look for Tournament</span>
         </a>
-      )}
 
-      {/* ── Challenge Market Subscribe Button (Regular Only) ── */}
-      {team.teamType !== 'TOURNAMENT' && (
-        team.isSubscribed || team.challengeSubscription?.active ? (
+        {/* Challenge Market Subscribe Button */}
+        {team.isSubscribed || team.challengeSubscription?.active ? (
           <div className="w-full flex items-center justify-center gap-3 p-4 rounded-2xl bg-gradient-to-r from-fuchsia-900/60 to-purple-900/60 border border-fuchsia-500/30">
             <Swords size={18} className="text-fuchsia-400" />
             <div className="text-left">
@@ -633,8 +754,8 @@ export default function SquadManager({ team, setTeam, myRole }: SquadManagerProp
               )}
             </div>
           </button>
-        )
-      )}
+        )}
+      </div>
 
       {/* ── Player Action Modal (centered popup) ── */}
       {playerModal && (

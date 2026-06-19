@@ -75,10 +75,7 @@ export async function POST(
         });
       }
 
-      // Check if group stage is fully completed to advance teams
-      if (match.tournament.qualifyPerGroup) {
-        await checkAndAdvanceGroupStage(match.tournamentId, match.tournament.qualifyPerGroup);
-      }
+      // Manual advancement is now used, so we do not auto-advance here upon match completion.
 
     } else if (winnerId) {
       // 4. Advance Knockout Winner

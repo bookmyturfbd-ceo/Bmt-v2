@@ -13,9 +13,14 @@ export async function GET(req: NextRequest) {
 
   const isCricketSport = sport.includes('CRICKET');
   let mmrField = isCricketSport ? 'cricketMmr' : 'footballMmr';
-  if (category === 'tournament' && type === 'players') {
+  if (category === 'tournament') {
     mmrField = isCricketSport ? 'tournamentCricketMmr' : 'tournamentFootballMmr';
   }
+
+  let sportTypes: any = [sport];
+  if (sport === 'FUTSAL') sportTypes = ['FUTSAL', 'FUTSAL_5', 'FUTSAL_6', 'FUTSAL_7'];
+  if (sport === 'FOOTBALL') sportTypes = ['FOOTBALL', 'FOOTBALL_FULL'];
+  if (sport === 'CRICKET') sportTypes = ['CRICKET', 'CRICKET_7', 'CRICKET_FULL'];
 
   // Tier MMR ranges (225-pt brackets)
   const TIER_RANGES: Record<string, [number, number]> = {
@@ -52,7 +57,7 @@ export async function GET(req: NextRequest) {
       if (sport === 'ALL') {
         const teams = await prisma.team.findMany({
           where: {
-            teamType: category === 'tournament' ? 'TOURNAMENT' : 'REGULAR',
+            isDisbanded: false,
           },
           select: {
             id        : true,
@@ -62,6 +67,8 @@ export async function GET(req: NextRequest) {
             teamMmr   : true,
             footballMmr: true,
             cricketMmr : true,
+            tournamentFootballMmr: true,
+            tournamentCricketMmr: true,
             isDisbanded: true,
             _count: {
               select: { members: true }
@@ -81,7 +88,10 @@ export async function GET(req: NextRequest) {
           const allMatches = [...t.matchesAsTeamA, ...t.matchesAsTeamB];
           const wins   = allMatches.filter(m => m.winnerId === t.id).length;
           const played = allMatches.length;
-          const mmr    = t.sportType?.includes('CRICKET') ? t.cricketMmr : t.footballMmr;
+          const mmrFieldForTeam = t.sportType?.includes('CRICKET')
+            ? (category === 'tournament' ? 'tournamentCricketMmr' : 'cricketMmr')
+            : (category === 'tournament' ? 'tournamentFootballMmr' : 'footballMmr');
+          const mmr    = t[mmrFieldForTeam] as number;
           return {
             id       : t.id,
             name     : t.name,
@@ -107,8 +117,8 @@ export async function GET(req: NextRequest) {
       } else {
         const whereClause: any = {
           [mmrField]: { gte: minMmr, lte: maxMmr },
-          teamType: category === 'tournament' ? 'TOURNAMENT' : 'REGULAR',
-          sportType: sport,
+          isDisbanded: false,
+          sportType: { in: sportTypes },
         };
 
         const teams = await prisma.team.findMany({
@@ -123,6 +133,8 @@ export async function GET(req: NextRequest) {
             teamMmr   : true,
             footballMmr: true,
             cricketMmr : true,
+            tournamentFootballMmr: true,
+            tournamentCricketMmr: true,
             isDisbanded: true,
             _count: {
               select: { members: true }
@@ -142,7 +154,7 @@ export async function GET(req: NextRequest) {
           const allMatches = [...t.matchesAsTeamA, ...t.matchesAsTeamB];
           const wins   = allMatches.filter(m => m.winnerId === t.id).length;
           const played = allMatches.length;
-          const mmr    = isCricketSport ? t.cricketMmr : t.footballMmr;
+          const mmr    = t[mmrField as keyof typeof t] as number;
           return {
             rank     : idx + 1,
             id       : t.id,
@@ -252,7 +264,7 @@ export async function GET(req: NextRequest) {
           cricketMmr  : true,
           teamMemberships: {
             take: 1,
-            where: { team: { sportType: sport as any } },
+            where: { team: { sportType: { in: sportTypes } } },
             select: {
               team: {
                 select: { id: true, name: true, logoUrl: true, sportType: true }

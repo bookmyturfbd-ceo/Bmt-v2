@@ -7,6 +7,9 @@ function getPlayerId(req: NextRequest): string | null {
 }
 
 function mapEnumToSport(enumValue: string): string {
+  if (enumValue === 'FUTSAL') return 'Futsal';
+  if (enumValue === 'FOOTBALL') return 'Football';
+  if (enumValue === 'CRICKET') return 'Cricket';
   if (enumValue === 'FUTSAL_5') return '5-a-side Futsal';
   if (enumValue === 'FUTSAL_6') return '6-a-side Futsal';
   if (enumValue === 'FUTSAL_7') return '7-a-side Futsal';
@@ -55,12 +58,51 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const playerId = getPlayerId(req);
   if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 });
 
+  const tMatches = await prisma.tournamentMatch.findMany({
+    where: {
+      OR: [
+        { teamAId: id },
+        { teamBId: id }
+      ]
+    },
+    include: {
+      tournament: {
+        select: {
+          id: true,
+          name: true,
+          sport: true,
+          mmrEnabled: true,
+          mmrMultiplier: true
+        }
+      }
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+
+
+  // Get opponent team details manually
+  const oppIds = Array.from(new Set(tMatches.map(m => m.teamAId === id ? m.teamBId : m.teamAId).filter(oId => oId !== 'TBD')));
+  const oppTeams = await prisma.team.findMany({
+    where: { id: { in: oppIds } },
+    select: { id: true, name: true, logoUrl: true }
+  });
+
+  const enrichedTMatches = tMatches.map(m => {
+    const oppId = m.teamAId === id ? m.teamBId : m.teamAId;
+    const opp = oppTeams.find(t => t.id === oppId) || (oppId === 'TBD' ? { id: 'TBD', name: 'TBD', logoUrl: null } : null);
+    return {
+      ...m,
+      opponent: opp
+    };
+  });
+
   // Ensure owner's TeamMember.role always reads as 'owner' — guards against accidental DB mutation
   const normalised = {
     ...team,
     members: team.members.map((m: any) => 
       m.playerId === team.ownerId ? { ...m, role: 'owner' } : m
-    )
+    ),
+    tournamentMatches: enrichedTMatches
   };
   return NextResponse.json({ team: normalised, myPlayerId: playerId, activeSeason, isFree });
 }
@@ -102,7 +144,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (!isOM) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
       const { sportType } = payload || {};
       if (!sportType) return NextResponse.json({ error: 'Sport type is required' }, { status: 400 });
-      const validSports = ['FUTSAL_5', 'FUTSAL_6', 'FUTSAL_7', 'CRICKET_7', 'FOOTBALL_FULL', 'CRICKET_FULL'];
+      const validSports = ['FUTSAL_5', 'FUTSAL_6', 'FUTSAL_7', 'CRICKET_7', 'FOOTBALL_FULL', 'CRICKET_FULL', 'FUTSAL', 'FOOTBALL', 'CRICKET'];
       if (!validSports.includes(sportType)) {
         return NextResponse.json({ error: 'Invalid sport type' }, { status: 400 });
       }
@@ -116,10 +158,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (action === 'add_member') {
       if (!isOM) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
       
-      let maxRosterSize = 9; // FUTSAL_5 default
-      if (teamCheck.sportType === 'FUTSAL_6') maxRosterSize = 10;
-      if (teamCheck.sportType === 'FUTSAL_7' || teamCheck.sportType === 'CRICKET_7') maxRosterSize = 11;
-      if (teamCheck.sportType === 'FOOTBALL_FULL' || teamCheck.sportType === 'CRICKET_FULL') maxRosterSize = 15;
+      const maxRosterSize = 15; // Unified max roster size
 
       if (teamCheck.members.length >= maxRosterSize) {
         return NextResponse.json({ error: `Roster is full. Maximum ${maxRosterSize} players allowed.` }, { status: 400 });
@@ -133,17 +172,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const existing = await prisma.teamMember.findUnique({ where: { teamId_playerId: { teamId: id, playerId: targetPlayerId } } });
       if (existing) return NextResponse.json({ error: 'Already a member' }, { status: 409 });
       
-      // Check not already in another team of the same sport AND same teamType
+      // Check not already in another team of the same sport category
       const inSameSport = await prisma.teamMember.findFirst({
         where: {
           playerId: targetPlayerId,
-          team: { sportType: teamCheck.sportType, teamType: teamCheck.teamType }
+          team: {
+            OR: [
+              { sportType: teamCheck.sportType },
+              ...(teamCheck.sportType === 'FUTSAL' ? [{ sportType: 'FUTSAL_5' as any }, { sportType: 'FUTSAL_6' as any }, { sportType: 'FUTSAL_7' as any }] : []),
+              ...(teamCheck.sportType === 'CRICKET' ? [{ sportType: 'CRICKET_7' as any }, { sportType: 'CRICKET_FULL' as any }] : []),
+              ...(teamCheck.sportType === 'FOOTBALL' ? [{ sportType: 'FOOTBALL_FULL' as any }] : []),
+            ]
+          }
         },
-        include: { team: { select: { name: true } } }
+        include: { team: { select: { name: true, sportType: true } } }
       });
       if (inSameSport) {
-        const typeLabel = teamCheck.teamType === 'TOURNAMENT' ? 'tournament' : 'regular';
-        return NextResponse.json({ error: `Player is already in a ${mapEnumToSport(teamCheck.sportType)} ${typeLabel} team (${inSameSport.team.name}). They must leave it before joining.` }, { status: 400 });
+        return NextResponse.json({ error: `Player is already in a ${mapEnumToSport(inSameSport.team.sportType)} team (${inSameSport.team.name}). They must leave it before joining.` }, { status: 400 });
       }
 
       // Check if an invitation is already pending
@@ -183,10 +228,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (target?.role === 'owner') return NextResponse.json({ error: 'Cannot remove the owner' }, { status: 400 });
       await prisma.teamMember.delete({ where: { id: targetMemberId } });
 
-      if (teamCheck.teamType === 'TOURNAMENT') {
-        const { syncTournamentTeamMmr } = await import('@/lib/teamMmr');
-        await syncTournamentTeamMmr(id);
-      }
+      const { syncTournamentTeamMmr } = await import('@/lib/teamMmr');
+      await syncTournamentTeamMmr(id);
 
       return NextResponse.json({ ok: true });
     }
@@ -290,7 +333,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (action === 'subscribe_challenge') {
       if (!['owner', 'manager'].includes(myRole)) return NextResponse.json({ error: 'Only Owner or Manager can subscribe' }, { status: 403 });
 
-      const minRequired = teamCheck.sportType === 'FUTSAL_6' ? 6 : (teamCheck.sportType === 'CRICKET_7' ? 7 : 5);
+      let minRequired = 5;
+      if (teamCheck.sportType === 'FUTSAL_6') minRequired = 6;
+      if (teamCheck.sportType === 'FUTSAL_7' || teamCheck.sportType === 'CRICKET_7' || teamCheck.sportType === 'CRICKET') minRequired = 7;
+      if (teamCheck.sportType === 'FOOTBALL_FULL' || teamCheck.sportType === 'CRICKET_FULL' || teamCheck.sportType === 'FOOTBALL') minRequired = 11;
+      
       if (teamCheck.members.length < minRequired) {
         return NextResponse.json({ error: `You need at least ${minRequired} players on the roster to enter the Challenge Market.` }, { status: 400 });
       }
@@ -354,10 +401,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         where: { teamId_playerId: { teamId: id, playerId } }
       });
 
-      if (teamCheck.teamType === 'TOURNAMENT') {
-        const { syncTournamentTeamMmr } = await import('@/lib/teamMmr');
-        await syncTournamentTeamMmr(id);
-      }
+      const { syncTournamentTeamMmr } = await import('@/lib/teamMmr');
+      await syncTournamentTeamMmr(id);
 
       return NextResponse.json({ ok: true });
     }

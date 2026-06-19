@@ -53,8 +53,9 @@ export async function GET(req: NextRequest) {
 
     const teams = await prisma.team.findMany({
       where: isFree 
-        ? { teamType: 'REGULAR' }
+        ? { isDisbanded: false }
         : {
+            isDisbanded: false,
             isSubscribed: true,
             challengeSubscription: { active: true },
           },

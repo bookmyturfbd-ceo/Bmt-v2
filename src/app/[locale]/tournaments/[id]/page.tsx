@@ -98,7 +98,7 @@ export default function TournamentDetailPage() {
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'overview' | 'teams' | 'matches' | 'standings'>('overview');
+  const [tab, setTab] = useState<'overview' | 'teams' | 'matches' | 'standings' | 'timeline'>('overview');
   const [isRegistering, setIsRegistering] = useState(false);
 
   const pid = getCookie('bmt_player_id');
@@ -212,7 +212,7 @@ export default function TournamentDetailPage() {
   const groupNames: Record<string, string> = {};
   tournament.groups.forEach(g => { groupNames[g.id] = g.name; });
 
-  const tabs = (['overview', 'teams', 'matches', 'standings'] as const);
+  const tabs = (['overview', 'teams', 'matches', 'standings', 'timeline'] as const);
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white pb-28">
@@ -375,6 +375,7 @@ export default function TournamentDetailPage() {
         {tab === 'teams'      && <TeamsTab tournament={tournament} />}
         {tab === 'matches'    && <MatchesTab tournament={tournament} teamNameMap={teamNameMap} teamLogoMap={teamLogoMap} />}
         {tab === 'standings'  && <StandingsTab tournament={tournament} teamNameMap={teamNameMap} teamLogoMap={teamLogoMap} groupNames={groupNames} playerStatsMap={tournament.playerStatsMap || {}} />}
+        {tab === 'timeline'   && <TimelineTab tournament={tournament} />}
       </div>
     </div>
   );
@@ -1102,34 +1103,34 @@ function StandingsTab({ tournament, teamNameMap, teamLogoMap, groupNames, player
   };
 
   function StandingRow({ s, idx }: { s: any; idx: number }) {
-    const teamName = teamNameMap[s.teamId] || s.teamId.slice(0, 12) + '…';
+    const teamName = teamNameMap[s.teamId] || s.teamId;
     const logo = teamLogoMap[s.teamId];
     const isTop = idx < 2;
     const nrr = s.nrr >= 0 ? `+${s.nrr.toFixed(2)}` : s.nrr.toFixed(2);
     const gd = s.goalDifference >= 0 ? `+${s.goalDifference}` : String(s.goalDifference);
     return (
-      <div className={`grid grid-cols-[2rem_1fr_auto] gap-0 items-center px-4 py-3 ${isTop ? 'bg-yellow-500/[0.03]' : ''}`}>
-        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+      <div className={`grid grid-cols-[1.5rem_1fr_auto] sm:grid-cols-[2rem_1fr_auto] gap-0 items-center px-2 sm:px-4 py-2.5 sm:py-3 ${isTop ? 'bg-yellow-500/[0.03]' : ''}`}>
+        <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black ${
           idx === 0 ? 'bg-yellow-500/25 text-yellow-400' :
           idx === 1 ? 'bg-neutral-400/20 text-neutral-300' :
           'bg-white/5 text-neutral-500'
         }`}>{s.position || idx + 1}</span>
-        <div className="flex items-center gap-2 min-w-0 pl-2">
-          {logo && <img src={logo} alt="" className="w-5 h-5 rounded-full object-cover shrink-0 border border-white/10" />}
-          <span className="text-sm font-bold text-white truncate">{teamName}</span>
+        <div className="flex items-center gap-1.5 min-w-0 pl-1 sm:pl-2">
+          {logo && <img src={logo} alt="" className="w-4 h-4 sm:w-5 sm:h-5 rounded-full object-cover shrink-0 border border-white/10" />}
+          <span className="text-xs sm:text-sm font-bold text-white break-words leading-tight pr-1">{teamName}</span>
           {s.qualified && (
-            <span className="shrink-0 text-[8px] font-black uppercase tracking-widest text-[#00ff41] bg-[#00ff41]/10 px-1.5 py-0.5 rounded-full">Q</span>
+            <span className="shrink-0 text-[7px] sm:text-[8px] font-black uppercase tracking-widest text-[#00ff41] bg-[#00ff41]/10 px-1 sm:px-1.5 py-0.5 rounded-full">Q</span>
           )}
         </div>
-        <div className="flex items-center gap-3 text-xs font-black shrink-0">
-          <span className="w-5 text-center text-neutral-400">{s.played}</span>
-          <span className="w-5 text-center text-[#00ff41]">{s.won}</span>
-          <span className="w-5 text-center text-red-400">{s.lost}</span>
-          {isFootball && <span className="w-5 text-center text-neutral-400">{s.drawn}</span>}
-          {isCricket && <span className="w-5 text-center text-neutral-400">{s.noResult}</span>}
-          {isFootball && <span className={`w-6 text-center text-xs font-bold ${s.goalDifference > 0 ? 'text-[#00ff41]' : s.goalDifference < 0 ? 'text-red-400' : 'text-neutral-500'}`}>{gd}</span>}
-          {isCricket && <span className={`w-8 text-center text-xs font-bold ${s.nrr > 0 ? 'text-[#00ff41]' : s.nrr < 0 ? 'text-red-400' : 'text-neutral-500'}`}>{nrr}</span>}
-          <span className="w-7 text-center text-white font-black">{s.points}</span>
+        <div className="flex items-center gap-1.5 sm:gap-3 text-[10px] sm:text-xs font-black shrink-0">
+          <span className="w-4 sm:w-5 text-center text-neutral-400">{s.played}</span>
+          <span className="w-4 sm:w-5 text-center text-[#00ff41]">{s.won}</span>
+          <span className="w-4 sm:w-5 text-center text-red-400">{s.lost}</span>
+          {isFootball && <span className="w-4 sm:w-5 text-center text-neutral-400">{s.drawn}</span>}
+          {isCricket && <span className="w-4 sm:w-5 text-center text-neutral-400">{s.noResult}</span>}
+          {isFootball && <span className={`w-5 sm:w-6 text-center text-[10px] sm:text-xs font-bold ${s.goalDifference > 0 ? 'text-[#00ff41]' : s.goalDifference < 0 ? 'text-red-400' : 'text-neutral-500'}`}>{gd}</span>}
+          {isCricket && <span className={`w-6 sm:w-8 text-center text-[10px] sm:text-xs font-bold ${s.nrr > 0 ? 'text-[#00ff41]' : s.nrr < 0 ? 'text-red-400' : 'text-neutral-500'}`}>{nrr}</span>}
+          <span className="w-6 sm:w-7 text-center text-white font-black">{s.points}</span>
         </div>
       </div>
     );
@@ -1137,18 +1138,18 @@ function StandingsTab({ tournament, teamNameMap, teamLogoMap, groupNames, player
 
   function StandingColHeaders() {
     return (
-      <div className="grid grid-cols-[2rem_1fr_auto] gap-0 px-4 py-2 border-b border-white/5">
+      <div className="grid grid-cols-[1.5rem_1fr_auto] sm:grid-cols-[2rem_1fr_auto] gap-0 px-2 sm:px-4 py-2 border-b border-white/5 bg-black/20">
         <span className="text-[9px] font-black uppercase tracking-widest text-neutral-600">#</span>
-        <span className="text-[9px] font-black uppercase tracking-widest text-neutral-600 pl-2">Team</span>
-        <div className="flex items-center gap-3 text-[9px] font-black uppercase tracking-widest text-neutral-600">
-          <span className="w-5 text-center" title="Played">P</span>
-          <span className="w-5 text-center" title="Won">W</span>
-          <span className="w-5 text-center" title="Lost">L</span>
-          {isFootball && <span className="w-5 text-center" title="Drawn">D</span>}
-          {isCricket && <span className="w-5 text-center" title="No Result">NR</span>}
-          {isFootball && <span className="w-6 text-center" title="Goal Difference">GD</span>}
-          {isCricket && <span className="w-8 text-center" title="Net Run Rate">NRR</span>}
-          <span className="w-7 text-center text-white" title="Points">Pts</span>
+        <span className="text-[9px] font-black uppercase tracking-widest text-neutral-600 pl-1 sm:pl-2">Team</span>
+        <div className="flex items-center gap-1.5 sm:gap-3 text-[9px] font-black uppercase tracking-widest text-neutral-600">
+          <span className="w-4 sm:w-5 text-center" title="Played">P</span>
+          <span className="w-4 sm:w-5 text-center" title="Won">W</span>
+          <span className="w-4 sm:w-5 text-center" title="Lost">L</span>
+          {isFootball && <span className="w-4 sm:w-5 text-center" title="Drawn">D</span>}
+          {isCricket && <span className="w-4 sm:w-5 text-center" title="No Result">NR</span>}
+          {isFootball && <span className="w-5 sm:w-6 text-center" title="Goal Difference">GD</span>}
+          {isCricket && <span className="w-6 sm:w-8 text-center" title="Net Run Rate">NRR</span>}
+          <span className="w-6 sm:w-7 text-center text-white" title="Points">Pts</span>
         </div>
       </div>
     );
@@ -1279,7 +1280,7 @@ function StandingsTab({ tournament, teamNameMap, teamLogoMap, groupNames, player
           <div className="bg-neutral-900 border border-white/5 rounded-2xl overflow-hidden">
             <div className="divide-y divide-white/5">
               {sortedOverall.map((teamId, rank) => {
-                const name = teamNameMap[teamId] || teamId.slice(0, 12) + '…';
+                const name = teamNameMap[teamId] || teamId;
                 const logo = teamLogoMap[teamId];
                 const elim = isEliminated(teamId);
                 const stage = stageReached(teamId);
@@ -1291,22 +1292,22 @@ function StandingsTab({ tournament, teamNameMap, teamLogoMap, groupNames, player
                   : null;
 
                 return (
-                  <div key={teamId} className={`flex items-center gap-3 px-4 py-3 transition-all ${elim ? 'opacity-40' : ''}`}>
-                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
+                  <div key={teamId} className={`flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2.5 sm:py-3 transition-all ${elim ? 'opacity-40' : ''}`}>
+                    <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-black shrink-0 ${
                       rank === 0 ? 'bg-yellow-500/25 text-yellow-400' :
                       rank === 1 ? 'bg-neutral-400/20 text-neutral-300' :
                       rank === 2 ? 'bg-amber-700/20 text-amber-600' :
                       'bg-white/5 text-neutral-500'
                     }`}>{rank + 1}</span>
-                    <div className="w-8 h-8 rounded-full bg-neutral-950 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-neutral-950 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
                       {logo ? <img src={logo} alt="" className="w-full h-full object-cover" /> : <Shield size={14} className="text-neutral-600" />}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-black text-white truncate">{name}</p>
-                      {elim && <p className="text-[9px] font-bold text-neutral-600 uppercase tracking-wider">Eliminated</p>}
+                    <div className="flex-1 min-w-0 pl-1">
+                      <p className="text-xs sm:text-sm font-black text-white break-words leading-tight pr-1">{name}</p>
+                      {elim && <p className="text-[8px] sm:text-[9px] font-bold text-neutral-600 uppercase tracking-wider mt-0.5">Eliminated</p>}
                     </div>
                     {stageBadge && (
-                      <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shrink-0 ${stageBadge.cls}`}>
+                      <span className={`text-[8px] sm:text-[9px] font-black uppercase tracking-widest px-1.5 sm:px-2 py-0.5 rounded-full shrink-0 ${stageBadge.cls}`}>
                         {stageBadge.label}
                       </span>
                     )}
@@ -1685,6 +1686,45 @@ function RegistrationModal({ tournament, onClose, onSuccess }: {
             {submitting ? <Loader2 size={18} className="animate-spin" /> : 'Pay and Enter'}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function TimelineTab({ tournament }: { tournament: any }) {
+  const events = Array.isArray(tournament.timeline)
+    ? [...tournament.timeline].sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    : [];
+
+  if (events.length === 0) {
+    return (
+      <div className="py-20 flex flex-col items-center text-center">
+        <Calendar size={48} className="text-neutral-800 mb-4" />
+        <p className="text-neutral-500 font-bold">No timeline updates yet.</p>
+        <p className="text-neutral-600 text-xs mt-1">Changes made by the organizer will appear here.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-xl mx-auto py-4">
+      <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400 mb-6">Tournament Timeline</h3>
+      <div className="relative border-l-2 border-white/10 pl-6 space-y-8 ml-2">
+        {events.map((e: any) => (
+          <div key={e.id} className="relative">
+            {/* Timeline dot */}
+            <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full bg-yellow-500 border-4 border-[#0a0a0a]" />
+            <div className="text-xs text-neutral-500 font-bold">
+              {new Date(e.timestamp).toLocaleString()}
+            </div>
+            <h4 className="text-sm font-black text-white mt-1 leading-relaxed">
+              {e.message}
+            </h4>
+            <span className="inline-block mt-2 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-white/5 border border-white/10 text-neutral-400">
+              {e.type.replace(/_/g, ' ')}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );
