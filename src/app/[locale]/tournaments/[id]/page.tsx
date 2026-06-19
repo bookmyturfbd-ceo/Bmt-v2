@@ -53,6 +53,7 @@ interface Tournament {
   standings: any[];
   matches: any[];
   formatConfig?: any;
+  playerStatsMap?: Record<string, { goals: number; assists: number }>;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -373,7 +374,7 @@ export default function TournamentDetailPage() {
         {tab === 'overview'   && <OverviewTab tournament={tournament} />}
         {tab === 'teams'      && <TeamsTab tournament={tournament} />}
         {tab === 'matches'    && <MatchesTab tournament={tournament} teamNameMap={teamNameMap} teamLogoMap={teamLogoMap} />}
-        {tab === 'standings'  && <StandingsTab tournament={tournament} teamNameMap={teamNameMap} teamLogoMap={teamLogoMap} groupNames={groupNames} />}
+        {tab === 'standings'  && <StandingsTab tournament={tournament} teamNameMap={teamNameMap} teamLogoMap={teamLogoMap} groupNames={groupNames} playerStatsMap={tournament.playerStatsMap || {}} />}
       </div>
     </div>
   );
@@ -970,11 +971,12 @@ function MatchesTab({
     </div>
   );
 }
-function StandingsTab({ tournament, teamNameMap, teamLogoMap, groupNames }: {
+function StandingsTab({ tournament, teamNameMap, teamLogoMap, groupNames, playerStatsMap }: {
   tournament: Tournament;
   teamNameMap: Record<string, string>;
   teamLogoMap: Record<string, string>;
   groupNames: Record<string, string>;
+  playerStatsMap: Record<string, { goals: number; assists: number }>;
 }) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
@@ -1321,35 +1323,82 @@ function StandingsTab({ tournament, teamNameMap, teamLogoMap, groupNames }: {
         <div className="flex flex-col gap-3">
           <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">Top Players</h3>
           <div className="bg-neutral-900 border border-white/5 rounded-2xl overflow-hidden">
-            <div className="px-4 py-2 border-b border-white/5 grid grid-cols-[2rem_1fr_auto] gap-2 text-[9px] font-black uppercase tracking-widest text-neutral-600">
-              <span>#</span>
-              <span>Player</span>
-              <span>MMR</span>
+            {/* Column headers */}
+            <div className="px-4 py-2 border-b border-white/5 flex items-center text-[9px] font-black uppercase tracking-widest text-neutral-600">
+              <span className="w-8 shrink-0">#</span>
+              <span className="flex-1">Player</span>
+              {isFootball && (
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="w-8 text-center" title="Goals">⚽G</span>
+                  <span className="w-8 text-center" title="Assists">🅰A</span>
+                  <span className="w-10 text-center text-white">MMR</span>
+                </div>
+              )}
+              {isCricket && (
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="w-10 text-center" title="Runs">Runs</span>
+                  <span className="w-10 text-center" title="Wickets">Wkts</span>
+                  <span className="w-10 text-center text-white">MMR</span>
+                </div>
+              )}
+              {!isFootball && !isCricket && <span className="w-10 text-center text-white">MMR</span>}
             </div>
             <div className="divide-y divide-white/5">
-              {top20.map((p, idx) => (
-                <div key={p.id} className="grid grid-cols-[2rem_1fr_auto] gap-2 items-center px-4 py-3">
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
-                    idx === 0 ? 'bg-yellow-500/25 text-yellow-400' :
-                    idx === 1 ? 'bg-neutral-400/20 text-neutral-300' :
-                    idx === 2 ? 'bg-amber-700/20 text-amber-600' :
-                    'bg-white/5 text-neutral-500'
-                  }`}>{idx + 1}</span>
-                  <div className="flex items-center gap-2 min-w-0">
+              {top20.map((p, idx) => {
+                const pStats = playerStatsMap[p.id];
+                const goals = pStats?.goals ?? 0;
+                const assists = pStats?.assists ?? 0;
+                const hasStats = goals > 0 || assists > 0;
+                return (
+                  <div key={p.id} className="flex items-center gap-2 px-4 py-3">
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
+                      idx === 0 ? 'bg-yellow-500/25 text-yellow-400' :
+                      idx === 1 ? 'bg-neutral-400/20 text-neutral-300' :
+                      idx === 2 ? 'bg-amber-700/20 text-amber-600' :
+                      'bg-white/5 text-neutral-500'
+                    }`}>{idx + 1}</span>
                     <div className="w-7 h-7 rounded-full bg-neutral-950 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
                       {p.avatar ? <img src={p.avatar} alt="" className="w-full h-full object-cover" /> : <Users size={12} className="text-neutral-600" />}
                     </div>
-                    <div className="min-w-0">
+                    <div className="flex-1 min-w-0">
                       <p className="text-xs font-black text-white truncate">{p.name}</p>
                       <p className="text-[9px] text-neutral-500 font-bold truncate">{p.teamName} · Lvl {p.level}</p>
                     </div>
+                    {isFootball && (
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="w-8 text-center">
+                          <p className={`text-sm font-black ${goals > 0 ? 'text-[#00ff41]' : 'text-neutral-600'}`}>{goals}</p>
+                        </div>
+                        <div className="w-8 text-center">
+                          <p className={`text-sm font-black ${assists > 0 ? 'text-blue-400' : 'text-neutral-600'}`}>{assists}</p>
+                        </div>
+                        <div className="w-10 text-center">
+                          <p className="text-sm font-black text-yellow-400">{p.mmr}</p>
+                        </div>
+                      </div>
+                    )}
+                    {isCricket && (
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="w-10 text-center">
+                          <p className={`text-sm font-black ${(pStats?.goals ?? 0) > 0 ? 'text-[#00ff41]' : 'text-neutral-600'}`}>{pStats?.goals ?? 0}</p>
+                        </div>
+                        <div className="w-10 text-center">
+                          <p className={`text-sm font-black ${(pStats?.assists ?? 0) > 0 ? 'text-red-400' : 'text-neutral-600'}`}>{pStats?.assists ?? 0}</p>
+                        </div>
+                        <div className="w-10 text-center">
+                          <p className="text-sm font-black text-yellow-400">{p.mmr}</p>
+                        </div>
+                      </div>
+                    )}
+                    {!isFootball && !isCricket && (
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-black text-yellow-400">{p.mmr}</p>
+                        <p className="text-[9px] text-neutral-600 font-bold">MMR</p>
+                      </div>
+                    )}
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-black text-accent">{p.mmr}</p>
-                    <p className="text-[9px] text-neutral-600 font-bold">MMR</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

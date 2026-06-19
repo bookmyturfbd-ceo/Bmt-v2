@@ -79,9 +79,25 @@ export async function GET(
       }
     }
 
+    // Aggregate goals + assists per player for this tournament's matches
+    const matchIds = tournament.matches.map((m: any) => m.id);
+    const playerStats = await prisma.playerMatchStat.groupBy({
+      by: ['playerId'],
+      where: { matchId: { in: matchIds } },
+      _sum: { goals: true, assists: true },
+    });
+    // Build map: playerId → { goals, assists }
+    const playerStatsMap: Record<string, { goals: number; assists: number }> = {};
+    playerStats.forEach((s: any) => {
+      playerStatsMap[s.playerId] = {
+        goals: s._sum.goals ?? 0,
+        assists: s._sum.assists ?? 0,
+      };
+    });
+
     return NextResponse.json({
       success: true,
-      data: { ...tournament, registrations: enrichedRegistrations, organizerName }
+      data: { ...tournament, registrations: enrichedRegistrations, organizerName, playerStatsMap }
     });
   } catch (error: any) {
     console.error('Error fetching public tournament details:', error);
