@@ -23,9 +23,6 @@ export async function GET(
           orderBy: [{ type: 'asc' }, { order: 'asc' }]
         },
         registrations: {
-          include: {
-            // We join teams and players manually below
-          },
           orderBy: { registeredAt: 'asc' },
         },
         _count: {

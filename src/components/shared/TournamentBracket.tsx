@@ -188,7 +188,7 @@ export default function TournamentBracket({
   return (
     <div 
       ref={containerRef}
-      className="relative flex items-stretch justify-between gap-16 py-8 overflow-x-auto min-w-[900px] w-full select-none"
+      className="relative flex items-stretch justify-between gap-5 py-8 overflow-x-auto min-w-[640px] w-full select-none"
     >
       {/* SVG Connections Overlay */}
       <svg className="absolute inset-0 pointer-events-none w-full h-full z-0">
@@ -214,7 +214,7 @@ export default function TournamentBracket({
       {stagesPresent.map((stage) => {
         const stageMatches = matchesByStage[stage] || [];
         return (
-          <div key={stage} className="flex flex-col justify-around py-4 gap-12 flex-1 relative z-10">
+          <div key={stage} className="flex flex-col justify-around py-4 gap-6 flex-1 relative z-10">
             {/* Column Stage Header */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 text-[9px] font-black uppercase tracking-widest text-neutral-500 whitespace-nowrap bg-neutral-950 px-2.5 py-1 border border-white/5 rounded-full shadow-lg">
               {stageLabel[stage] || stage}
@@ -239,65 +239,65 @@ export default function TournamentBracket({
                   id={`match-card-${m.id}`}
                   onMouseEnter={() => setHoveredMatchId(m.id)}
                   onMouseLeave={() => setHoveredMatchId(null)}
-                  className={`w-52 shrink-0 bg-neutral-900 border rounded-2xl overflow-hidden transition-all duration-300 ${
+                  className={`w-36 shrink-0 bg-neutral-900 border rounded-xl overflow-hidden transition-all duration-300 ${
                     isLive
-                      ? 'border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)] scale-[1.02]'
+                      ? 'border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.2)] scale-[1.02]'
                       : hoveredMatchId === m.id
-                        ? 'border-yellow-500 shadow-[0_0_15px_rgba(251,191,36,0.15)] scale-[1.01]'
-                        : 'border-white/5 shadow-xl hover:border-white/10'
+                        ? 'border-yellow-500 shadow-[0_0_12px_rgba(251,191,36,0.15)] scale-[1.01]'
+                        : 'border-white/5 shadow-lg hover:border-white/10'
                   }`}
                 >
                   {/* Match Number header */}
-                  <div className="flex items-center justify-between px-3.5 py-1.5 bg-black/40 border-b border-white/5 text-[9px] font-black uppercase tracking-widest text-neutral-500">
-                    <span>Match {m.matchNumber}</span>
+                  <div className="flex items-center justify-between px-2.5 py-1 bg-black/40 border-b border-white/5 text-[8px] font-black uppercase tracking-widest text-neutral-500">
+                    <span>M{m.matchNumber}</span>
                     {isLive && (
-                      <span className="flex items-center gap-1 text-red-500 font-extrabold">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> LIVE
+                      <span className="flex items-center gap-0.5 text-red-500 font-extrabold">
+                        <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse" /> LIVE
                       </span>
                     )}
                   </div>
 
                   {/* Team A Slot */}
-                  <div className={`flex items-center justify-between px-4 py-2.5 border-b border-white/5 transition-all ${
+                  <div className={`flex items-center justify-between px-2.5 py-2 border-b border-white/5 transition-all ${
                     winnerIsA ? 'bg-yellow-500/5' : isDone ? 'opacity-40' : ''
                   }`}>
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-6 h-6 rounded-full bg-neutral-950 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <div className="w-5 h-5 rounded-full bg-neutral-950 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
                         {logoA ? (
                           <img src={logoA} alt="" className="w-full h-full object-cover" />
                         ) : (
-                          <Shield size={12} className="text-neutral-600" />
+                          <Shield size={10} className="text-neutral-600" />
                         )}
                       </div>
-                      <span className={`text-xs font-black truncate leading-none ${winnerIsA ? 'text-yellow-400 font-black' : 'text-neutral-200'}`}>
+                      <span className={`text-[10px] font-black truncate leading-none ${winnerIsA ? 'text-yellow-400' : 'text-neutral-200'}`}>
                         {nameA}
                       </span>
                     </div>
                     {scoreA !== null && (
-                      <span className={`text-sm font-black font-mono leading-none ${winnerIsA ? 'text-yellow-400' : 'text-neutral-400'}`}>
+                      <span className={`text-xs font-black font-mono leading-none shrink-0 ml-1 ${winnerIsA ? 'text-yellow-400' : 'text-neutral-400'}`}>
                         {scoreA}
                       </span>
                     )}
                   </div>
 
                   {/* Team B Slot */}
-                  <div className={`flex items-center justify-between px-4 py-2.5 transition-all ${
+                  <div className={`flex items-center justify-between px-2.5 py-2 transition-all ${
                     winnerIsB ? 'bg-yellow-500/5' : isDone ? 'opacity-40' : ''
                   }`}>
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-6 h-6 rounded-full bg-neutral-950 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <div className="w-5 h-5 rounded-full bg-neutral-950 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
                         {logoB ? (
                           <img src={logoB} alt="" className="w-full h-full object-cover" />
                         ) : (
-                          <Shield size={12} className="text-neutral-600" />
+                          <Shield size={10} className="text-neutral-600" />
                         )}
                       </div>
-                      <span className={`text-xs font-black truncate leading-none ${winnerIsB ? 'text-yellow-400 font-black' : 'text-neutral-200'}`}>
+                      <span className={`text-[10px] font-black truncate leading-none ${winnerIsB ? 'text-yellow-400' : 'text-neutral-200'}`}>
                         {nameB}
                       </span>
                     </div>
                     {scoreB !== null && (
-                      <span className={`text-sm font-black font-mono leading-none ${winnerIsB ? 'text-yellow-400' : 'text-neutral-400'}`}>
+                      <span className={`text-xs font-black font-mono leading-none shrink-0 ml-1 ${winnerIsB ? 'text-yellow-400' : 'text-neutral-400'}`}>
                         {scoreB}
                       </span>
                     )}
@@ -311,27 +311,27 @@ export default function TournamentBracket({
 
       {/* Column 4: Champion Display Card */}
       <div className="flex flex-col justify-center py-4 flex-1 relative z-10">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 text-[9px] font-black uppercase tracking-widest text-neutral-500 whitespace-nowrap bg-neutral-950 px-2.5 py-1 border border-white/5 rounded-full shadow-lg">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 text-[8px] font-black uppercase tracking-widest text-neutral-500 whitespace-nowrap bg-neutral-950 px-2 py-0.5 border border-white/5 rounded-full shadow-lg">
           Champion
         </div>
 
         <div
           id="champion-card"
-          className={`w-60 bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950 border rounded-3xl p-6 flex flex-col items-center text-center shadow-2xl transition-all duration-500 ${
+          className={`w-40 bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950 border rounded-2xl p-4 flex flex-col items-center text-center shadow-2xl transition-all duration-500 ${
             championId
-              ? 'border-yellow-500/40 shadow-[0_0_30px_rgba(251,191,36,0.15)] scale-[1.02]'
+              ? 'border-yellow-500/40 shadow-[0_0_20px_rgba(251,191,36,0.15)] scale-[1.02]'
               : 'border-white/5 opacity-40'
           }`}
         >
           {championId ? (
             <>
               {/* Trophy Icon Container */}
-              <div className="w-16 h-16 rounded-full bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-center text-yellow-400 mb-4 shadow-[0_0_15px_rgba(251,191,36,0.2)] animate-bounce duration-1000">
-                <Trophy size={32} />
+              <div className="w-10 h-10 rounded-full bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-center text-yellow-400 mb-2 shadow-[0_0_10px_rgba(251,191,36,0.2)] animate-bounce duration-1000">
+                <Trophy size={20} />
               </div>
 
               {/* Big Team Logo */}
-              <div className="w-24 h-24 rounded-full bg-neutral-950 border-2 border-yellow-500/30 flex items-center justify-center overflow-hidden shadow-xl mb-4 relative p-1 group">
+              <div className="w-16 h-16 rounded-full bg-neutral-950 border-2 border-yellow-500/30 flex items-center justify-center overflow-hidden shadow-xl mb-2 relative p-0.5 group">
                 <div className="absolute inset-0 bg-gradient-to-tr from-yellow-500/20 to-transparent animate-pulse rounded-full" />
                 {teamLogoMap[championId] ? (
                   <img 
@@ -340,31 +340,31 @@ export default function TournamentBracket({
                     className="w-full h-full object-cover rounded-full z-10 group-hover:scale-110 transition-transform duration-500" 
                   />
                 ) : (
-                  <Shield size={48} className="text-yellow-500/60 z-10" />
+                  <Shield size={32} className="text-yellow-500/60 z-10" />
                 )}
               </div>
 
               {/* Champion Labels */}
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-yellow-500/80 mb-1">
-                🏆 Champion 🏆
+              <h3 className="text-[8px] font-black uppercase tracking-widest text-yellow-500/80 mb-0.5">
+                🏆 Champion
               </h3>
-              <h2 className="text-lg font-black text-white leading-tight font-display tracking-tight break-words px-2 bg-gradient-to-r from-yellow-400 via-amber-200 to-yellow-500 bg-clip-text text-transparent drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">
+              <h2 className="text-xs font-black text-white leading-tight tracking-tight break-words px-1 bg-gradient-to-r from-yellow-400 via-amber-200 to-yellow-500 bg-clip-text text-transparent">
                 {teamNameMap[championId]}
               </h2>
             </>
           ) : (
             <>
-              <div className="w-16 h-16 rounded-full bg-neutral-900 border border-white/5 flex items-center justify-center text-neutral-700 mb-4">
-                <Trophy size={32} />
+              <div className="w-10 h-10 rounded-full bg-neutral-900 border border-white/5 flex items-center justify-center text-neutral-700 mb-2">
+                <Trophy size={20} />
               </div>
-              <div className="w-24 h-24 rounded-full bg-neutral-950 border border-white/5 flex items-center justify-center mb-4">
-                <Shield size={48} className="text-neutral-800" />
+              <div className="w-16 h-16 rounded-full bg-neutral-950 border border-white/5 flex items-center justify-center mb-2">
+                <Shield size={32} className="text-neutral-800" />
               </div>
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-neutral-600 mb-1">
-                Undetermined
+              <h3 className="text-[8px] font-black uppercase tracking-widest text-neutral-600 mb-0.5">
+                TBD
               </h3>
-              <p className="text-xs text-neutral-500 font-bold px-4">
-                Complete the tournament final match to reveal the champion.
+              <p className="text-[9px] text-neutral-500 font-bold px-2 leading-tight">
+                Final to be played
               </p>
             </>
           )}

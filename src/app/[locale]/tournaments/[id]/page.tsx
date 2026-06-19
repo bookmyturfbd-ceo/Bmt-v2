@@ -373,7 +373,7 @@ export default function TournamentDetailPage() {
         {tab === 'overview'   && <OverviewTab tournament={tournament} />}
         {tab === 'teams'      && <TeamsTab tournament={tournament} />}
         {tab === 'matches'    && <MatchesTab tournament={tournament} teamNameMap={teamNameMap} teamLogoMap={teamLogoMap} />}
-        {tab === 'standings'  && <StandingsTab tournament={tournament} teamNameMap={teamNameMap} groupNames={groupNames} />}
+        {tab === 'standings'  && <StandingsTab tournament={tournament} teamNameMap={teamNameMap} teamLogoMap={teamLogoMap} groupNames={groupNames} />}
       </div>
     </div>
   );
@@ -970,11 +970,16 @@ function MatchesTab({
     </div>
   );
 }
-function StandingsTab({ tournament, teamNameMap, groupNames }: {
+function StandingsTab({ tournament, teamNameMap, teamLogoMap, groupNames }: {
   tournament: Tournament;
   teamNameMap: Record<string, string>;
+  teamLogoMap: Record<string, string>;
   groupNames: Record<string, string>;
 }) {
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
+  const toggleGroup = (key: string) => setOpenGroups(prev => ({ ...prev, [key]: !prev[key] }));
+
   if (tournament.standings.length === 0) {
     return (
       <div className="py-20 flex flex-col items-center text-center">
@@ -985,113 +990,374 @@ function StandingsTab({ tournament, teamNameMap, groupNames }: {
     );
   }
 
-  // Group standings by groupId (null → 'overall')
-  const grouped: Record<string, any[]> = {};
-  tournament.standings.forEach((s: any) => {
-    const key = s.groupId || 'overall';
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(s);
-  });
-
   const isCricket = tournament.sport === 'CRICKET';
   const isFootball = tournament.sport === 'FOOTBALL';
+  const matches = tournament.matches || [];
+
+  // ── Group stage standings ───────────────────────────────────────────────────
+  const groupStandings: Record<string, any[]> = {};
+  tournament.standings.forEach((s: any) => {
+    if (!s.groupId) return;
+    if (!groupStandings[s.groupId]) groupStandings[s.groupId] = [];
+    groupStandings[s.groupId].push(s);
+  });
+
+  const groupIds = Object.keys(groupStandings);
+  const groupStageComplete = groupIds.length > 0 && groupIds.every(gid =>
+    (groupStandings[gid] || []).every((s: any) => {
+      const groupMatches = matches.filter((m: any) => m.groupId === gid);
+      return groupMatches.length > 0 && groupMatches.every((m: any) => m.status === 'COMPLETED');
+    })
+  );
+
+  // ── Knockout stage analysis ─────────────────────────────────────────────────
+  const qfMatches = matches.filter((m: any) => m.stage === 'QUARTER');
+  const sfMatches = matches.filter((m: any) => m.stage === 'SEMI');
+  const finalMatches = matches.filter((m: any) => m.stage === 'FINAL');
+
+  const qfDone = qfMatches.length > 0 && qfMatches.every((m: any) => m.status === 'COMPLETED');
+  const sfDone = sfMatches.length > 0 && sfMatches.every((m: any) => m.status === 'COMPLETED');
+  const finalDone = finalMatches.length > 0 && finalMatches.every((m: any) => m.status === 'COMPLETED');
+
+  // Teams advancing through knockout stages
+  const qfTeamIds = qfMatches.length > 0
+    ? [...new Set(qfMatches.flatMap((m: any) => [m.teamAId, m.teamBId]).filter(Boolean))]
+    : [];
+  const sfTeamIds = sfMatches.length > 0
+    ? [...new Set(sfMatches.flatMap((m: any) => [m.teamAId, m.teamBId]).filter(Boolean))]
+    : [];
+  const finalTeamIds = finalMatches.length > 0
+    ? [...new Set(finalMatches.flatMap((m: any) => [m.teamAId, m.teamBId]).filter(Boolean))]
+    : [];
+  const championId = finalDone ? finalMatches[0]?.winnerId : null;
+
+  // ── Overall team standings ──────────────────────────────────────────────────
+  // All registered teams, sorted by: still-in > knocked-out | stage reached | group pts
+  const allTeamIds = tournament.registrations
+    .filter(r => r.entityType === 'TEAM')
+    .map(r => r.entityId);
+
+  function stageReached(teamId: string): number {
+    if (championId === teamId) return 6;
+    if (finalTeamIds.includes(teamId)) return 5;
+    if (sfTeamIds.includes(teamId)) return sfDone ? 4 : 4;
+    if (qfTeamIds.includes(teamId)) return qfDone ? 3 : 3;
+    if (groupStageComplete && tournament.standings.some((s: any) => s.teamId === teamId && s.qualified)) return 2;
+    return 1;
+  }
+
+  function isEliminated(teamId: string): boolean {
+    // Knocked out if group done and not qualified, or if made it to KO but lost
+    if (groupStageComplete) {
+      const s = tournament.standings.find((x: any) => x.teamId === teamId);
+      if (s && !s.qualified && !qfTeamIds.includes(teamId)) return true;
+    }
+    if (qfDone && qfTeamIds.includes(teamId) && !sfTeamIds.includes(teamId)) return true;
+    if (sfDone && sfTeamIds.includes(teamId) && !finalTeamIds.includes(teamId)) return true;
+    if (finalDone && finalTeamIds.includes(teamId) && championId !== teamId) return true;
+    return false;
+  }
+
+  const sortedOverall = [...allTeamIds].sort((a, b) => {
+    const elimA = isEliminated(a);
+    const elimB = isEliminated(b);
+    if (elimA !== elimB) return elimA ? 1 : -1;
+    const stageA = stageReached(a);
+    const stageB = stageReached(b);
+    if (stageA !== stageB) return stageB - stageA;
+    const standingA = tournament.standings.find((s: any) => s.teamId === a);
+    const standingB = tournament.standings.find((s: any) => s.teamId === b);
+    return (standingB?.points ?? 0) - (standingA?.points ?? 0);
+  });
+
+  // ── Top 20 players from registered teams ────────────────────────────────────
+  interface PlayerEntry { id: string; name: string; avatar?: string; teamName: string; mmr: number; level: number; }
+  const allPlayers: PlayerEntry[] = [];
+  tournament.registrations.forEach(r => {
+    if (r.team && r.team.members) {
+      r.team.members.forEach(m => {
+        if (m.player) {
+          allPlayers.push({
+            id: m.player.id,
+            name: m.player.fullName,
+            avatar: m.player.avatarUrl,
+            teamName: r.team!.name,
+            mmr: tournament.sport === 'CRICKET' ? m.player.cricketMmr : m.player.footballMmr,
+            level: m.player.level,
+          });
+        }
+      });
+    }
+  });
+  const top20 = allPlayers
+    .sort((a, b) => b.mmr - a.mmr)
+    .slice(0, 20);
+
+  const stageLabel: Record<string, string> = {
+    QUARTER: 'Quarter Finals',
+    SEMI: 'Semi Finals',
+    FINAL: 'Grand Final',
+  };
+
+  function StandingRow({ s, idx }: { s: any; idx: number }) {
+    const teamName = teamNameMap[s.teamId] || s.teamId.slice(0, 12) + '…';
+    const logo = teamLogoMap[s.teamId];
+    const isTop = idx < 2;
+    const nrr = s.nrr >= 0 ? `+${s.nrr.toFixed(2)}` : s.nrr.toFixed(2);
+    const gd = s.goalDifference >= 0 ? `+${s.goalDifference}` : String(s.goalDifference);
+    return (
+      <div className={`grid grid-cols-[2rem_1fr_auto] gap-0 items-center px-4 py-3 ${isTop ? 'bg-yellow-500/[0.03]' : ''}`}>
+        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+          idx === 0 ? 'bg-yellow-500/25 text-yellow-400' :
+          idx === 1 ? 'bg-neutral-400/20 text-neutral-300' :
+          'bg-white/5 text-neutral-500'
+        }`}>{s.position || idx + 1}</span>
+        <div className="flex items-center gap-2 min-w-0 pl-2">
+          {logo && <img src={logo} alt="" className="w-5 h-5 rounded-full object-cover shrink-0 border border-white/10" />}
+          <span className="text-sm font-bold text-white truncate">{teamName}</span>
+          {s.qualified && (
+            <span className="shrink-0 text-[8px] font-black uppercase tracking-widest text-[#00ff41] bg-[#00ff41]/10 px-1.5 py-0.5 rounded-full">Q</span>
+          )}
+        </div>
+        <div className="flex items-center gap-3 text-xs font-black shrink-0">
+          <span className="w-5 text-center text-neutral-400">{s.played}</span>
+          <span className="w-5 text-center text-[#00ff41]">{s.won}</span>
+          <span className="w-5 text-center text-red-400">{s.lost}</span>
+          {isFootball && <span className="w-5 text-center text-neutral-400">{s.drawn}</span>}
+          {isCricket && <span className="w-5 text-center text-neutral-400">{s.noResult}</span>}
+          {isFootball && <span className={`w-6 text-center text-xs font-bold ${s.goalDifference > 0 ? 'text-[#00ff41]' : s.goalDifference < 0 ? 'text-red-400' : 'text-neutral-500'}`}>{gd}</span>}
+          {isCricket && <span className={`w-8 text-center text-xs font-bold ${s.nrr > 0 ? 'text-[#00ff41]' : s.nrr < 0 ? 'text-red-400' : 'text-neutral-500'}`}>{nrr}</span>}
+          <span className="w-7 text-center text-white font-black">{s.points}</span>
+        </div>
+      </div>
+    );
+  }
+
+  function StandingColHeaders() {
+    return (
+      <div className="grid grid-cols-[2rem_1fr_auto] gap-0 px-4 py-2 border-b border-white/5">
+        <span className="text-[9px] font-black uppercase tracking-widest text-neutral-600">#</span>
+        <span className="text-[9px] font-black uppercase tracking-widest text-neutral-600 pl-2">Team</span>
+        <div className="flex items-center gap-3 text-[9px] font-black uppercase tracking-widest text-neutral-600">
+          <span className="w-5 text-center" title="Played">P</span>
+          <span className="w-5 text-center" title="Won">W</span>
+          <span className="w-5 text-center" title="Lost">L</span>
+          {isFootball && <span className="w-5 text-center" title="Drawn">D</span>}
+          {isCricket && <span className="w-5 text-center" title="No Result">NR</span>}
+          {isFootball && <span className="w-6 text-center" title="Goal Difference">GD</span>}
+          {isCricket && <span className="w-8 text-center" title="Net Run Rate">NRR</span>}
+          <span className="w-7 text-center text-white" title="Points">Pts</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col gap-5">
-      {Object.entries(grouped).map(([groupId, rows]) => {
-        const sorted = [...rows].sort((a, b) => a.position - b.position);
-        const label = groupId === 'overall'
-          ? 'Overall Standings'
-          : groupNames[groupId] || 'Group';
+    <div className="flex flex-col gap-6">
 
-        return (
-          <div key={groupId} className="bg-neutral-900 border border-white/5 rounded-2xl overflow-hidden">
+      {/* ── Section A: Group Stage Standings (Accordions) ── */}
+      {groupIds.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">Group Stage</h3>
+            {groupStageComplete && (
+              <span className="text-[9px] font-black uppercase tracking-widest text-[#00ff41] bg-[#00ff41]/10 px-2 py-0.5 rounded-full">Concluded ✓</span>
+            )}
+          </div>
 
-            {/* Group header */}
-            <div className="px-4 py-3 bg-yellow-500/10 border-b border-yellow-500/20 flex items-center justify-between">
-              <h3 className="font-black uppercase tracking-widest text-sm text-yellow-400">{label}</h3>
-              <span className="text-[10px] font-bold text-neutral-500">{sorted.length} teams</span>
-            </div>
+          {groupIds
+            .sort((a, b) => (groupNames[a] || '').localeCompare(groupNames[b] || ''))
+            .map(groupId => {
+              const rows = [...(groupStandings[groupId] || [])].sort((a, b) => a.position - b.position || b.points - a.points);
+              const label = groupNames[groupId] || 'Group';
+              const isOpen = openGroups[groupId] !== false; // open by default
+              const groupComplete = matches
+                .filter((m: any) => m.groupId === groupId)
+                .every((m: any) => m.status === 'COMPLETED');
 
-            {/* Column headers */}
-            <div className="grid grid-cols-[2rem_1fr_auto] gap-0 px-4 py-2 border-b border-white/5">
-              <span className="text-[9px] font-black uppercase tracking-widest text-neutral-600">#</span>
-              <span className="text-[9px] font-black uppercase tracking-widest text-neutral-600">Team</span>
-              <div className="flex items-center gap-3 text-[9px] font-black uppercase tracking-widest text-neutral-600">
-                <span className="w-5 text-center" title="Played">P</span>
-                <span className="w-5 text-center" title="Won">W</span>
-                <span className="w-5 text-center" title="Lost">L</span>
-                {isFootball && <span className="w-5 text-center" title="Drawn">D</span>}
-                {isCricket  && <span className="w-5 text-center" title="No Result">NR</span>}
-                {isFootball && <span className="w-6 text-center" title="Goal Difference">GD</span>}
-                {isCricket  && <span className="w-8 text-center" title="Net Run Rate">NRR</span>}
-                <span className="w-7 text-center text-white" title="Points">Pts</span>
+              return (
+                <div key={groupId} className="bg-neutral-900 border border-white/5 rounded-2xl overflow-hidden">
+                  {/* Accordion Header */}
+                  <button
+                    onClick={() => toggleGroup(groupId)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-black/20 border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-black uppercase tracking-widest text-sm text-yellow-400">{label}</h3>
+                      {groupComplete && (
+                        <span className="text-[8px] font-black uppercase tracking-widest text-[#00ff41] bg-[#00ff41]/10 px-1.5 py-0.5 rounded-full">Done</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-neutral-500">{rows.length} teams</span>
+                      <ChevronDown size={14} className={`text-neutral-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                    </div>
+                  </button>
+
+                  {isOpen && (
+                    <>
+                      <StandingColHeaders />
+                      <div className="divide-y divide-white/5">
+                        {rows.map((s: any, idx: number) => <StandingRow key={s.id} s={s} idx={idx} />)}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      )}
+
+      {/* ── Section B: Knockout Stage Progress ── */}
+      {(qfMatches.length > 0 || sfMatches.length > 0 || finalMatches.length > 0) && (
+        <div className="flex flex-col gap-3">
+          <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">Knockout Stages</h3>
+
+          {[
+            { stage: 'QUARTER', teamIds: qfTeamIds, done: qfDone, matches: qfMatches },
+            { stage: 'SEMI', teamIds: sfTeamIds, done: sfDone, matches: sfMatches },
+            { stage: 'FINAL', teamIds: finalTeamIds, done: finalDone, matches: finalMatches },
+          ].filter(({ teamIds }) => teamIds.length > 0).map(({ stage, teamIds, done, matches: stageMatches }) => (
+            <div key={stage} className={`border rounded-2xl overflow-hidden ${
+              stage === 'FINAL' ? 'border-yellow-500/20 bg-yellow-950/10' :
+              stage === 'SEMI' ? 'border-purple-500/20 bg-purple-950/10' :
+              'border-blue-500/20 bg-blue-950/10'
+            }`}>
+              <div className={`px-4 py-2.5 border-b flex items-center justify-between ${
+                stage === 'FINAL' ? 'border-yellow-500/20' :
+                stage === 'SEMI' ? 'border-purple-500/20' :
+                'border-blue-500/20'
+              }`}>
+                <h4 className={`font-black uppercase tracking-widest text-xs ${
+                  stage === 'FINAL' ? 'text-yellow-400' :
+                  stage === 'SEMI' ? 'text-purple-400' :
+                  'text-blue-400'
+                }`}>{stageLabel[stage]}</h4>
+                {done && <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
+                  stage === 'FINAL' ? 'text-yellow-400 bg-yellow-500/10' :
+                  'text-[#00ff41] bg-[#00ff41]/10'
+                }`}>Done ✓</span>}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
+                {teamIds.map(tid => {
+                  const isWinner = done && stageMatches.some((m: any) => m.winnerId === tid);
+                  const isLoser = done && stageMatches.some((m: any) => m.winnerId && m.winnerId !== tid && (m.teamAId === tid || m.teamBId === tid));
+                  const logo = teamLogoMap[tid];
+                  return (
+                    <div key={tid} className={`flex items-center gap-2 rounded-xl px-3 py-2 ${
+                      tid === championId ? 'bg-yellow-500/10 border border-yellow-500/20' :
+                      isWinner ? 'bg-[#00ff41]/5 border border-[#00ff41]/10' :
+                      isLoser ? 'opacity-40 bg-black/20 border border-white/5' :
+                      'bg-black/20 border border-white/5'
+                    }`}>
+                      <div className="w-6 h-6 rounded-full bg-neutral-900 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                        {logo ? <img src={logo} alt="" className="w-full h-full object-cover" /> : <Shield size={12} className="text-neutral-600" />}
+                      </div>
+                      <span className={`text-[10px] font-black truncate ${
+                        tid === championId ? 'text-yellow-400' :
+                        isWinner ? 'text-[#00ff41]' :
+                        'text-white'
+                      }`}>
+                        {teamNameMap[tid] || '?'}
+                      </span>
+                      {tid === championId && <Trophy size={10} className="text-yellow-400 shrink-0" />}
+                    </div>
+                  );
+                })}
               </div>
             </div>
+          ))}
+        </div>
+      )}
 
-            {/* Rows */}
+      {/* ── Section C: Overall Team Rankings ── */}
+      {sortedOverall.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">Overall Team Rankings</h3>
+          <div className="bg-neutral-900 border border-white/5 rounded-2xl overflow-hidden">
             <div className="divide-y divide-white/5">
-              {sorted.map((s: any, idx: number) => {
-                const teamName = teamNameMap[s.teamId] || s.teamId.slice(0, 12) + '…';
-                const isTop = idx < 2;
-                const nrr = s.nrr >= 0 ? `+${s.nrr.toFixed(3)}` : s.nrr.toFixed(3);
-                const gd = s.goalDifference >= 0 ? `+${s.goalDifference}` : String(s.goalDifference);
+              {sortedOverall.map((teamId, rank) => {
+                const name = teamNameMap[teamId] || teamId.slice(0, 12) + '…';
+                const logo = teamLogoMap[teamId];
+                const elim = isEliminated(teamId);
+                const stage = stageReached(teamId);
+                const stageBadge = championId === teamId ? { label: '🏆 Champion', cls: 'text-yellow-400 bg-yellow-500/10' }
+                  : stage >= 5 ? { label: 'Finalist', cls: 'text-yellow-400/70 bg-yellow-500/10' }
+                  : stage >= 4 ? { label: 'Semi Finals', cls: 'text-purple-400 bg-purple-500/10' }
+                  : stage >= 3 ? { label: 'Quarter Finals', cls: 'text-blue-400 bg-blue-500/10' }
+                  : stage >= 2 ? { label: 'Qualified', cls: 'text-[#00ff41] bg-[#00ff41]/10' }
+                  : null;
 
                 return (
-                  <div key={s.id} className={`grid grid-cols-[2rem_1fr_auto] gap-0 items-center px-4 py-3 ${
-                    isTop ? 'bg-yellow-500/[0.03]' : ''
-                  }`}>
-                    {/* Position */}
-                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
-                      idx === 0 ? 'bg-yellow-500/25 text-yellow-400' :
-                      idx === 1 ? 'bg-neutral-400/20 text-neutral-300' :
-                      idx === 2 ? 'bg-amber-700/20 text-amber-600' :
+                  <div key={teamId} className={`flex items-center gap-3 px-4 py-3 transition-all ${elim ? 'opacity-40' : ''}`}>
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
+                      rank === 0 ? 'bg-yellow-500/25 text-yellow-400' :
+                      rank === 1 ? 'bg-neutral-400/20 text-neutral-300' :
+                      rank === 2 ? 'bg-amber-700/20 text-amber-600' :
                       'bg-white/5 text-neutral-500'
-                    }`}>
-                      {s.position}
-                    </span>
-
-                    {/* Team name + qualified badge */}
-                    <div className="flex items-center gap-2 min-w-0 pl-2">
-                      <span className="text-sm font-bold text-white truncate">{teamName}</span>
-                      {s.qualified && (
-                        <span className="shrink-0 text-[8px] font-black uppercase tracking-widest text-[#00ff41] bg-[#00ff41]/10 px-1.5 py-0.5 rounded-full">
-                          Q
-                        </span>
-                      )}
+                    }`}>{rank + 1}</span>
+                    <div className="w-8 h-8 rounded-full bg-neutral-950 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                      {logo ? <img src={logo} alt="" className="w-full h-full object-cover" /> : <Shield size={14} className="text-neutral-600" />}
                     </div>
-
-                    {/* Stats */}
-                    <div className="flex items-center gap-3 text-xs font-black shrink-0">
-                      <span className="w-5 text-center text-neutral-400">{s.played}</span>
-                      <span className="w-5 text-center text-[#00ff41]">{s.won}</span>
-                      <span className="w-5 text-center text-red-400">{s.lost}</span>
-                      {isFootball && <span className="w-5 text-center text-neutral-400">{s.drawn}</span>}
-                      {isCricket  && <span className="w-5 text-center text-neutral-400">{s.noResult}</span>}
-                      {isFootball && (
-                        <span className={`w-6 text-center text-xs font-bold ${
-                          s.goalDifference > 0 ? 'text-[#00ff41]' :
-                          s.goalDifference < 0 ? 'text-red-400' : 'text-neutral-500'
-                        }`}>{gd}</span>
-                      )}
-                      {isCricket && (
-                        <span className={`w-8 text-center text-xs font-bold ${
-                          s.nrr > 0 ? 'text-[#00ff41]' :
-                          s.nrr < 0 ? 'text-red-400' : 'text-neutral-500'
-                        }`}>{nrr}</span>
-                      )}
-                      <span className="w-7 text-center text-white font-black">{s.points}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-black text-white truncate">{name}</p>
+                      {elim && <p className="text-[9px] font-bold text-neutral-600 uppercase tracking-wider">Eliminated</p>}
                     </div>
+                    {stageBadge && (
+                      <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shrink-0 ${stageBadge.cls}`}>
+                        {stageBadge.label}
+                      </span>
+                    )}
                   </div>
                 );
               })}
             </div>
           </div>
-        );
-      })}
+        </div>
+      )}
+
+      {/* ── Section D: Top 20 Players ── */}
+      {top20.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400">Top Players</h3>
+          <div className="bg-neutral-900 border border-white/5 rounded-2xl overflow-hidden">
+            <div className="px-4 py-2 border-b border-white/5 grid grid-cols-[2rem_1fr_auto] gap-2 text-[9px] font-black uppercase tracking-widest text-neutral-600">
+              <span>#</span>
+              <span>Player</span>
+              <span>MMR</span>
+            </div>
+            <div className="divide-y divide-white/5">
+              {top20.map((p, idx) => (
+                <div key={p.id} className="grid grid-cols-[2rem_1fr_auto] gap-2 items-center px-4 py-3">
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
+                    idx === 0 ? 'bg-yellow-500/25 text-yellow-400' :
+                    idx === 1 ? 'bg-neutral-400/20 text-neutral-300' :
+                    idx === 2 ? 'bg-amber-700/20 text-amber-600' :
+                    'bg-white/5 text-neutral-500'
+                  }`}>{idx + 1}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 rounded-full bg-neutral-950 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                      {p.avatar ? <img src={p.avatar} alt="" className="w-full h-full object-cover" /> : <Users size={12} className="text-neutral-600" />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-black text-white truncate">{p.name}</p>
+                      <p className="text-[9px] text-neutral-500 font-bold truncate">{p.teamName} · Lvl {p.level}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-accent">{p.mmr}</p>
+                    <p className="text-[9px] text-neutral-600 font-bold">MMR</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 function RegistrationModal({ tournament, onClose, onSuccess }: {
   tournament: Tournament;
   onClose: () => void;
