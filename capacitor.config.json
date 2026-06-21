@@ -1,0 +1,13 @@
+{
+  "appId": "com.bookmyturf.app",
+  "appName": "Book My Turf BD",
+  "webDir": "public",
+  "server": {
+    "url": "https://bookmyturfbd.com",
+    "allowNavigation": [
+      "bookmyturfbd.com",
+      "*.bookmyturfbd.com"
+    ],
+    "cleartext": true
+  }
+}

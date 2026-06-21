@@ -10,6 +10,7 @@ import CartDrawer from '@/components/shop/CartDrawer';
 import Signature from '@/components/layout/Signature';
 import NextTopLoader from 'nextjs-toploader';
 import SplashScreen from '@/components/layout/SplashScreen';
+import MobileBridgeInitializer from '@/components/layout/MobileBridgeInitializer';
 import { MatchResultProvider } from '@/context/MatchResultContext';
 import MatchResultModal from '@/components/match/MatchResultModal';
 import LanguagePromptModal from '@/components/layout/LanguagePromptModal';
@@ -140,6 +141,7 @@ export default async function LocaleLayout({
         </Script>
         <NextTopLoader color="#00FF41" height={3} showSpinner={false} />
         <SplashScreen />
+        <MobileBridgeInitializer />
         <ThemeProvider>
           <NextIntlClientProvider messages={messages}>
             <MatchResultProvider>

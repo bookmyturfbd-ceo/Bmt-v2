@@ -10,9 +10,18 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "cap:sync": "cap sync",
+    "cap:open-android": "cap open android",
+    "cap:open-ios": "cap open ios"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/camera": "^8.2.0",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/geolocation": "^8.2.0",
+    "@capacitor/ios": "^8.4.1",
+    "@capacitor/push-notifications": "^8.1.1",
     "@mux/mux-node": "^14.0.1",
     "@mux/mux-player-react": "^3.12.0",
     "@prisma/adapter-pg": "^7.7.0",
@@ -39,6 +48,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.1",
     "@tailwindcss/postcss": "^4",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^20",
