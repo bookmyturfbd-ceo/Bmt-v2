@@ -61,7 +61,9 @@ export default function AdminPage() {
   }, []);
 
   const isShopManager = role === 'shop_manager';
-  const displayPage = isShopManager ? 'shopOrders' : activePage;
+  const displayPage = isShopManager
+    ? (activePage === 'interested' ? 'interested' : 'shopOrders')
+    : activePage;
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">

@@ -90,7 +90,7 @@ export default function AdminSidebar({ activePage, onNavigate }: AdminSidebarPro
   const filteredGroups = NAV_GROUPS.map(group => {
     const children = group.children.filter(child => {
       if (role === 'shop_manager') {
-        return child.key === 'shopOrders';
+        return child.key === 'shopOrders' || child.key === 'interested';
       }
       return true;
     });

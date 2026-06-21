@@ -15,7 +15,7 @@ interface CarouselSlide { id: string; imageUrl: string; ctaText?: string | null;
 interface CarouselSettings { autoSlide: boolean; intervalMs: number; slideType: string; }
 interface Category { id: string; name: string; parentId: string | null; children?: Category[]; imageUrl?: string | null; sizeChartUrl?: string | null; }
 interface SizeEntry { label: string; basePrice: string; salePrice: string; quantity: string; }
-interface Product { id: string; name: string; status: string; mainImage: string; category: { name: string; parentId: string | null }; sizes: any[]; }
+interface Product { id: string; name: string; status: string; mainImage: string; category: { name: string; parentId: string | null }; sizes: any[]; position?: number; }
 
 type SubTab = 'carousel' | 'categories' | 'products' | 'discounts';
 
@@ -592,6 +592,9 @@ function ShopProductsTab({ onToast }: { onToast: (m: string) => void }) {
                       >
                         {p.status}
                       </button>
+                      <div className="absolute top-2 right-2 text-[8px] font-black bg-purple-500/90 text-white border border-purple-500/50 px-2 py-0.5 rounded-full shadow">
+                        Pos: {p.position ?? 0}
+                      </div>
                     </div>
                     <div className="p-3 flex flex-col gap-1.5 flex-1">
                       <p className="font-bold text-xs leading-tight line-clamp-2" title={p.name}>{p.name}</p>
@@ -638,6 +641,7 @@ function ProductForm({ categories, product, isDuplicate, onSaved, onCancel }: { 
   const [productCost, setProductCost] = useState(product?.productCost?.toString() || '');
   const [marketingCost, setMarketingCost] = useState(product?.marketingCost?.toString() || '');
   const [status, setStatus] = useState(product?.status || 'active');
+  const [position, setPosition] = useState(product?.position?.toString() || '0');
   const [mainImage, setMainImage] = useState(isDuplicate ? '' : (product?.mainImage || ''));
   const [galleryImages, setGalleryImages] = useState<string[]>(isDuplicate ? [] : (product?.galleryImages || []));
   const [sizes, setSizes] = useState<SizeEntry[]>(
@@ -703,6 +707,7 @@ function ProductForm({ categories, product, isDuplicate, onSaved, onCancel }: { 
       description, seoTitle, seoDescription,
       productCost: Number(productCost || 0), marketingCost: Number(marketingCost || 0),
       status,
+      position: Number(position || 0),
       sizes: sizes.map(s => ({
         label: s.label, basePrice: Number(s.basePrice || 0),
         salePrice: s.salePrice ? Number(s.salePrice) : null,
@@ -752,8 +757,18 @@ function ProductForm({ categories, product, isDuplicate, onSaved, onCancel }: { 
             <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Product description…"
               rows={4} className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-accent/50 resize-none" />
             <div className="grid grid-cols-2 gap-3">
-              <label className={`py-2 px-4 rounded-xl border cursor-pointer text-xs font-black text-center ${status === 'active' ? 'bg-accent/15 border-accent/40 text-accent' : 'border-[var(--panel-border)] text-[var(--muted)]'}`} onClick={() => setStatus('active')}>✅ Active</label>
-              <label className={`py-2 px-4 rounded-xl border cursor-pointer text-xs font-black text-center ${status === 'draft' ? 'bg-yellow-500/15 border-yellow-500/40 text-yellow-400' : 'border-[var(--panel-border)] text-[var(--muted)]'}`} onClick={() => setStatus('draft')}>📝 Draft</label>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-black uppercase tracking-widest text-[var(--muted)]">Display Position</label>
+                <input type="number" value={position} onChange={e => setPosition(e.target.value)} placeholder="0"
+                  className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-accent/50 w-full" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-black uppercase tracking-widest text-[var(--muted)]">Status</label>
+                <div className="grid grid-cols-2 gap-2 h-full items-center">
+                  <label className={`py-2.5 rounded-xl border cursor-pointer text-xs font-black text-center ${status === 'active' ? 'bg-accent/15 border-accent/40 text-accent' : 'border-[var(--panel-border)] text-[var(--muted)]'}`} onClick={() => setStatus('active')}>✅ Active</label>
+                  <label className={`py-2.5 rounded-xl border cursor-pointer text-xs font-black text-center ${status === 'draft' ? 'bg-yellow-500/15 border-yellow-500/40 text-yellow-400' : 'border-[var(--panel-border)] text-[var(--muted)]'}`} onClick={() => setStatus('draft')}>📝 Draft</label>
+                </div>
+              </div>
             </div>
           </div>
 

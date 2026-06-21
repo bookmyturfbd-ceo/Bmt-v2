@@ -16,19 +16,21 @@ export async function GET(req: NextRequest) {
       category: { select: { id: true, name: true, parentId: true } },
       sizes: { orderBy: { basePrice: 'asc' } },
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [
+      { position: 'asc' },
+      { createdAt: 'desc' }
+    ],
   });
   return NextResponse.json(products);
 }
 
-// POST — create a product with sizes
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const {
     name, categoryId, mainImage, galleryImages = [],
     description, seoTitle, seoDescription,
     productCost = 0, marketingCost = 0, status = 'active',
-    sizes = [],
+    sizes = [], position = 0,
   } = body;
 
   if (!name || !categoryId || !mainImage) {
@@ -51,6 +53,7 @@ export async function POST(req: NextRequest) {
       productCost: Number(productCost),
       marketingCost: Number(marketingCost),
       status,
+      position: Number(position),
       sizes: {
         create: sizes.map((s: any) => ({
           label: s.label,
@@ -86,6 +89,7 @@ export async function PATCH(req: NextRequest) {
         ...(rest.productCost !== undefined && { productCost: Number(rest.productCost) }),
         ...(rest.marketingCost !== undefined && { marketingCost: Number(rest.marketingCost) }),
         ...(rest.categoryId && { categoryId: rest.categoryId }),
+        ...(rest.position !== undefined && { position: Number(rest.position) }),
       },
     });
 

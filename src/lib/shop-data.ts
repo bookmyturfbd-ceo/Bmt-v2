@@ -14,7 +14,10 @@ export async function getShopFrontData() {
         category: { select: { id: true, name: true, parentId: true } },
         sizes: { orderBy: { basePrice: 'asc' } },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [
+        { position: 'asc' },
+        { createdAt: 'desc' }
+      ],
     }),
   ]);
 

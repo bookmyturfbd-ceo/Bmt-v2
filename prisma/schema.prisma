@@ -1252,6 +1252,7 @@ model ShopProduct {
   productCost     Float    @default(0)
   marketingCost   Float    @default(0)
   status          String   @default("active")
+  position        Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
