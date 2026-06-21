@@ -598,6 +598,41 @@ function ShopProductsTab({ onToast }: { onToast: (m: string) => void }) {
                     </div>
                     <div className="p-3 flex flex-col gap-1.5 flex-1">
                       <p className="font-bold text-xs leading-tight line-clamp-2" title={p.name}>{p.name}</p>
+                      
+                      <div className="flex items-center justify-between text-[11px] text-[var(--muted)] bg-neutral-900/50 p-1.5 rounded-lg border border-[var(--panel-border)]/40 mt-1">
+                        <span>Position:</span>
+                        <input
+                          type="number"
+                          key={p.position}
+                          defaultValue={p.position ?? 0}
+                          onBlur={async (e) => {
+                            const newPos = Number(e.target.value);
+                            if (newPos === p.position) return;
+                            await fetch('/api/shop/products', {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id: p.id, position: newPos }),
+                            });
+                            onToast('Position updated');
+                            load();
+                          }}
+                          onKeyDown={async (e) => {
+                            if (e.key === 'Enter') {
+                              const newPos = Number((e.target as HTMLInputElement).value);
+                              if (newPos === p.position) return;
+                              await fetch('/api/shop/products', {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: p.id, position: newPos }),
+                              });
+                              onToast('Position updated');
+                              load();
+                            }
+                          }}
+                          className="w-12 bg-neutral-950 border border-[var(--panel-border)] rounded px-1.5 py-0.5 text-center text-xs outline-none focus:border-accent text-foreground font-bold"
+                        />
+                      </div>
+
                       <div className="mt-auto pt-1 flex items-end justify-between">
                         {p.sizes?.length > 0 ? (
                           <p className="text-[11px] font-black text-accent">
