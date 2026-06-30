@@ -3,8 +3,9 @@ import { useState, useEffect } from 'react';
 import {
   Loader2, Building2, Briefcase, GraduationCap, Phone,
   Mail, MapPin, MessageSquare, Clock, CheckCircle2, PhoneCall, RefreshCw,
-  UserCheck, XCircle, Search, X, Layers
+  UserCheck, XCircle, Search, X, Layers, Upload, FileText, Eye, Trash2, Image
 } from 'lucide-react';
+import { uploadFileToCDN } from '@/lib/supabase';
 
 type JoinRequestType = 'TURF_OWNER' | 'PROFESSIONAL' | 'COACH';
 type JoinRequestStatus = 'PENDING' | 'REVIEWED' | 'CONTACTED' | 'ONBOARDED' | 'DECLINED';
@@ -19,6 +20,9 @@ interface JoinRequest {
   message: string | null;
   status: JoinRequestStatus;
   adminNotes: string | null;
+  cvUrl: string | null;
+  nidUrl: string | null;
+  pictureUrl: string | null;
   createdAt: string;
 }
 
@@ -58,6 +62,49 @@ export default function InterestedPanel() {
 
   const [notesState, setNotesState] = useState<Record<string, string>>({});
   const [updatingNotesId, setUpdatingNotesId] = useState<string | null>(null);
+
+  const [uploadingField, setUploadingField] = useState<Record<string, boolean>>({});
+
+  const handleFileUpload = async (id: string, field: 'cvUrl' | 'nidUrl' | 'pictureUrl', file: File | null) => {
+    if (!file) return;
+    const fieldKey = `${id}_${field}`;
+    setUploadingField(prev => ({ ...prev, [fieldKey]: true }));
+    try {
+      const pathFolder = field === 'cvUrl' ? 'join-requests/cv' : field === 'nidUrl' ? 'join-requests/nid' : 'join-requests/picture';
+      const url = await uploadFileToCDN(file, pathFolder);
+      if (url) {
+        // Update backend
+        await fetch('/api/admin/join-requests', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, [field]: url }),
+        });
+        // Update local state
+        setData(prev => prev.map(item => item.id === id ? { ...item, [field]: url } : item));
+      }
+    } catch (err) {
+      console.error(`Failed to upload ${field}:`, err);
+    } finally {
+      setUploadingField(prev => ({ ...prev, [fieldKey]: false }));
+    }
+  };
+
+  const handleFileDelete = async (id: string, field: 'cvUrl' | 'nidUrl' | 'pictureUrl') => {
+    const label = field === 'cvUrl' ? 'CV' : field === 'nidUrl' ? 'NID' : 'Profile Picture';
+    if (!confirm(`Are you sure you want to remove this ${label}?`)) return;
+    try {
+      // Update backend
+      await fetch('/api/admin/join-requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, [field]: null }),
+      });
+      // Update local state
+      setData(prev => prev.map(item => item.id === id ? { ...item, [field]: null } : item));
+    } catch (err) {
+      console.error(`Failed to delete ${field}:`, err);
+    }
+  };
 
   const reload = () => {
     setLoading(true);
@@ -327,6 +374,141 @@ export default function InterestedPanel() {
                         <p className="italic text-white/80">{req.message}</p>
                       </div>
                     )}
+
+                    {/* Document Uploads Section */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-t border-white/5 pt-3.5 mt-2">
+                      {/* 1. Picture */}
+                      <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-neutral-950/20 border border-white/5">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)] flex items-center gap-1">
+                          <Image size={11} className="text-blue-400" /> Photo
+                        </span>
+                        {req.pictureUrl ? (
+                          <div className="flex items-center justify-between gap-2 bg-neutral-950/60 p-2 rounded-lg border border-white/5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <img src={req.pictureUrl} alt="Photo" className="w-6 h-6 rounded-md object-cover border border-white/10 shrink-0" />
+                              <span className="text-xs font-bold text-white truncate">Photo</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <a href={req.pictureUrl} target="_blank" rel="noopener noreferrer" className="p-1 text-[var(--muted)] hover:text-accent transition-colors" title="View Photo">
+                                <Eye size={13} />
+                              </a>
+                              <button onClick={() => handleFileDelete(req.id, 'pictureUrl')} className="p-1 text-red-400 hover:text-red-300 transition-colors" title="Remove Photo">
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <input
+                              type="file"
+                              id={`picture-upload-${req.id}`}
+                              accept="image/*"
+                              onChange={(e) => handleFileUpload(req.id, 'pictureUrl', e.target.files?.[0] || null)}
+                              className="hidden"
+                            />
+                            <label
+                              htmlFor={`picture-upload-${req.id}`}
+                              className="flex items-center justify-center gap-1.5 py-2 px-3 border border-dashed border-white/10 hover:border-accent/40 rounded-lg text-xs font-bold text-[var(--muted)] hover:text-white bg-black/20 hover:bg-black/40 transition-all cursor-pointer select-none"
+                            >
+                              {uploadingField[`${req.id}_pictureUrl`] ? (
+                                <Loader2 size={12} className="animate-spin text-accent" />
+                              ) : (
+                                <Upload size={12} />
+                              )}
+                              {uploadingField[`${req.id}_pictureUrl`] ? 'Uploading...' : 'Upload Photo'}
+                            </label>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 2. NID */}
+                      <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-neutral-950/20 border border-white/5">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)] flex items-center gap-1">
+                          <FileText size={11} className="text-emerald-400" /> National ID (NID)
+                        </span>
+                        {req.nidUrl ? (
+                          <div className="flex items-center justify-between gap-2 bg-neutral-950/60 p-2 rounded-lg border border-white/5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <FileText size={14} className="text-emerald-400 shrink-0" />
+                              <span className="text-xs font-bold text-white truncate">NID Doc</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <a href={req.nidUrl} target="_blank" rel="noopener noreferrer" className="p-1 text-[var(--muted)] hover:text-accent transition-colors" title="View NID">
+                                <Eye size={13} />
+                              </a>
+                              <button onClick={() => handleFileDelete(req.id, 'nidUrl')} className="p-1 text-red-400 hover:text-red-300 transition-colors" title="Remove NID">
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <input
+                              type="file"
+                              id={`nid-upload-${req.id}`}
+                              accept="image/*,.pdf"
+                              onChange={(e) => handleFileUpload(req.id, 'nidUrl', e.target.files?.[0] || null)}
+                              className="hidden"
+                            />
+                            <label
+                              htmlFor={`nid-upload-${req.id}`}
+                              className="flex items-center justify-center gap-1.5 py-2 px-3 border border-dashed border-white/10 hover:border-accent/40 rounded-lg text-xs font-bold text-[var(--muted)] hover:text-white bg-black/20 hover:bg-black/40 transition-all cursor-pointer select-none"
+                            >
+                              {uploadingField[`${req.id}_nidUrl`] ? (
+                                <Loader2 size={12} className="animate-spin text-accent" />
+                              ) : (
+                                <Upload size={12} />
+                              )}
+                              {uploadingField[`${req.id}_nidUrl`] ? 'Uploading...' : 'Upload NID'}
+                            </label>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 3. CV */}
+                      <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-neutral-950/20 border border-white/5">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)] flex items-center gap-1">
+                          <FileText size={11} className="text-amber-400" /> Curriculum Vitae (CV)
+                        </span>
+                        {req.cvUrl ? (
+                          <div className="flex items-center justify-between gap-2 bg-neutral-950/60 p-2 rounded-lg border border-white/5">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <FileText size={14} className="text-amber-400 shrink-0" />
+                              <span className="text-xs font-bold text-white truncate">CV Doc</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <a href={req.cvUrl} target="_blank" rel="noopener noreferrer" className="p-1 text-[var(--muted)] hover:text-accent transition-colors" title="View CV">
+                                <Eye size={13} />
+                              </a>
+                              <button onClick={() => handleFileDelete(req.id, 'cvUrl')} className="p-1 text-red-400 hover:text-red-300 transition-colors" title="Remove CV">
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <input
+                              type="file"
+                              id={`cv-upload-${req.id}`}
+                              accept="image/*,.pdf,.doc,.docx"
+                              onChange={(e) => handleFileUpload(req.id, 'cvUrl', e.target.files?.[0] || null)}
+                              className="hidden"
+                            />
+                            <label
+                              htmlFor={`cv-upload-${req.id}`}
+                              className="flex items-center justify-center gap-1.5 py-2 px-3 border border-dashed border-white/10 hover:border-accent/40 rounded-lg text-xs font-bold text-[var(--muted)] hover:text-white bg-black/20 hover:bg-black/40 transition-all cursor-pointer select-none"
+                            >
+                              {uploadingField[`${req.id}_cvUrl`] ? (
+                                <Loader2 size={12} className="animate-spin text-accent" />
+                              ) : (
+                                <Upload size={12} />
+                              )}
+                              {uploadingField[`${req.id}_cvUrl`] ? 'Uploading...' : 'Upload CV'}
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    </div>
 
                     {/* Admin Notes Section */}
                     <div className="mt-1 flex flex-col gap-1.5">

@@ -2317,6 +2317,9 @@ model JoinRequest {
   message    String?
   status     JoinRequestStatus @default(PENDING)
   adminNotes String?
+  cvUrl      String?
+  nidUrl     String?
+  pictureUrl String?
   createdAt  DateTime          @default(now())
 
   @@map("join_requests")

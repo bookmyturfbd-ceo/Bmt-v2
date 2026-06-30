@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, status, adminNotes } = body;
+    const { id, status, adminNotes, cvUrl, nidUrl, pictureUrl } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'id is required.' }, { status: 400 });
@@ -43,6 +43,18 @@ export async function PATCH(req: NextRequest) {
 
     if (adminNotes !== undefined) {
       updateData.adminNotes = adminNotes;
+    }
+
+    if (cvUrl !== undefined) {
+      updateData.cvUrl = cvUrl;
+    }
+
+    if (nidUrl !== undefined) {
+      updateData.nidUrl = nidUrl;
+    }
+
+    if (pictureUrl !== undefined) {
+      updateData.pictureUrl = pictureUrl;
     }
 
     const updated = await prisma.joinRequest.update({
