@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import {
   Loader2, Building2, Briefcase, GraduationCap, Phone,
   Mail, MapPin, MessageSquare, Clock, CheckCircle2, PhoneCall, RefreshCw,
-  UserCheck, XCircle
+  UserCheck, XCircle, Search, X, Layers
 } from 'lucide-react';
 
 type JoinRequestType = 'TURF_OWNER' | 'PROFESSIONAL' | 'COACH';
@@ -47,33 +47,49 @@ function StatusBadge({ status }: { status: JoinRequestStatus }) {
 }
 
 export default function InterestedPanel() {
-  const [activeTab, setActiveTab] = useState<JoinRequestType>('TURF_OWNER');
   const [data, setData] = useState<JoinRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   
+  // Filtering states
+  const [activeStatus, setActiveStatus] = useState<JoinRequestStatus | 'ALL'>('PENDING');
+  const [activeType, setActiveType] = useState<JoinRequestType | 'ALL'>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+
   const [notesState, setNotesState] = useState<Record<string, string>>({});
   const [updatingNotesId, setUpdatingNotesId] = useState<string | null>(null);
 
-  const reload = (tab: JoinRequestType = activeTab) => {
+  const reload = () => {
     setLoading(true);
-    fetch(`/api/admin/join-requests?type=${tab}`)
+    fetch(`/api/admin/join-requests`)
       .then(r => r.json())
       .then(d => { setData(Array.isArray(d) ? d : []); setLoading(false); })
       .catch(() => setLoading(false));
   };
 
-  useEffect(() => { reload(activeTab); }, [activeTab]);
+  useEffect(() => {
+    reload();
+  }, []);
 
   const handleStatusChange = async (id: string, status: JoinRequestStatus) => {
     setUpdatingId(id);
-    await fetch('/api/admin/join-requests', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, status }),
-    });
-    setUpdatingId(null);
-    reload();
+    try {
+      // Optimistic update
+      setData(prev => prev.map(item => item.id === id ? { ...item, status } : item));
+      setActiveStatus(status);
+      
+      await fetch('/api/admin/join-requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status }),
+      });
+    } catch (err) {
+      console.error('Failed to change status:', err);
+      // Revert on error
+      reload();
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   const handleNotesSave = async (id: string, adminNotes: string) => {
@@ -89,7 +105,8 @@ export default function InterestedPanel() {
         delete copy[id];
         return copy;
       });
-      reload();
+      // Optimistic update
+      setData(prev => prev.map(item => item.id === id ? { ...item, adminNotes } : item));
     } catch (err) {
       console.error('Failed to save notes:', err);
     } finally {
@@ -97,8 +114,30 @@ export default function InterestedPanel() {
     }
   };
 
-  const activeTabInfo = TYPE_TABS.find(t => t.key === activeTab)!;
-  const pendingCount = data.filter(r => r.status === 'PENDING').length;
+  // Perform filtering locally
+  const filteredByTypeAndSearchData = data.filter(req => {
+    // 1. Type Filter
+    if (activeType !== 'ALL' && req.type !== activeType) {
+      return false;
+    }
+    // 2. Search Filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const nameMatch = req.name?.toLowerCase().includes(query);
+      const phoneMatch = req.phone?.toLowerCase().includes(query);
+      const emailMatch = req.email?.toLowerCase().includes(query);
+      return nameMatch || phoneMatch || emailMatch;
+    }
+    return true;
+  });
+
+  const displayedData = filteredByTypeAndSearchData.filter(req => {
+    // 3. Status Filter
+    if (activeStatus !== 'ALL' && req.status !== activeStatus) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <div className="flex flex-col gap-6 h-full">
@@ -114,34 +153,99 @@ export default function InterestedPanel() {
         </div>
         <button
           onClick={() => reload()}
-          className="flex items-center gap-2 px-4 py-2 bg-neutral-900 border border-white/10 rounded-xl text-sm font-bold hover:bg-neutral-800 transition-all"
+          className="flex items-center gap-2 px-4 py-2 bg-neutral-900 border border-white/10 rounded-xl text-sm font-bold hover:bg-neutral-800 transition-all text-white"
         >
-          <RefreshCw size={14} /> Refresh
+          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
         </button>
       </div>
 
-      {/* Tab Switcher */}
-      <div className="flex gap-2 flex-wrap">
-        {TYPE_TABS.map(tab => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.key;
+      {/* Search and Filters Section */}
+      <div className="bg-neutral-900/50 border border-white/5 p-4 rounded-2xl flex flex-col md:flex-row gap-4 items-stretch md:items-center">
+        {/* Search Input */}
+        <div className="relative flex-1 min-w-[280px]">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" size={18} />
+          <input
+            type="text"
+            placeholder="Search name, phone, or email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-10 py-2.5 bg-neutral-950 border border-white/10 rounded-xl text-sm outline-none focus:border-accent text-white placeholder:text-white/30"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+
+        {/* Type Filter Buttons */}
+        <div className="flex gap-1.5 flex-wrap">
+          <button
+            onClick={() => setActiveType('ALL')}
+            className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+              activeType === 'ALL'
+                ? 'bg-white/10 border-white/20 text-white font-black'
+                : 'bg-neutral-950/60 border-white/5 text-white/55 hover:text-white hover:border-white/10'
+            }`}
+          >
+            All Types
+          </button>
+          {TYPE_TABS.map(tab => {
+            const Icon = tab.icon;
+            const isTabActive = activeType === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveType(tab.key)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+                  isTabActive
+                    ? `${tab.bg} ${tab.color} border-current font-black`
+                    : 'bg-neutral-950/60 border-white/5 text-white/55 hover:text-white hover:border-white/10'
+                }`}
+              >
+                <Icon size={13} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Status Tabs Switcher */}
+      <div className="flex gap-2 border-b border-white/10 pb-px overflow-x-auto scrollbar-none">
+        {(['ALL', 'PENDING', 'REVIEWED', 'CONTACTED', 'ONBOARDED', 'DECLINED'] as const).map(status => {
+          const isAll = status === 'ALL';
+          const label = isAll ? 'All Requests' : STATUS_OPTIONS.find(o => o.value === status)!.label;
+          const Icon = isAll ? Layers : STATUS_OPTIONS.find(o => o.value === status)!.icon;
+          const colorClass = isAll ? 'text-white' : STATUS_OPTIONS.find(o => o.value === status)!.color.split(' ')[0];
+          
+          // Count based on the search query & type filter
+          const count = isAll
+            ? filteredByTypeAndSearchData.length
+            : filteredByTypeAndSearchData.filter(r => r.status === status).length;
+
+          const isActive = activeStatus === status;
+
           return (
             <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold border transition-all ${
+              key={status}
+              onClick={() => setActiveStatus(status)}
+              className={`flex items-center gap-2 px-4 py-3 border-b-2 text-sm font-bold transition-all whitespace-nowrap -mb-px ${
                 isActive
-                  ? `${tab.bg} ${tab.color} border-current`
-                  : 'bg-neutral-900 border-white/10 text-[var(--muted)] hover:text-white hover:border-white/20'
+                  ? 'border-accent text-accent font-black'
+                  : 'border-transparent text-[var(--muted)] hover:text-white hover:border-white/10'
               }`}
             >
-              <Icon size={15} />
-              {tab.label}
-              {isActive && pendingCount > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 bg-red-500 text-white rounded-full text-[9px] font-black">
-                  {pendingCount}
-                </span>
-              )}
+              <Icon size={14} className={isActive ? 'text-accent' : colorClass} />
+              <span>{label}</span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                isActive ? 'bg-accent text-black font-black' : 'bg-white/10 text-white/80'
+              }`}>
+                {count}
+              </span>
             </button>
           );
         })}
@@ -153,109 +257,126 @@ export default function InterestedPanel() {
           <div className="flex items-center justify-center py-20 opacity-40">
             <Loader2 size={28} className="animate-spin text-accent" />
           </div>
-        ) : data.length === 0 ? (
+        ) : displayedData.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${activeTabInfo.bg}`}>
-              <activeTabInfo.icon size={24} className={activeTabInfo.color} />
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-neutral-900 border border-white/10">
+              <Layers size={24} className="text-white/40" />
             </div>
-            <p className="font-black text-white">No requests yet</p>
-            <p className="text-sm text-[var(--muted)]">When someone submits the "{activeTabInfo.label}" form on the homepage, it will appear here.</p>
+            <p className="font-black text-white">No requests found</p>
+            <p className="text-sm text-[var(--muted)] max-w-sm">
+              {searchQuery
+                ? `No requests match the search query "${searchQuery}" in this view.`
+                : 'There are no interested parties in this tab/filter combination.'}
+            </p>
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {data.map(req => (
-              <div
-                key={req.id}
-                className={`bg-neutral-900 border rounded-2xl p-5 flex flex-col md:flex-row gap-4 transition-all ${
-                  req.status === 'PENDING' ? 'border-amber-500/20' : 'border-white/5'
-                }`}
-              >
-                {/* Left Info */}
-                <div className="flex-1 min-w-0 flex flex-col gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${activeTabInfo.bg}`}>
-                      <activeTabInfo.icon size={18} className={activeTabInfo.color} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-black text-white text-base leading-tight">{req.name}</p>
-                      <p className="text-[10px] text-[var(--muted)] font-bold uppercase tracking-wider mt-0.5">
-                        {new Date(req.createdAt).toLocaleDateString('en-BD', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                    <StatusBadge status={req.status} />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
-                      <Phone size={13} className="text-emerald-400 shrink-0" />
-                      <a href={`tel:${req.phone}`} className="hover:text-white transition-colors font-bold">{req.phone}</a>
-                    </div>
-                    {req.email && (
-                      <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
-                        <Mail size={13} className="text-blue-400 shrink-0" />
-                        <a href={`mailto:${req.email}`} className="hover:text-white transition-colors font-bold truncate">{req.email}</a>
+            {displayedData.map(req => {
+              const currentTypeInfo = TYPE_TABS.find(t => t.key === req.type);
+              const TypeIcon = currentTypeInfo ? currentTypeInfo.icon : Building2;
+              const typeColorClass = currentTypeInfo ? currentTypeInfo.color : 'text-white';
+              const typeBgClass = currentTypeInfo ? currentTypeInfo.bg : 'bg-white/10 border-white/25';
+              
+              return (
+                <div
+                  key={req.id}
+                  className={`bg-neutral-900 border rounded-2xl p-5 flex flex-col md:flex-row gap-5 transition-all ${
+                    req.status === 'PENDING' ? 'border-amber-500/20' : 'border-white/5'
+                  }`}
+                >
+                  {/* Left Info */}
+                  <div className="flex-1 min-w-0 flex flex-col gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${typeBgClass}`}>
+                        <TypeIcon size={18} className={typeColorClass} />
                       </div>
-                    )}
-                    <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
-                      <MapPin size={13} className="text-fuchsia-400 shrink-0" />
-                      <span className="truncate font-bold">{req.location}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-black text-white text-base leading-tight">{req.name}</p>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${typeBgClass} ${typeColorClass}`}>
+                            {currentTypeInfo ? currentTypeInfo.label : req.type}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-[var(--muted)] font-bold uppercase tracking-wider mt-1">
+                          {new Date(req.createdAt).toLocaleDateString('en-BD', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      <StatusBadge status={req.status} />
                     </div>
-                  </div>
 
-                  {req.message && (
-                    <div className="flex items-start gap-2 text-sm text-[var(--muted)] bg-white/[0.03] border border-white/5 rounded-xl p-3">
-                      <MessageSquare size={13} className="text-yellow-400 shrink-0 mt-0.5" />
-                      <p className="italic">{req.message}</p>
-                    </div>
-                  )}
-
-                  {/* Admin Notes Section */}
-                  <div className="mt-2 flex flex-col gap-1.5">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Admin Notes</p>
-                    <div className="flex flex-col gap-2">
-                      <textarea
-                        value={notesState[req.id] !== undefined ? notesState[req.id] : (req.adminNotes || '')}
-                        onChange={(e) => setNotesState(prev => ({ ...prev, [req.id]: e.target.value }))}
-                        placeholder="Add note from our end..."
-                        className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent text-white resize-none"
-                        rows={2}
-                      />
-                      {(notesState[req.id] !== undefined && notesState[req.id] !== (req.adminNotes || '')) && (
-                        <div className="flex justify-end">
-                          <button
-                            onClick={() => handleNotesSave(req.id, notesState[req.id])}
-                            disabled={updatingNotesId === req.id}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-black text-xs font-black rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
-                          >
-                            {updatingNotesId === req.id ? <Loader2 size={10} className="animate-spin" /> : null}
-                            Save Note
-                          </button>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 bg-neutral-950/40 p-3 rounded-xl border border-white/5">
+                      <div className="flex items-center gap-2 text-sm text-[var(--muted)] min-w-0">
+                        <Phone size={13} className="text-emerald-400 shrink-0" />
+                        <a href={`tel:${req.phone}`} className="hover:text-white transition-colors font-bold truncate">{req.phone}</a>
+                      </div>
+                      {req.email && (
+                        <div className="flex items-center gap-2 text-sm text-[var(--muted)] min-w-0">
+                          <Mail size={13} className="text-blue-400 shrink-0" />
+                          <a href={`mailto:${req.email}`} className="hover:text-white transition-colors font-bold truncate">{req.email}</a>
                         </div>
                       )}
+                      <div className="flex items-center gap-2 text-sm text-[var(--muted)] min-w-0">
+                        <MapPin size={13} className="text-fuchsia-400 shrink-0" />
+                        <span className="truncate font-bold text-white/90">{req.location}</span>
+                      </div>
+                    </div>
+
+                    {req.message && (
+                      <div className="flex items-start gap-2 text-sm text-[var(--muted)] bg-white/[0.02] border border-white/5 rounded-xl p-3">
+                        <MessageSquare size={13} className="text-yellow-400 shrink-0 mt-0.5" />
+                        <p className="italic text-white/80">{req.message}</p>
+                      </div>
+                    )}
+
+                    {/* Admin Notes Section */}
+                    <div className="mt-1 flex flex-col gap-1.5">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Admin Notes</p>
+                      <div className="flex flex-col gap-2">
+                        <textarea
+                          value={notesState[req.id] !== undefined ? notesState[req.id] : (req.adminNotes || '')}
+                          onChange={(e) => setNotesState(prev => ({ ...prev, [req.id]: e.target.value }))}
+                          placeholder="Add note from our end..."
+                          className="w-full bg-neutral-950 border border-white/10 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent text-white resize-none"
+                          rows={2}
+                        />
+                        {(notesState[req.id] !== undefined && notesState[req.id] !== (req.adminNotes || '')) && (
+                          <div className="flex justify-end">
+                            <button
+                              onClick={() => handleNotesSave(req.id, notesState[req.id])}
+                              disabled={updatingNotesId === req.id}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-black text-xs font-black rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
+                            >
+                              {updatingNotesId === req.id ? <Loader2 size={10} className="animate-spin" /> : null}
+                              Save Note
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Action Buttons */}
-                <div className="flex md:flex-col gap-2 shrink-0">
-                  {STATUS_OPTIONS.map(opt => (
-                    <button
-                      key={opt.value}
-                      disabled={req.status === opt.value || updatingId === req.id}
-                      onClick={() => handleStatusChange(req.id, opt.value)}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-default ${
-                        req.status === opt.value
-                          ? `${opt.color} border-current`
-                          : 'bg-neutral-800 border-white/10 text-[var(--muted)] hover:text-white hover:border-white/20'
-                      }`}
-                    >
-                      {updatingId === req.id ? <Loader2 size={11} className="animate-spin" /> : <opt.icon size={11} />}
-                      {opt.label}
-                    </button>
-                  ))}
+                  {/* Action Buttons */}
+                  <div className="flex md:flex-col gap-2 shrink-0 justify-center">
+                    <p className="text-[9px] font-bold tracking-widest text-center text-white/40 uppercase hidden md:block border-b border-white/5 pb-1 mb-1">Set Status</p>
+                    {STATUS_OPTIONS.map(opt => (
+                      <button
+                        key={opt.value}
+                        disabled={req.status === opt.value || updatingId === req.id}
+                        onClick={() => handleStatusChange(req.id, opt.value)}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-default ${
+                          req.status === opt.value
+                            ? `${opt.color} border-current font-black`
+                            : 'bg-neutral-800 border-white/10 text-[var(--muted)] hover:text-white hover:border-white/20'
+                        }`}
+                      >
+                        {updatingId === req.id ? <Loader2 size={11} className="animate-spin" /> : <opt.icon size={11} />}
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
