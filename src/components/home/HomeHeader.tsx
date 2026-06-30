@@ -229,30 +229,6 @@ export default function HomeHeader({ initialAuth = false }: { initialAuth?: bool
           <img src="/bmt-logo.png" alt="Book My Turf" className="h-10 md:h-12 object-contain object-left drop-shadow-lg" />
         </div>
 
-        {/* Social Links in Header Gap */}
-        <div className="flex items-center gap-1.5 flex-wrap justify-center mx-2 max-w-[130px] shrink select-none">
-          {socials.social_facebook && (
-            <a href={socials.social_facebook} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-[#1877F2] hover:border-transparent hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="Facebook">
-              <FacebookIcon size={11} />
-            </a>
-          )}
-          {socials.social_instagram && (
-            <a href={socials.social_instagram} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-gradient-to-tr hover:from-[#FCAF45] hover:to-[#E1306C] hover:border-transparent hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="Instagram">
-              <InstagramIcon size={11} />
-            </a>
-          )}
-          {socials.social_tiktok && (
-            <a href={socials.social_tiktok} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-black hover:border-white/10 hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="TikTok">
-              <TiktokIcon size={11} />
-            </a>
-          )}
-          {socials.social_youtube && (
-            <a href={socials.social_youtube} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-[#FF0000] hover:border-transparent hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="YouTube">
-              <YoutubeIcon size={11} />
-            </a>
-          )}
-        </div>
-
         {/* Header Actions */}
         <div className="flex items-center gap-2">
           {/* Outlined Contact Us Button */}
@@ -289,6 +265,35 @@ export default function HomeHeader({ initialAuth = false }: { initialAuth?: bool
           )}
         </div>
       </div>
+
+      {/* Social Links Row Under Header */}
+      {(socials.social_facebook || socials.social_instagram || socials.social_tiktok || socials.social_youtube) && (
+        <div className="flex items-center justify-center gap-2.5 px-4 py-1.5 border-t border-white/[0.03] bg-white/[0.01]">
+          <span className="text-[10px] font-black uppercase tracking-wider text-neutral-500">Follow us</span>
+          <div className="flex items-center gap-1.5 select-none">
+            {socials.social_facebook && (
+              <a href={socials.social_facebook} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-[#1877F2] hover:border-transparent hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="Facebook">
+                <FacebookIcon size={11} />
+              </a>
+            )}
+            {socials.social_instagram && (
+              <a href={socials.social_instagram} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-gradient-to-tr hover:from-[#FCAF45] hover:to-[#E1306C] hover:border-transparent hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="Instagram">
+                <InstagramIcon size={11} />
+              </a>
+            )}
+            {socials.social_tiktok && (
+              <a href={socials.social_tiktok} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-black hover:border-white/10 hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="TikTok">
+                <TiktokIcon size={11} />
+              </a>
+            )}
+            {socials.social_youtube && (
+              <a href={socials.social_youtube} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-[#FF0000] hover:border-transparent hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="YouTube">
+                <YoutubeIcon size={11} />
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Contact Us Modal Overlay */}
       {showContactModal && (
