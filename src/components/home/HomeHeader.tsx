@@ -24,6 +24,35 @@ function FacebookIcon({ size = 16 }: { size?: number }) {
   );
 }
 
+// Instagram SVG Icon
+function InstagramIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+    </svg>
+  );
+}
+
+// TikTok SVG Icon
+function TiktokIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12.53.02c.11 0 .22.02.32.04 1.15.22 2.19.82 2.92 1.67.14.16.27.34.39.53.25.4.45.84.58 1.3.04.14.07.29.09.43.02.13.03.26.03.39v2.24c-.03.01-.06.01-.09.01-1.07 0-2.07-.37-2.88-1-.07-.05-.13-.11-.2-.17v6.62c0 4.14-3.36 7.5-7.5 7.5S2.14 16.22 2.14 12s3.36-7.5 7.5-7.5c.34 0 .68.02 1.01.07v3.08c-.33-.09-.67-.14-1.01-.14-2.43 0-4.4 1.97-4.4 4.4s1.97 4.4 4.4 4.4 4.4-1.97 4.4-4.4V0h4.49z" />
+    </svg>
+  );
+}
+
+// YouTube SVG Icon
+function YoutubeIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M23.498 6.163a3.003 3.003 0 0 0-2.11-2.107C19.522 3.5 12 3.5 12 3.5s-7.522 0-9.388.556a3.002 3.002 0 0 0-2.11 2.107C0 8.028 0 12 0 12s0 3.972.502 5.837a3.003 3.003 0 0 0 2.11 2.107C4.478 20.5 12 20.5 12 20.5s7.522 0 9.388-.556a3.002 3.002 0 0 0 2.11-2.107C24 15.972 24 12 24 12s0-3.972-.502-5.837zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+    </svg>
+  );
+}
+
 export default function HomeHeader({ initialAuth = false }: { initialAuth?: boolean }) {
   const t = useTranslations('Home');
   const [initials, setInitials] = useState('');
@@ -36,9 +65,17 @@ export default function HomeHeader({ initialAuth = false }: { initialAuth?: bool
   const [mounted, setMounted] = useState(false);
   const [userLocation, setUserLocation] = useState<string | null>(null);
   const [showContactModal, setShowContactModal] = useState(false);
+  const [socials, setSocials] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setMounted(true);
+    
+    // Fetch socials
+    fetch('/api/bmt/social-settings')
+      .then(r => r.json())
+      .then(d => setSocials(d))
+      .catch(() => {});
+
     const auth = document.cookie.includes('bmt_auth=');
     const role = getCookie('bmt_role');
     const currentlyAuthed = auth && (!role || role === 'player');
@@ -190,6 +227,30 @@ export default function HomeHeader({ initialAuth = false }: { initialAuth?: bool
         {/* Brand Logo */}
         <div>
           <img src="/bmt-logo.png" alt="Book My Turf" className="h-10 md:h-12 object-contain object-left drop-shadow-lg" />
+        </div>
+
+        {/* Social Links in Header Gap */}
+        <div className="flex items-center gap-1.5 flex-wrap justify-center mx-2 max-w-[130px] shrink select-none">
+          {socials.social_facebook && (
+            <a href={socials.social_facebook} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-[#1877F2] hover:border-transparent hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="Facebook">
+              <FacebookIcon size={11} />
+            </a>
+          )}
+          {socials.social_instagram && (
+            <a href={socials.social_instagram} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-gradient-to-tr hover:from-[#FCAF45] hover:to-[#E1306C] hover:border-transparent hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="Instagram">
+              <InstagramIcon size={11} />
+            </a>
+          )}
+          {socials.social_tiktok && (
+            <a href={socials.social_tiktok} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-black hover:border-white/10 hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="TikTok">
+              <TiktokIcon size={11} />
+            </a>
+          )}
+          {socials.social_youtube && (
+            <a href={socials.social_youtube} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-[#FF0000] hover:border-transparent hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="YouTube">
+              <YoutubeIcon size={11} />
+            </a>
+          )}
         </div>
 
         {/* Header Actions */}

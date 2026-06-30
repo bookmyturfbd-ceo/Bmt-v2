@@ -28,13 +28,30 @@ export default function SponsorsPanel() {
   const [newCtaText, setNewCtaText] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Social Links States
+  const [socialFacebook, setSocialFacebook] = useState('');
+  const [socialInstagram, setSocialInstagram] = useState('');
+  const [socialTiktok, setSocialTiktok] = useState('');
+  const [socialYoutube, setSocialYoutube] = useState('');
+  const [savingSocials, setSavingSocials] = useState(false);
+
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   const load = useCallback(async () => {
     setLoading(true);
-    const data = await fetch('/api/bmt/sponsors').then(r => r.json());
-    setSponsors(data.sponsors ?? []);
-    setSettings(data.settings ?? { autoSlide: true, intervalMs: 3500 });
+    const [sponsorsRes, socialsRes] = await Promise.all([
+      fetch('/api/bmt/sponsors').then(r => r.json()).catch(() => ({ sponsors: [], settings: null })),
+      fetch('/api/bmt/social-settings').then(r => r.json()).catch(() => ({}))
+    ]);
+
+    setSponsors(sponsorsRes.sponsors ?? []);
+    setSettings(sponsorsRes.settings ?? { autoSlide: true, intervalMs: 3500 });
+
+    setSocialFacebook(socialsRes.social_facebook || '');
+    setSocialInstagram(socialsRes.social_instagram || '');
+    setSocialTiktok(socialsRes.social_tiktok || '');
+    setSocialYoutube(socialsRes.social_youtube || '');
+
     setLoading(false);
   }, []);
 
@@ -105,6 +122,27 @@ export default function SponsorsPanel() {
     });
     setSaving(false);
     showToast('Settings saved!');
+  };
+
+  const handleSaveSocials = async () => {
+    setSavingSocials(true);
+    try {
+      await fetch('/api/bmt/social-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          social_facebook: socialFacebook,
+          social_instagram: socialInstagram,
+          social_tiktok: socialTiktok,
+          social_youtube: socialYoutube,
+        }),
+      });
+      showToast('Social links saved!');
+    } catch {
+      showToast('Failed to save social links');
+    } finally {
+      setSavingSocials(false);
+    }
   };
 
   const speedLabel = (ms: number) => {
@@ -220,6 +258,69 @@ export default function SponsorsPanel() {
           <button onClick={saveSettings} disabled={saving} className="flex items-center justify-center gap-2 py-3 bg-accent text-black font-black rounded-xl hover:brightness-110 transition-all disabled:opacity-50">
             {saving ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
             Save Settings
+          </button>
+        </div>
+      </div>
+
+      {/* Social Media Links Settings */}
+      <div className="glass-panel rounded-3xl border border-[var(--panel-border)] p-6 flex flex-col gap-5">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-fuchsia-500/10 border border-fuchsia-500/20 flex items-center justify-center">
+            <Link2 size={18} className="text-fuchsia-400" />
+          </div>
+          <div>
+            <h3 className="font-black text-base">Social Media Links</h3>
+            <p className="text-xs text-[var(--muted)]">Configure links for the homepage header and sponsors section</p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-widest text-[var(--muted)]">Facebook Link</label>
+              <input
+                value={socialFacebook}
+                onChange={e => setSocialFacebook(e.target.value)}
+                placeholder="https://facebook.com/..."
+                className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-2.5 text-sm font-medium outline-none focus:border-accent/50 placeholder:text-[var(--muted)] transition-colors text-white"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-widest text-[var(--muted)]">Instagram Link</label>
+              <input
+                value={socialInstagram}
+                onChange={e => setSocialInstagram(e.target.value)}
+                placeholder="https://instagram.com/..."
+                className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-2.5 text-sm font-medium outline-none focus:border-accent/50 placeholder:text-[var(--muted)] transition-colors text-white"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-widest text-[var(--muted)]">TikTok Link</label>
+              <input
+                value={socialTiktok}
+                onChange={e => setSocialTiktok(e.target.value)}
+                placeholder="https://tiktok.com/@..."
+                className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-2.5 text-sm font-medium outline-none focus:border-accent/50 placeholder:text-[var(--muted)] transition-colors text-white"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-widest text-[var(--muted)]">YouTube Link</label>
+              <input
+                value={socialYoutube}
+                onChange={e => setSocialYoutube(e.target.value)}
+                placeholder="https://youtube.com/..."
+                className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-2.5 text-sm font-medium outline-none focus:border-accent/50 placeholder:text-[var(--muted)] transition-colors text-white"
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={handleSaveSocials}
+            disabled={savingSocials}
+            className="flex items-center justify-center gap-2 py-3 bg-accent text-black font-black rounded-xl hover:brightness-110 transition-all disabled:opacity-50 mt-2"
+          >
+            {savingSocials ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+            Save Social Links
           </button>
         </div>
       </div>
