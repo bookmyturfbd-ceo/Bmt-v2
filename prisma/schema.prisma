@@ -428,8 +428,10 @@ model Turf {
   area       String?
 
   // Coach profiles (treated as specialized turfs)
-  isCoachProfile Boolean @default(false)
+  isCoachProfile Boolean  @default(false)
   coachType      String?
+  professions    String[] @default([])
+  displayOrder   Int      @default(999)
 
   // Map coordinates
   lat        Float?
@@ -540,6 +542,7 @@ model Slot {
   sports       String[]     @default([])
   price        Float
   status       SlotStatus   @default(available)
+  slotType     String       @default("ONE_ON_ONE")
 
   ground   Ground    @relation(fields: [groundId], references: [id], onDelete: Cascade)
   bookings Booking[]
@@ -1229,6 +1232,7 @@ model ShopCategory {
   slug      String         @unique
   parentId  String?
   order     Int            @default(0)
+  active    Boolean        @default(true)
   imageUrl  String?
   sizeChartUrl String?
   parent    ShopCategory?  @relation("SubCategories", fields: [parentId], references: [id], onDelete: SetNull)
@@ -2239,10 +2243,11 @@ model OtpVerification {
 // ─────────────────────────────────────────────────────────────────────────────
 
 model TurfServiceSetting {
-  id          String    @id @default("singleton")
-  isActive    Boolean   @default(false)
-  launchAt    DateTime? // countdown target; null = not set
-  updatedAt   DateTime  @updatedAt
+  id              String    @id @default("singleton")
+  isActive        Boolean   @default(false)
+  launchAt        DateTime? // countdown target; null = not set
+  professionTypes String[]  @default(["Cricket Coach", "Football Coach", "Futsal Coach", "Swimming Trainer", "Gym Trainer", "Fitness Coach", "Football Referee", "Cricket Umpire", "Scoreboard Manager", "Physio", "Nutritionist", "Yoga Instructor"])
+  updatedAt       DateTime  @updatedAt
 
   @@map("turf_service_settings")
 }
@@ -2372,4 +2377,23 @@ model ShopDiscount {
   freeDeliveryThreshold Float?   // null = not set, or threshold value (e.g., 3000)
 
   @@map("shop_discounts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ATTENDANCE RECORDS — Daily attendance for monthly coaching trainees
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AttendanceRecord {
+  id        String   @id @default(cuid())
+  turfId    String   // Coach profile ID
+  bookingId String   // Monthly package booking ID
+  playerId  String   // Enrolled player ID
+  date      String   // YYYY-MM-DD
+  status    String   // "PRESENT" | "ABSENT" | "EXCUSED"
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([bookingId, date])
+  @@map("attendance_records")
 }

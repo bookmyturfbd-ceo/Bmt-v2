@@ -21,6 +21,7 @@ const NAV_GROUPS: NavGroup[] = [
     icon: Settings,
     children: [
       { key: 'platformSettings', icon: Settings,      label: 'Platform Settings' },
+      { key: 'managePros',       icon: UserCircle2,   label: 'Professionals' },
       { key: 'manageTurfs',      icon: Building2,     label: 'Owners & Turfs' },
       { key: 'payouts',          icon: Banknote,      label: 'Payouts & Ledger' },
       { key: 'interested',       icon: PhoneCall,     label: 'Interested Parties' },

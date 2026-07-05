@@ -5,11 +5,15 @@ export async function getShopFrontData() {
     prisma.shopCarouselSlide.findMany({ orderBy: { order: 'asc' } }),
     prisma.shopCarouselSettings.findFirst(),
     prisma.shopCategory.findMany({
-      include: { children: { orderBy: { order: 'asc' } } },
+      where: { active: true },
+      include: { children: { where: { active: true }, orderBy: { order: 'asc' } } },
       orderBy: { order: 'asc' },
     }),
     prisma.shopProduct.findMany({
-      where: { status: 'active' },
+      where: {
+        status: 'active',
+        category: { active: true },
+      },
       include: {
         category: { select: { id: true, name: true, parentId: true } },
         sizes: { orderBy: { basePrice: 'asc' } },

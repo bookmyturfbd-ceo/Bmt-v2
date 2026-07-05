@@ -7,7 +7,13 @@ export async function GET() {
     const setting = await prisma.turfServiceSetting.findUnique({
       where: { id: 'singleton' },
     });
-    return NextResponse.json(setting ?? { id: 'singleton', isActive: false, launchAt: null });
+    const defaultProfessions = ["Cricket Coach", "Football Coach", "Futsal Coach", "Swimming Trainer", "Gym Trainer", "Fitness Coach", "Football Referee", "Cricket Umpire", "Scoreboard Manager", "Physio", "Nutritionist", "Yoga Instructor"];
+    return NextResponse.json(setting ?? { 
+      id: 'singleton', 
+      isActive: false, 
+      launchAt: null,
+      professionTypes: defaultProfessions
+    });
   } catch (error) {
     console.error('TurfServiceSetting GET error:', error);
     return NextResponse.json({ error: 'Failed to fetch setting' }, { status: 500 });
@@ -18,7 +24,12 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { isActive, launchAt } = body;
+    const { isActive, launchAt, professionTypes } = body;
+
+    const data: any = {};
+    if (isActive !== undefined) data.isActive = !!isActive;
+    if (launchAt !== undefined) data.launchAt = launchAt ? new Date(launchAt) : null;
+    if (Array.isArray(professionTypes)) data.professionTypes = professionTypes;
 
     const setting = await prisma.turfServiceSetting.upsert({
       where: { id: 'singleton' },
@@ -26,11 +37,9 @@ export async function POST(req: NextRequest) {
         id: 'singleton',
         isActive: !!isActive,
         launchAt: launchAt ? new Date(launchAt) : null,
+        professionTypes: Array.isArray(professionTypes) ? professionTypes : undefined,
       },
-      update: {
-        isActive: !!isActive,
-        launchAt: launchAt ? new Date(launchAt) : null,
-      },
+      update: data,
     });
 
     return NextResponse.json(setting);

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Loader2, MapPin, Dumbbell, Star, Zap, ToggleLeft, ToggleRight, Clock } from 'lucide-react';
+import { Plus, Trash2, Loader2, MapPin, Dumbbell, Star, Zap, ToggleLeft, ToggleRight, Clock, Award } from 'lucide-react';
 import { useApiEntity } from '@/hooks/useApiEntity';
 
 interface Division { id: string; name: string; }
@@ -8,7 +8,7 @@ interface City     { id: string; name: string; divisionId: string; }
 interface Sport    { id: string; name: string; category?: string; }
 interface Amenity  { id: string; name: string; }
 
-type Tab = 'geo' | 'sports' | 'amenities' | 'turfService';
+type Tab = 'geo' | 'sports' | 'amenities' | 'turfService' | 'prosTypes';
 
 // ── Generic tag list ────────────────────────────────────────────────────────────
 function TagList({
@@ -234,6 +234,77 @@ function TurfServicePanel() {
   );
 }
 
+
+// ── Pros Types Panel ─────────────────────────────────────────────────────────────
+function ProsTypesPanel() {
+  const [types, setTypes] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    fetch('/api/admin/turf-service-setting')
+      .then(r => r.json())
+      .then(d => {
+        setTypes(Array.isArray(d.professionTypes) ? d.professionTypes : []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const addType = async (name: string) => {
+    if (types.includes(name)) return;
+    const updated = [...types, name];
+    setTypes(updated);
+    setSaving(true);
+    await fetch('/api/admin/turf-service-setting', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ professionTypes: updated }),
+    });
+    setSaving(false);
+  };
+
+  const removeType = async (name: string) => {
+    const updated = types.filter(t => t !== name);
+    setTypes(updated);
+    setSaving(true);
+    await fetch('/api/admin/turf-service-setting', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ professionTypes: updated }),
+    });
+    setSaving(false);
+  };
+
+  return (
+    <Section title="Pros Types & Professions">
+      <p className="text-xs text-[var(--muted)] -mt-1">
+        Add or edit professions available on the platform (e.g. Cricket Coach, Physio, Referee). These appear in pro registration and search filters.
+      </p>
+      <AddInput placeholder="Add new profession (e.g. Swimming Instructor)" onAdd={addType} />
+      {loading ? (
+        <div className="flex items-center gap-2 py-4 text-sm text-[var(--muted)]">
+          <Loader2 size={14} className="animate-spin" /> Loading professions…
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2 pt-2">
+          {types.map(t => (
+            <span key={t} className="flex items-center gap-2 px-3 py-1.5 bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl text-xs font-black text-white">
+              <span>{t}</span>
+              <button onClick={() => removeType(t)} disabled={saving} className="text-neutral-500 hover:text-red-400 transition-colors">
+                <Trash2 size={11} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
 // ── Main component ───────────────────────────────────────────────────────────────
 export default function PlatformSettingsPanel() {
   const [activeTab, setActiveTab] = useState<Tab>('geo');
@@ -251,6 +322,7 @@ export default function PlatformSettingsPanel() {
     { key: 'geo',         icon: MapPin,    label: 'Divisions & Cities' },
     { key: 'sports',      icon: Dumbbell,  label: 'Sports'             },
     { key: 'amenities',   icon: Star,      label: 'Amenities'          },
+    { key: 'prosTypes',   icon: Award,     label: 'Pros Types'         },
     { key: 'turfService', icon: Zap,       label: 'Turf Service'       },
   ];
 
@@ -325,6 +397,9 @@ export default function PlatformSettingsPanel() {
           <TagList items={amenities.items} onDelete={amenities.remove} loading={amenities.loading} />
         </Section>
       )}
+
+      {/* ── Pros Types Tab ── */}
+      {activeTab === 'prosTypes' && <ProsTypesPanel />}
 
       {/* ── Turf Service Tab ── */}
       {activeTab === 'turfService' && <TurfServicePanel />}

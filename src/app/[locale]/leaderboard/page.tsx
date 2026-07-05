@@ -829,33 +829,42 @@ export default function LeaderboardPage() {
               {professionals.length >= 3 && (
                 <div className="flex items-end justify-center gap-3 py-4 mb-2">
                   {/* 2nd */}
-                  <div className="flex flex-col items-center gap-2 flex-1">
-                    <div className="w-14 h-14 rounded-full overflow-hidden border-4 border-[#c0c0c0]/50 bg-neutral-800 flex items-center justify-center shadow-[0_0_20px_rgba(192,192,192,0.2)]">
+                  <div 
+                    onClick={() => router.push(`/${locale}/turf/${professionals[1].id}`)}
+                    className="flex flex-col items-center gap-2 flex-1 cursor-pointer group"
+                  >
+                    <div className="w-14 h-14 rounded-full overflow-hidden border-4 border-[#c0c0c0]/50 bg-neutral-800 flex items-center justify-center shadow-[0_0_20px_rgba(192,192,192,0.2)] group-hover:scale-105 transition-transform">
                       {professionals[1].logoUrl ? <img src={professionals[1].logoUrl} className="w-full h-full object-cover" /> : <span className="font-black text-lg text-neutral-400">{professionals[1].name[0]}</span>}
                     </div>
-                    <span className="text-[10px] font-black text-neutral-400 truncate max-w-[70px] text-center">{professionals[1].name}</span>
+                    <span className="text-[10px] font-black text-neutral-400 truncate max-w-[70px] text-center group-hover:text-blue-400 transition-colors">{professionals[1].name}</span>
                     <div className="bg-[#c0c0c0]/20 border border-[#c0c0c0]/30 rounded-t-xl px-2 py-3 text-center w-full">
                       <p className="text-xl font-black">🥈</p>
                       <p className="text-[9px] text-[#c0c0c0] font-black mt-0.5">⭐ {professionals[1].averageRating}</p>
                     </div>
                   </div>
                   {/* 1st */}
-                  <div className="flex flex-col items-center gap-2 flex-1">
-                    <div className="w-[4.5rem] h-[4.5rem] rounded-full overflow-hidden border-4 border-[#ffd700]/60 bg-neutral-800 flex items-center justify-center shadow-[0_0_30px_rgba(255,215,0,0.3)]">
+                  <div 
+                    onClick={() => router.push(`/${locale}/turf/${professionals[0].id}`)}
+                    className="flex flex-col items-center gap-2 flex-1 cursor-pointer group"
+                  >
+                    <div className="w-[4.5rem] h-[4.5rem] rounded-full overflow-hidden border-4 border-[#ffd700]/60 bg-neutral-800 flex items-center justify-center shadow-[0_0_30px_rgba(255,215,0,0.3)] group-hover:scale-105 transition-transform">
                       {professionals[0].logoUrl ? <img src={professionals[0].logoUrl} className="w-full h-full object-cover" /> : <span className="font-black text-xl text-neutral-200">{professionals[0].name[0]}</span>}
                     </div>
-                    <span className="text-[11px] font-black text-white truncate max-w-[80px] text-center">{professionals[0].name}</span>
+                    <span className="text-[11px] font-black text-white truncate max-w-[80px] text-center group-hover:text-blue-400 transition-colors">{professionals[0].name}</span>
                     <div className="bg-[#ffd700]/15 border border-[#ffd700]/30 rounded-t-xl px-2 py-4 text-center w-full">
                       <p className="text-2xl font-black">🥇</p>
                       <p className="text-[9px] text-[#ffd700] font-black mt-0.5">⭐ {professionals[0].averageRating}</p>
                     </div>
                   </div>
                   {/* 3rd */}
-                  <div className="flex flex-col items-center gap-2 flex-1">
-                    <div className="w-12 h-12 rounded-full overflow-hidden border-4 border-[#cd7f32]/40 bg-neutral-800 flex items-center justify-center shadow-[0_0_16px_rgba(205,127,50,0.2)]">
+                  <div 
+                    onClick={() => router.push(`/${locale}/turf/${professionals[2].id}`)}
+                    className="flex flex-col items-center gap-2 flex-1 cursor-pointer group"
+                  >
+                    <div className="w-12 h-12 rounded-full overflow-hidden border-4 border-[#cd7f32]/40 bg-neutral-800 flex items-center justify-center shadow-[0_0_16px_rgba(205,127,50,0.2)] group-hover:scale-105 transition-transform">
                       {professionals[2].logoUrl ? <img src={professionals[2].logoUrl} className="w-full h-full object-cover" /> : <span className="font-black text-base text-neutral-400">{professionals[2].name[0]}</span>}
                     </div>
-                    <span className="text-[10px] font-black text-neutral-400 truncate max-w-[65px] text-center">{professionals[2].name}</span>
+                    <span className="text-[10px] font-black text-neutral-400 truncate max-w-[65px] text-center group-hover:text-blue-400 transition-colors">{professionals[2].name}</span>
                     <div className="bg-[#cd7f32]/15 border border-[#cd7f32]/30 rounded-t-xl px-2 py-2.5 text-center w-full">
                       <p className="text-lg font-black">🥉</p>
                       <p className="text-[9px] text-[#cd7f32] font-black mt-0.5">⭐ {professionals[2].averageRating}</p>
@@ -876,19 +885,26 @@ export default function LeaderboardPage() {
                       <span className="w-8 shrink-0 text-center font-mono font-black text-xs text-neutral-500">
                         {rank <= 3 ? PODIUM_LABEL[rank - 1] : `#${formatNumber(rank, locale)}`}
                       </span>
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-neutral-800 border border-white/10 shrink-0 flex items-center justify-center">
-                        {pro.logoUrl
-                          ? <img src={pro.logoUrl} className="w-full h-full object-cover" alt="" />
-                          : <span className="font-black text-sm text-accent">{pro.name[0]}</span>}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-black text-sm text-white truncate">{pro.name}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-neutral-500 font-semibold">
-                          <span className="uppercase text-fuchsia-400">{pro.coachType}</span>
-                          <span>·</span>
-                          <span>📍 {pro.area}</span>
+                      
+                      <div 
+                        onClick={() => router.push(`/${locale}/turf/${pro.id}`)}
+                        className="flex-1 min-w-0 flex items-center gap-3 cursor-pointer group"
+                      >
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-neutral-800 border border-white/10 shrink-0 flex items-center justify-center group-hover:border-blue-500/50 transition-colors">
+                          {pro.logoUrl
+                            ? <img src={pro.logoUrl} className="w-full h-full object-cover" alt="" />
+                            : <span className="font-black text-sm text-blue-400">{pro.name[0]}</span>}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-black text-sm text-white truncate group-hover:text-blue-400 transition-colors">{pro.name}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-neutral-500 font-semibold">
+                            <span className="uppercase text-blue-400 font-bold text-[9px]">{pro.coachType}</span>
+                            <span>·</span>
+                            <span>📍 {pro.area}</span>
+                          </div>
                         </div>
                       </div>
+
                       <div className="shrink-0 flex flex-col items-end gap-1.5">
                         <div className="flex items-center gap-1">
                           <Star size={13} className="text-yellow-400 fill-yellow-400" />

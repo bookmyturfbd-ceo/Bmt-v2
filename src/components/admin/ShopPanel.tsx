@@ -13,7 +13,7 @@ import ShopDiscountsTab from '@/components/admin/ShopDiscountsTab';
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface CarouselSlide { id: string; imageUrl: string; ctaText?: string | null; ctaLink?: string | null; order: number; active: boolean; }
 interface CarouselSettings { autoSlide: boolean; intervalMs: number; slideType: string; }
-interface Category { id: string; name: string; parentId: string | null; children?: Category[]; imageUrl?: string | null; sizeChartUrl?: string | null; }
+interface Category { id: string; name: string; parentId: string | null; children?: Category[]; imageUrl?: string | null; sizeChartUrl?: string | null; active?: boolean; }
 interface SizeEntry { label: string; basePrice: string; salePrice: string; quantity: string; }
 interface Product { id: string; name: string; status: string; mainImage: string; category: { name: string; parentId: string | null }; sizes: any[]; position?: number; }
 
@@ -340,6 +340,22 @@ function ShopCategoriesTab({ onToast }: { onToast: (m: string) => void }) {
     }
   };
 
+  const toggleCategoryActive = async (id: string, currentActive: boolean) => {
+    try {
+      const res = await fetch('/api/shop/categories', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, active: !currentActive }),
+      });
+      if (res.ok) {
+        onToast(`Category ${!currentActive ? 'visible' : 'hidden'}`);
+        await load();
+      }
+    } catch (err) {
+      alert('Failed to update category visibility');
+    }
+  };
+
   const del = async (id: string) => {
     if (!confirm('Delete this category? All products will be affected.')) return;
     try {
@@ -418,15 +434,27 @@ function ShopCategoriesTab({ onToast }: { onToast: (m: string) => void }) {
         {loading ? <div className="flex justify-center py-8"><Loader2 size={24} className="animate-spin text-accent" /></div>
          : parentCats.length === 0 ? <p className="text-center text-sm text-[var(--muted)] py-8">No categories yet</p>
          : parentCats.map(parent => (
-          <div key={parent.id} className="border border-[var(--panel-border)] rounded-2xl overflow-hidden bg-[var(--panel-bg)]">
+          <div key={parent.id} className={`border rounded-2xl overflow-hidden bg-[var(--panel-bg)] transition-all ${parent.active === false ? 'opacity-60 border-red-500/30' : 'border-[var(--panel-border)]'}`}>
             <div className="flex items-center justify-between p-4 border-b border-[var(--panel-border)]">
               <div className="flex items-center gap-2">
                 <FolderOpen size={16} className="text-accent" />
                 <span className="font-bold text-sm">{parent.name}</span>
                 <span className="text-[10px] bg-accent/10 text-accent px-2 py-0.5 rounded-full font-black">PARENT</span>
                 {parent.sizeChartUrl && <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full font-black">📏 Size Chart</span>}
+                {parent.active === false && <span className="text-[10px] bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded-full font-black flex items-center gap-1"><EyeOff size={10} /> HIDDEN</span>}
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => toggleCategoryActive(parent.id, parent.active !== false)}
+                  className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all ${
+                    parent.active !== false
+                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20'
+                      : 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20'
+                  }`}
+                  title={parent.active !== false ? "Click to Hide Category" : "Click to Show Category"}
+                >
+                  {parent.active !== false ? <Eye size={12} /> : <EyeOff size={12} />}
+                </button>
                 <button onClick={() => startEdit(parent)} className="w-7 h-7 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center hover:bg-accent/20" title="Edit Category">
                   <Edit2 size={12} className="text-accent" />
                 </button>
@@ -438,14 +466,26 @@ function ShopCategoriesTab({ onToast }: { onToast: (m: string) => void }) {
             {(parent.children || []).length > 0 && (
               <div className="p-3 flex flex-col gap-2">
                 {(parent.children || []).map(child => (
-                  <div key={child.id} className="flex items-center justify-between px-4 py-2 rounded-xl bg-[var(--background)] border border-[var(--panel-border)]">
+                  <div key={child.id} className={`flex items-center justify-between px-4 py-2 rounded-xl bg-[var(--background)] border ${child.active === false ? 'opacity-50 border-red-500/30' : 'border-[var(--panel-border)]'}`}>
                     <div className="flex items-center gap-2">
                       <ChevronRight size={12} className="text-[var(--muted)]" />
                       <Tag size={13} className="text-purple-400" />
                       <span className="text-sm">{child.name}</span>
                       {child.sizeChartUrl && <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-full font-black">📏 Size Chart</span>}
+                      {child.active === false && <span className="text-[10px] bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded-full font-black flex items-center gap-1"><EyeOff size={10} /> HIDDEN</span>}
                     </div>
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => toggleCategoryActive(child.id, child.active !== false)}
+                        className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-all ${
+                          child.active !== false
+                            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20'
+                            : 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20'
+                        }`}
+                        title={child.active !== false ? "Click to Hide Subcategory" : "Click to Show Subcategory"}
+                      >
+                        {child.active !== false ? <Eye size={11} /> : <EyeOff size={11} />}
+                      </button>
                       <button onClick={() => startEdit(child)} className="w-6 h-6 rounded-lg bg-accent/10 border border-accent/20 flex items-center justify-center hover:bg-accent/20" title="Edit Category">
                         <Edit2 size={11} className="text-accent" />
                       </button>

@@ -18,6 +18,7 @@ interface Turf  {
   revenueModel?: { type: 'percentage' | 'monthly'; value: number };
   revenueModelType?: string; revenueModelValue?: number;
   createdAt?: string; isCoachProfile?: boolean; coachType?: string;
+  professions?: string[]; displayOrder?: number;
 }
 interface Sport   { id: string; name: string; }
 interface City    { id: string; name: string; }
@@ -29,14 +30,23 @@ function ApproveModal({ turf, onClose, onDone }: {
   turf: Turf; onClose: () => void; onDone: () => void;
 }) {
   const [saving, setSaving] = useState(false);
+  const [modelType, setModelType] = useState<'percentage' | 'monthly'>(
+    (turf.revenueModelType as 'percentage' | 'monthly') || 'percentage'
+  );
+  const [modelVal, setModelVal] = useState<string>(
+    turf.revenueModelValue ? String(turf.revenueModelValue) : '15'
+  );
 
   const publish = async () => {
     setSaving(true);
+    const val = parseFloat(modelVal) || 0;
     const res = await fetch(`/api/bmt/turfs/${turf.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         status: 'published',
+        revenueModelType: modelType,
+        revenueModelValue: val,
       }),
     });
     if (!res.ok) {
@@ -81,14 +91,58 @@ function ApproveModal({ turf, onClose, onDone }: {
             </div>
           </div>
 
-          <div className="flex gap-3 mt-2">
+          {/* Revenue Model Configurator */}
+          <div className="flex flex-col gap-2.5 bg-[var(--panel-bg)] p-4 rounded-2xl border border-[var(--panel-border)]">
+            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Super Admin Revenue Model</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setModelType('percentage')}
+                className={`py-2 rounded-xl text-xs font-bold transition-all border ${
+                  modelType === 'percentage'
+                    ? 'bg-blue-500/20 border-blue-500/50 text-blue-400 font-black'
+                    : 'bg-black/20 border-white/5 text-[var(--muted)] hover:text-white'
+                }`}
+              >
+                Percentage Cut (%)
+              </button>
+              <button
+                type="button"
+                onClick={() => setModelType('monthly')}
+                className={`py-2 rounded-xl text-xs font-bold transition-all border ${
+                  modelType === 'monthly'
+                    ? 'bg-blue-500/20 border-blue-500/50 text-blue-400 font-black'
+                    : 'bg-black/20 border-white/5 text-[var(--muted)] hover:text-white'
+                }`}
+              >
+                Fixed Monthly (৳)
+              </button>
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs font-bold text-[var(--muted)]">
+                {modelType === 'percentage' ? 'Cut Percentage:' : 'Monthly Fee:'}
+              </span>
+              <input
+                type="number"
+                value={modelVal}
+                onChange={e => setModelVal(e.target.value)}
+                placeholder={modelType === 'percentage' ? 'e.g. 15' : 'e.g. 2000'}
+                className="flex-1 bg-black/30 border border-[var(--panel-border)] rounded-xl px-3 py-2 text-sm font-bold text-white outline-none focus:border-blue-500/50"
+              />
+              <span className="text-xs font-black text-blue-400">
+                {modelType === 'percentage' ? '%' : '৳/mo'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex gap-3 mt-1">
             <button onClick={reject} disabled={saving}
               className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 font-bold text-sm transition-all disabled:opacity-50">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <X size={15} />}
               Reject
             </button>
             <button onClick={publish} disabled={saving}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 transition-all disabled:opacity-40">
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 transition-all disabled:opacity-40 shadow-[0_4px_15px_rgba(59,130,246,0.3)]">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={15} strokeWidth={3} />}
               Approve Profile
             </button>
@@ -247,6 +301,84 @@ function ProCard({ owner, turfs, cities, bookings, slots, onReload }: {
                           <p className="text-[11px] text-[var(--muted)] mt-0.5 truncate flex items-center gap-1">
                             <MapPin size={10} /> {cityName(turf.cityId)}{turf.area ? ` · ${turf.area}` : ''}
                           </p>
+
+                          {/* Display Rank & Priority Controls */}
+                          <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-[var(--panel-border)] flex-wrap">
+                            <span className="text-[10px] font-black uppercase text-[var(--muted)]">Display Priority:</span>
+                            <span className="text-xs font-black text-blue-400">#{turf.displayOrder ?? 999}</span>
+                            
+                            <button
+                              onClick={async () => {
+                                await fetch(`/api/bmt/turfs/${turf.id}`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ displayOrder: 1 }),
+                                });
+                                onReload();
+                              }}
+                              className={`text-[9px] font-bold px-2 py-0.5 rounded-lg border transition-all ${
+                                turf.displayOrder === 1
+                                  ? 'bg-blue-500 text-white border-blue-400 font-black'
+                                  : 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500 hover:text-white'
+                              }`}
+                            >
+                              Pin #1 (Top)
+                            </button>
+
+                            <button
+                              onClick={async () => {
+                                await fetch(`/api/bmt/turfs/${turf.id}`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ displayOrder: 2 }),
+                                });
+                                onReload();
+                              }}
+                              className={`text-[9px] font-bold px-2 py-0.5 rounded-lg border transition-all ${
+                                turf.displayOrder === 2
+                                  ? 'bg-blue-500 text-white border-blue-400 font-black'
+                                  : 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500 hover:text-white'
+                              }`}
+                            >
+                              Pin #2
+                            </button>
+
+                            <button
+                              onClick={async () => {
+                                await fetch(`/api/bmt/turfs/${turf.id}`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ displayOrder: 3 }),
+                                });
+                                onReload();
+                              }}
+                              className={`text-[9px] font-bold px-2 py-0.5 rounded-lg border transition-all ${
+                                turf.displayOrder === 3
+                                  ? 'bg-blue-500 text-white border-blue-400 font-black'
+                                  : 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500 hover:text-white'
+                              }`}
+                            >
+                              Pin #3
+                            </button>
+
+                            <input
+                              type="number"
+                              placeholder="Rank #"
+                              defaultValue={turf.displayOrder ?? 999}
+                              onBlur={async (e) => {
+                                const val = parseInt(e.target.value);
+                                if (!isNaN(val)) {
+                                  await fetch(`/api/bmt/turfs/${turf.id}`, {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ displayOrder: val }),
+                                  });
+                                  onReload();
+                                }
+                              }}
+                              className="w-16 bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-lg px-2 py-0.5 text-[10px] font-bold text-white outline-none focus:border-blue-500"
+                            />
+                          </div>
                         </div>
                         {turf.status === 'pending' && (
                           <button onClick={() => setApproveTurf(turf)}
@@ -392,15 +524,49 @@ export default function ManageProsPanel() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [slots, setSlots]       = useState<Slot[]>([]);
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedProfession, setSelectedProfession] = useState('ALL');
+  const [professions, setProfessions] = useState<string[]>([]);
+
   useEffect(() => {
     fetch('/api/bmt/bookings').then(r => r.json()).then(d => setBookings(Array.isArray(d) ? d : []));
     fetch('/api/bmt/slots').then(r => r.json()).then(d => setSlots(Array.isArray(d) ? d : []));
+    fetch('/api/admin/turf-service-setting')
+      .then(r => r.json())
+      .then(d => {
+        if (Array.isArray(d.professionTypes)) setProfessions(d.professionTypes);
+      })
+      .catch(() => {});
   }, []);
 
   const loading = allOwners.loading || turfs.loading;
   
   // Filter for coaches only
-  const owners = allOwners.items.filter(o => o.isCoach);
+  const owners = allOwners.items.filter(o => 
+    o.isCoach || turfs.items.some(t => t.ownerId === o.id && t.isCoachProfile)
+  );
+
+  const filteredOwners = owners.filter(owner => {
+    const myProfiles = turfs.items.filter(t => t.ownerId === owner.id && t.isCoachProfile);
+    // Search Name, Phone, Email
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const nameMatch = (owner.name || '').toLowerCase().includes(q);
+      const emailMatch = (owner.email || '').toLowerCase().includes(q);
+      const phoneMatch = (owner.phone || '').toLowerCase().includes(q);
+      const profileMatch = myProfiles.some(t => t.name.toLowerCase().includes(q) || t.area?.toLowerCase().includes(q));
+      if (!nameMatch && !emailMatch && !phoneMatch && !profileMatch) return false;
+    }
+    // Profession / Sport filter
+    if (selectedProfession !== 'ALL') {
+      const profMatch = myProfiles.some(t => 
+        t.coachType?.toLowerCase() === selectedProfession.toLowerCase() ||
+        (Array.isArray(t.professions) && t.professions.some(p => p.toLowerCase() === selectedProfession.toLowerCase()))
+      );
+      if (!profMatch) return false;
+    }
+    return true;
+  });
 
   const SUB_TABS = [
     { key: 'pros' as SubTab,      icon: UserCircle2, label: 'Coaches & Pros' },
@@ -433,33 +599,59 @@ export default function ManageProsPanel() {
 
       {/* Pros tab */}
       {subTab === 'pros' && (
-        loading ? (
-          <div className="flex items-center gap-2 text-[var(--muted)] text-sm py-8">
-            <Loader2 size={16} className="animate-spin" /> Loading pros…
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4">
-            {owners.length === 0 && (
-              <div className="flex flex-col items-center gap-2 py-12 text-center glass-panel rounded-3xl">
-                <UserCircle2 size={36} className="text-[var(--muted)] opacity-30" />
-                <p className="font-bold text-[var(--muted)]">No coaches onboarded yet</p>
-                <p className="text-xs text-[var(--muted)]">Switch to "Generate Invite" to invite the first coach.</p>
-              </div>
-            )}
-
-            {owners.map(owner => (
-              <ProCard
-                key={owner.id}
-                owner={owner}
-                turfs={turfs.items}
-                cities={cities.items}
-                bookings={bookings}
-                slots={slots}
-                onReload={() => { allOwners.reload(); turfs.reload(); }}
+        <div className="flex flex-col gap-4">
+          {/* Search and Sport/Profession Filters */}
+          <div className="flex flex-col md:flex-row gap-3 bg-[var(--panel-bg)] p-4 rounded-2xl border border-[var(--panel-border)]">
+            <div className="relative flex-1">
+              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+              <input
+                type="text"
+                placeholder="Search by Name, Phone, Email..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full bg-neutral-950 border border-[var(--panel-border)] rounded-xl pl-10 pr-4 py-2.5 text-sm font-bold outline-none focus:border-blue-500/50 text-white placeholder:text-[var(--muted)]"
               />
-            ))}
+            </div>
+            <select
+              value={selectedProfession}
+              onChange={e => setSelectedProfession(e.target.value)}
+              className="bg-neutral-950 border border-[var(--panel-border)] rounded-xl px-4 py-2.5 text-sm font-bold outline-none focus:border-blue-500/50 text-white"
+            >
+              <option value="ALL">All Professions / Sports</option>
+              {professions.map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
           </div>
-        )
+
+          {loading ? (
+            <div className="flex items-center gap-2 text-[var(--muted)] text-sm py-8">
+              <Loader2 size={16} className="animate-spin" /> Loading pros…
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {filteredOwners.length === 0 && (
+                <div className="flex flex-col items-center gap-2 py-12 text-center glass-panel rounded-3xl">
+                  <UserCircle2 size={36} className="text-[var(--muted)] opacity-30" />
+                  <p className="font-bold text-[var(--muted)]">No coaches found</p>
+                  <p className="text-xs text-[var(--muted)]">Try adjusting your search query or profession filters.</p>
+                </div>
+              )}
+
+              {filteredOwners.map(owner => (
+                <ProCard
+                  key={owner.id}
+                  owner={owner}
+                  turfs={turfs.items}
+                  cities={cities.items}
+                  bookings={bookings}
+                  slots={slots}
+                  onReload={() => { allOwners.reload(); turfs.reload(); }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

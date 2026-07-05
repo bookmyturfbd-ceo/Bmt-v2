@@ -8,7 +8,7 @@ export default function InviteSetupPage() {
   const t = useTranslations('Auth.inviteSetup');
   const val = useTranslations('Auth.validation');
 
-  const [form, setForm] = useState({ fullName: '', password: '', confirmPassword: '' });
+  const [form, setForm] = useState({ fullName: '', phone: '', password: '', confirmPassword: '' });
   const [showPw, setShowPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -16,6 +16,10 @@ export default function InviteSetupPage() {
   const [invite, setInvite] = useState<{role: string, contact: string} | null>(null);
   const [tokenParam, setTokenParam] = useState('');
   const [setupError, setSetupError] = useState('');
+
+  // Dynamic Professions loaded from Admin Platform Settings
+  const [availableProfessions, setAvailableProfessions] = useState<string[]>([]);
+  const [selectedProfessions, setSelectedProfessions] = useState<string[]>([]);
 
   // Parse the invite token from the URL on mount
   useEffect(() => {
@@ -32,7 +36,22 @@ export default function InviteSetupPage() {
         else setInvite(data);
       })
       .catch(() => setSetupError('Network error checking invite.'));
+
+    fetch('/api/admin/turf-service-setting')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data.professionTypes)) {
+          setAvailableProfessions(data.professionTypes);
+        }
+      })
+      .catch(() => {});
   }, []);
+
+  const toggleProfession = (prof: string) => {
+    setSelectedProfessions(prev =>
+      prev.includes(prof) ? prev.filter(p => p !== prof) : [...prev, prof]
+    );
+  };
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, [field]: e.target.value }));
@@ -40,6 +59,7 @@ export default function InviteSetupPage() {
   const validate = () => {
     const e: Record<string, string> = {};
     if (!form.fullName.trim()) e.fullName = val('fieldRequired');
+    if (!form.phone.trim()) e.phone = 'Phone number is required';
     if (!form.password) e.password = val('fieldRequired');
     else if (form.password.length < 8) e.password = val('passwordTooShort');
     if (!form.confirmPassword) e.confirmPassword = val('fieldRequired');
@@ -47,7 +67,6 @@ export default function InviteSetupPage() {
     setErrors(e);
     return Object.keys(e).length === 0;
   };
-
 
   const [submitting, setSubmitting] = useState(false);
   const [serverErr, setServerErr] = useState('');
@@ -63,8 +82,10 @@ export default function InviteSetupPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         fullName: form.fullName,
+        phone: form.phone,
         token: tokenParam,
         password: form.password,
+        professions: selectedProfessions,
       }),
     });
 
@@ -159,6 +180,42 @@ export default function InviteSetupPage() {
             error={errors.fullName}
             autoComplete="name"
           />
+          <AuthInput
+            label="Phone Number"
+            type="tel"
+            placeholder="e.g. +8801700000000"
+            value={form.phone}
+            onChange={set('phone')}
+            error={errors.phone}
+            autoComplete="tel"
+          />
+
+          {invite!.role?.toLowerCase().includes('coach') && availableProfessions.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-neutral-400">
+                Select Your Profession(s) <span className="text-[10px] text-accent font-normal">(Multi-select)</span>
+              </label>
+              <div className="flex flex-wrap gap-1.5 p-3 bg-neutral-950/60 rounded-xl border border-white/6 max-h-36 overflow-y-auto">
+                {availableProfessions.map(prof => {
+                  const isSelected = selectedProfessions.includes(prof);
+                  return (
+                    <button
+                      type="button"
+                      key={prof}
+                      onClick={() => toggleProfession(prof)}
+                      className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all active:scale-95 ${
+                        isSelected
+                          ? 'bg-accent/20 border-accent/60 text-accent font-black'
+                          : 'bg-neutral-900 border-white/8 text-neutral-400 hover:text-white'
+                      }`}
+                    >
+                      {isSelected ? '✓ ' : '+ '}{prof}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <AuthInput
             label={t('passwordLabel')}
             type={showPw ? 'text' : 'password'}

@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
   };
 
   if (isOwnerRole) {
+    const { phone, professions } = await request.json().catch(() => ({}));
     // Hash password — use provided value or a temporary default
     const rawPw   = password?.trim() || 'changeme';
     const hashed  = await bcrypt.hash(rawPw, 10);
@@ -50,11 +51,13 @@ export async function POST(request: NextRequest) {
     // Upsert: don't create a duplicate if the owner already exists
     const owner = await prisma.owner.upsert({
       where:  { email },
-      update: {},   // do not overwrite existing data on re-completion
+      update: {
+        phone: phone ? phone.trim() : undefined,
+      },   
       create: {
         name:     fullName.trim(),
         email,
-        phone:    '',
+        phone:    phone ? phone.trim() : '',
         password: hashed,
         isCoach,  // Flag this owner as a Coach if they were invited as one
       },

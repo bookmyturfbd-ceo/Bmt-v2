@@ -488,7 +488,9 @@ export default function ManageOwnersTurfsPanel() {
   const loading = owners.loading || turfs.loading;
   
   // Filter out coaches and coach profiles
-  const standardOwners = owners.items.filter(o => !o.isCoach);
+  const standardOwners = owners.items.filter(o => 
+    !o.isCoach && !turfs.items.some(t => t.ownerId === o.id && t.isCoachProfile)
+  );
   const standardTurfs = turfs.items.filter(t => !t.isCoachProfile);
   
   const knownOwnerIds = new Set(standardOwners.map(o => o.id));
@@ -518,7 +520,7 @@ export default function ManageOwnersTurfsPanel() {
       </div>
 
       {/* Invite tab */}
-      {subTab === 'invite' && <div className="max-w-lg"><GenerateInviteCard /></div>}
+      {subTab === 'invite' && <div className="max-w-lg"><GenerateInviteCard isCoachInvite={false} /></div>}
 
       {/* Reset Passwords tab */}
       {subTab === 'passwords' && <ResetPasswordsPanel owners={standardOwners} />}

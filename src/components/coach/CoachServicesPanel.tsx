@@ -62,17 +62,17 @@ export default function CoachServicesPanel() {
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl mx-auto w-full">
+    <div className="flex flex-col gap-6 max-w-5xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-300">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-black tracking-tight">My Services</h2>
-          <p className="text-sm text-[var(--muted)] mt-0.5">Define what you offer (e.g., 1-on-1, Group) and your availability.</p>
+          <h2 className="text-2xl font-black tracking-tight text-white">My Services</h2>
+          <p className="text-xs text-[var(--muted)] mt-0.5">Define what you offer (e.g., 1-on-1, Group) and your availability.</p>
         </div>
         <button 
           onClick={() => setIsCreatingService(!isCreatingService)} 
-          className="bg-blue-500 text-white px-4 py-2.5 rounded-xl text-xs font-black tracking-wide shadow-[0_4px_15px_rgba(59,130,246,0.3)] active:scale-95 transition-all flex items-center gap-1.5"
+          className="bg-blue-500 hover:brightness-110 text-white px-4 py-2.5 rounded-xl text-xs font-black tracking-wider shadow-[0_4px_15px_rgba(59,130,246,0.25)] active:scale-95 transition-all flex items-center gap-1.5"
         >
-          <Plus size={15} strokeWidth={3}/> Add Service Type
+          <Plus size={14} strokeWidth={3}/> Add Service Type
         </button>
       </div>
 
@@ -89,38 +89,39 @@ export default function CoachServicesPanel() {
             setNewServiceName('');
             setIsCreatingService(false);
             groundsStore.reload();
-          }} className="glass-panel p-5 rounded-2xl border border-[var(--panel-border)] flex flex-col sm:flex-row items-end gap-3 shadow-lg">
+          }} className="glass-panel p-5 rounded-[24px] border border-[var(--panel-border)] flex flex-col sm:flex-row items-end gap-3 shadow-lg animate-in slide-in-from-top-3 duration-200">
             <div className="flex-1 flex flex-col gap-1.5 w-full">
-               <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--muted)]">Service Name</label>
-               <input autoFocus required value={newServiceName} onChange={e => setNewServiceName(e.target.value)} placeholder="e.g., Personal Coaching, Group Session (Max 5)" className="w-full bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500/50" />
+               <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--muted)]">Service / Format Name</label>
+               <input autoFocus required value={newServiceName} onChange={e => setNewServiceName(e.target.value)} placeholder="e.g., Personal 1-on-1 Coaching, Group Drill (Max 5)" 
+                 className="w-full bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-4 py-3 text-sm font-bold text-white outline-none focus:border-blue-500/50" />
             </div>
-            <button type="submit" className="bg-blue-500 text-white px-6 py-3 rounded-xl text-sm font-black w-full sm:w-auto active:scale-95 transition-transform">Create</button>
+            <button type="submit" className="bg-blue-500 hover:brightness-110 text-white px-6 py-3 rounded-xl text-sm font-black w-full sm:w-auto active:scale-95 transition-all">Create</button>
           </form>
         )}
 
         {myServices.length === 0 && !isCreatingService && (
-          <div className="py-16 glass-panel border border-dashed border-[var(--panel-border)] rounded-3xl flex flex-col items-center justify-center text-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-[var(--panel-bg)] flex items-center justify-center shadow-inner">
-              <Dumbbell size={28} className="text-[var(--muted)] opacity-60" />
+          <div className="py-16 glass-panel border border-dashed border-[var(--panel-border)] rounded-[32px] flex flex-col items-center justify-center text-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-[var(--panel-bg)] flex items-center justify-center border border-[var(--panel-border)] shadow-inner">
+              <Dumbbell size={24} className="text-blue-500 opacity-60" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-foreground">No Services Defined</p>
-              <p className="text-xs text-[var(--muted)] max-w-[300px] mt-1 mx-auto">Create a service type to start defining your available coaching slots.</p>
+              <p className="text-sm font-black text-white">No Services Defined</p>
+              <p className="text-xs text-[var(--muted)] max-w-[300px] mt-1.5 mx-auto">Create your first service type to start defining your available training/coaching slots.</p>
             </div>
-            <button onClick={() => setIsCreatingService(true)} className="text-blue-500 font-bold text-sm hover:underline decoration-2 underline-offset-4">Add your first service</button>
+            <button onClick={() => setIsCreatingService(true)} className="text-blue-400 font-bold text-xs hover:underline decoration-2 underline-offset-4 tracking-wider uppercase">Add your first service</button>
           </div>
         )}
 
         {myServices.map(service => {
            const serviceSlots = mySlots.filter(s => s.groundId === service.id).sort((a,b) => parseTime12h(a.startTime) - parseTime12h(b.startTime));
            return (
-             <div key={service.id} className="glass-panel p-5 rounded-3xl border border-[var(--panel-border)] flex flex-col gap-4 shadow-sm">
+             <div key={service.id} className="glass-panel p-5 rounded-[24px] border border-[var(--panel-border)] flex flex-col gap-4 shadow-sm relative overflow-hidden">
                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[var(--panel-border)] pb-4 gap-3">
                   <div>
-                    <h4 className="font-black text-lg text-foreground flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-blue-500" /> {service.name}
+                    <h4 className="font-black text-base text-white flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]" /> {service.name}
                     </h4>
-                    <p className="text-[11px] text-[var(--muted)] mt-1 ml-4 font-semibold uppercase tracking-widest">{serviceSlots.length} available slots</p>
+                    <p className="text-[10px] text-[var(--muted)] mt-1.5 font-bold uppercase tracking-widest">{serviceSlots.length} available windows</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                      {serviceSlots.length > 0 && (
@@ -132,42 +133,43 @@ export default function CoachServicesPanel() {
                              slotsStore.reload();
                            }
                          }} 
-                         className="bg-red-500/10 border border-red-500/20 text-red-500 px-3 py-2 rounded-lg text-xs font-bold tracking-wide active:scale-95 hover:bg-red-500 hover:text-white transition-all flex items-center gap-1.5"
+                         className="bg-red-500/10 border border-red-500/20 text-red-400 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider active:scale-95 hover:bg-red-500 hover:text-white transition-all flex items-center gap-1.5"
                        >
-                         <Trash2 size={14} strokeWidth={2.5}/> Delete All Slots
+                         <Trash2 size={12} /> Delete All Slots
                        </button>
                      )}
-                     <button onClick={() => setSlotGroundId(service.id)} className="bg-blue-500/10 border border-blue-500/20 text-blue-500 px-4 py-2 rounded-lg text-xs font-bold tracking-wide active:scale-95 hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1.5">
-                       <Clock size={14} strokeWidth={2.5}/> Add Availability Slots
+                     <button onClick={() => setSlotGroundId(service.id)} className="bg-blue-500/10 border border-blue-500/20 text-blue-400 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider active:scale-95 hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1.5">
+                       <Clock size={12} /> Add Availability
                      </button>
                   </div>
                </div>
                
                {serviceSlots.length === 0 ? (
-                  <div className="py-8 bg-[var(--panel-bg)] rounded-2xl flex flex-col items-center justify-center text-center">
-                    <p className="text-sm font-semibold text-[var(--muted)]">No availability set for this service.</p>
+                  <div className="py-8 bg-[var(--panel-bg)] rounded-2xl flex flex-col items-center justify-center text-center border border-[var(--panel-border)] border-dashed">
+                    <p className="text-xs font-bold text-[var(--muted)]">No active availability slots set for this service.</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 pt-2">
                     {serviceSlots.map(slot => (
-                      <div key={slot.id} className="relative bg-[var(--panel-bg)] p-3 rounded-2xl border border-[var(--panel-border)] hover:border-blue-500/30 transition-colors group">
-                        <div className="absolute top-2 right-2 flex items-center gap-1 sm:opacity-0 group-hover:opacity-100 transition-all">
-                          <button onClick={() => setEditingSlot(slot)} className="w-7 h-7 rounded-lg bg-[var(--panel-bg)] border border-[var(--panel-border)] text-foreground hover:bg-blue-500 hover:text-white hover:border-blue-500 flex items-center justify-center shadow-sm transition-colors">
-                            <Edit3 size={12} />
+                      <div key={slot.id} className="relative bg-[var(--panel-bg)] p-4 rounded-2xl border border-[var(--panel-border)] hover:border-blue-500/30 transition-all group overflow-hidden">
+                        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all">
+                          <button onClick={() => setEditingSlot(slot)} className="w-7 h-7 rounded-lg bg-[var(--panel-bg)] border border-[var(--panel-border)] text-white hover:bg-blue-500 hover:text-white hover:border-blue-500 flex items-center justify-center shadow-sm transition-all hover:scale-105">
+                            <Edit3 size={11} />
                           </button>
-                          <button onClick={() => slotsStore.remove(slot.id)} className="w-7 h-7 rounded-lg bg-[var(--panel-bg)] border border-[var(--panel-border)] text-red-500 hover:bg-red-500 hover:text-white hover:border-red-500 flex items-center justify-center shadow-sm transition-colors">
-                            <Trash2 size={12} />
+                          <button onClick={() => slotsStore.remove(slot.id)} className="w-7 h-7 rounded-lg bg-[var(--panel-bg)] border border-[var(--panel-border)] text-red-400 hover:bg-red-500 hover:text-white hover:border-red-500 flex items-center justify-center shadow-sm transition-all hover:scale-105">
+                            <Trash2 size={11} />
                           </button>
                         </div>
+                        
                         <div className="flex flex-col gap-1 pr-16">
-                          <h4 className="text-sm font-black tracking-tight text-foreground leading-none">{slot.startTime} - {slot.endTime}</h4>
-                          <div className="flex items-baseline gap-1 mt-0.5">
-                            <span className="text-sm font-black text-blue-500">৳{slot.price}</span>
-                            <span className="text-[10px] text-[var(--muted)] font-semibold">/ session</span>
+                          <h4 className="text-xs font-black tracking-tight text-white leading-none">{slot.startTime} - {slot.endTime}</h4>
+                          <div className="flex items-baseline gap-0.5 mt-1">
+                            <span className="text-sm font-black text-blue-400">৳{slot.price}</span>
+                            <span className="text-[9px] text-[var(--muted)] font-bold">/ session</span>
                           </div>
-                          <div className="flex items-center gap-1 mt-2 flex-wrap">
+                          <div className="flex items-center gap-1 mt-2.5 flex-wrap">
                             {slot.days.map(d => (
-                              <span key={d} className="text-[9px] bg-blue-500/5 border border-blue-500/20 text-blue-400 font-bold px-2 py-0.5 rounded-full">{d.slice(0,3)}</span>
+                              <span key={d} className="text-[8px] bg-blue-500/5 border border-blue-500/10 text-blue-400 font-black px-1.5 py-0.5 rounded-md">{d.slice(0,3)}</span>
                             ))}
                           </div>
                         </div>

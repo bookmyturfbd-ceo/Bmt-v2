@@ -10,7 +10,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { turfId, groundId, startTime, endTime, timeCategory, days, sports, price, status } = body;
+  const { turfId, groundId, startTime, endTime, timeCategory, days, sports, price, status, slotType } = body;
 
   if (!turfId || !groundId || !startTime || !endTime || !timeCategory || price === undefined) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
       timeCategory,
       price: Number(price),
       status: status || 'available',
+      slotType: slotType || 'ONE_ON_ONE',
       days: Array.isArray(days) ? days : [],
       sports: Array.isArray(sports) ? sports : []
     }

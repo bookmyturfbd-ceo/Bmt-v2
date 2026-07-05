@@ -16,6 +16,7 @@ export default function CustomSlotModal({ open, turfId, groundId, onClose }: Cus
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
   const [duration, setDuration] = useState<number>(60);
   const [timeCategory, setTimeCategory] = useState<string>('Morning');
+  const [slotType, setSlotType] = useState<'ONE_ON_ONE' | 'MONTHLY'>('ONE_ON_ONE');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [price, setPrice] = useState('');
@@ -72,6 +73,7 @@ export default function CustomSlotModal({ open, turfId, groundId, onClose }: Cus
         turfId,
         groundId,
         timeCategory,
+        slotType,
         days: selectedDays,
         sports: selectedSports,
         startTime: startStr,
@@ -124,6 +126,37 @@ export default function CustomSlotModal({ open, turfId, groundId, onClose }: Cus
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
+          {/* Slot Type Toggle */}
+          <div className="flex flex-col gap-2">
+            <label className="text-[11px] font-bold uppercase tracking-widest text-neutral-400">Slot Category / Format</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setSlotType('ONE_ON_ONE')}
+                className={`py-2.5 rounded-xl text-xs font-black transition-all border ${
+                  slotType === 'ONE_ON_ONE'
+                    ? 'bg-accent text-black border-accent shadow-[0_0_12px_rgba(0,255,0,0.25)]'
+                    : 'bg-neutral-900 border-white/8 text-neutral-400 hover:text-white'
+                }`}
+              >
+                1-on-1 Private Session
+              </button>
+              <button
+                type="button"
+                onClick={() => setSlotType('MONTHLY')}
+                className={`py-2.5 rounded-xl text-xs font-black transition-all border ${
+                  slotType === 'MONTHLY'
+                    ? 'bg-accent text-black border-accent shadow-[0_0_12px_rgba(0,255,0,0.25)]'
+                    : 'bg-neutral-900 border-white/8 text-neutral-400 hover:text-white'
+                }`}
+              >
+                Monthly Package Slot
+              </button>
+            </div>
+          </div>
+
+          <div className="h-[1px] w-full bg-white/5" />
+
           {/* Linked Sports */}
           <div className="flex flex-col gap-2">
             <label className="text-[11px] font-bold uppercase tracking-widest text-neutral-400">Supported Sports (Cross-Blocking)</label>

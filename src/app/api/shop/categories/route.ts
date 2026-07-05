@@ -22,9 +22,9 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(cat);
 }
 
-// PATCH — update name / image / size chart / parentId
+// PATCH — update name / image / size chart / parentId / active
 export async function PATCH(req: NextRequest) {
-  const { id, name, imageUrl, sizeChartUrl, parentId } = await req.json();
+  const { id, name, imageUrl, sizeChartUrl, parentId, active } = await req.json();
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
   const updated = await prisma.shopCategory.update({
     where: { id },
@@ -33,6 +33,7 @@ export async function PATCH(req: NextRequest) {
       ...(imageUrl !== undefined && { imageUrl }),
       ...(sizeChartUrl !== undefined && { sizeChartUrl }),
       ...(parentId !== undefined && { parentId: parentId || null }),
+      ...(active !== undefined && { active }),
     },
   });
   return NextResponse.json(updated);

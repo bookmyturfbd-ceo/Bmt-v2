@@ -3,6 +3,7 @@ import TurfHero from '@/components/turf/TurfHero';
 import TurfInfo from '@/components/turf/TurfInfo';
 import TurfBookingClient from '@/components/turf/TurfBookingClient';
 import TurfLocationReviews from '@/components/turf/TurfLocationReviews';
+import CoachProfileView from '@/components/turf/CoachProfileView';
 import prisma from '@/lib/prisma';
 import { Metadata } from 'next';
 
@@ -87,6 +88,36 @@ export default async function TurfDetailPage({ params, searchParams }: PageProps
   const bookings = await prisma.booking.findMany({
     where: { slotId: { in: turfSlots.map((s: any) => s.id) } }
   });
+
+  // Render Coach View if it is a Coach Profile
+  if (rawTurf.isCoachProfile) {
+    const pro = {
+      id: rawTurf.id,
+      name: rawTurf.name,
+      sportsList: uniqueSports,
+      address: `${city?.name || 'Local Area'}${rawTurf.area ? `, ${rawTurf.area}` : ''}`,
+      rating: Number(averageRating),
+      reviewCount: turfReviews.length,
+      images: rawTurf.imageUrls && rawTurf.imageUrls.length > 0 ? rawTurf.imageUrls : [],
+      logoUrl: rawTurf.logoUrl || undefined,
+      amenities: amenitiesList,
+      rules: rawTurf.rules || '',
+      lat: rawTurf.lat || undefined,
+      lng: rawTurf.lng || undefined,
+      mapLink: rawTurf.mapLink || undefined,
+      coachType: rawTurf.coachType || 'Professional',
+    };
+
+    return (
+      <CoachProfileView
+        pro={pro}
+        slots={turfSlots}
+        bookings={bookings}
+        grounds={grounds}
+        reviews={turfReviews}
+      />
+    );
+  }
 
   const turf = {
     id: rawTurf.id,

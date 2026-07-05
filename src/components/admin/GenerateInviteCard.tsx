@@ -42,7 +42,7 @@ export default function GenerateInviteCard({ isCoachInvite }: { isCoachInvite?: 
 
   // Generate tab state
   const [contact, setContact] = useState('');
-  const [role, setRole] = useState(isCoachInvite ? 'Coach' : '');
+  const [role, setRole] = useState(isCoachInvite ? 'Coach' : 'Turf Owner');
   const [generatedLink, setGeneratedLink] = useState('');
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
@@ -57,7 +57,12 @@ export default function GenerateInviteCard({ isCoachInvite }: { isCoachInvite?: 
     try {
       const res = await fetch('/api/admin/invites');
       const data = await res.json();
-      if (res.ok) setInvites(data.invites);
+      if (res.ok && Array.isArray(data.invites)) {
+        const filtered = isCoachInvite
+          ? data.invites.filter((inv: InviteRecord) => inv.role.toLowerCase() === 'coach')
+          : data.invites.filter((inv: InviteRecord) => inv.role.toLowerCase() !== 'coach');
+        setInvites(filtered);
+      }
     } finally {
       setLoadingInvites(false);
     }
@@ -110,7 +115,7 @@ export default function GenerateInviteCard({ isCoachInvite }: { isCoachInvite?: 
 
   const reset = () => {
     setContact('');
-    setRole(isCoachInvite ? 'Coach' : '');
+    setRole(isCoachInvite ? 'Coach' : 'Turf Owner');
     setGeneratedLink('');
     setCopied(false);
     setError('');

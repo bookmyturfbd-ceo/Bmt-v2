@@ -3,14 +3,15 @@ import { useState, useEffect } from 'react';
 import { getCookie } from '@/lib/cookies';
 import {
   CalendarDays, UserCircle, Wallet, Settings2,
-  ChevronLeft, ChevronRight, Menu, X, Zap, Dumbbell
+  ChevronLeft, ChevronRight, Menu, X, Zap, Dumbbell, CheckSquare
 } from 'lucide-react';
 
-export type CoachPage = 'myProfile' | 'bookings' | 'manageServices' | 'finance' | 'settings';
+export type CoachPage = 'myProfile' | 'bookings' | 'manageServices' | 'training' | 'finance' | 'settings';
 
 const NAV_ITEMS: { key: CoachPage; icon: typeof UserCircle; label: string }[] = [
   { key: 'myProfile',      icon: UserCircle,    label: 'My Profile' },
   { key: 'manageServices', icon: Dumbbell,      label: 'My Services' },
+  { key: 'training',       icon: CheckSquare,   label: 'Training & Attendance' },
   { key: 'bookings',       icon: CalendarDays,  label: 'Bookings' },
   { key: 'finance',        icon: Wallet,        label: 'Finance' },
 ];
