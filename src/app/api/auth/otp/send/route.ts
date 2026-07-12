@@ -17,6 +17,42 @@ export async function POST(req: NextRequest) {
     // Always store the canonical 880XXXXXXXXXX format in the DB
     const phone = normalizePhone(rawPhone);
 
+    if (!phone) {
+      return NextResponse.json({ error: 'Invalid phone number format.' }, { status: 400 });
+    }
+
+    if (purpose === 'signup') {
+      const normalizedPhone = phone.trim();
+      const localVariant = normalizedPhone.startsWith('8801') && normalizedPhone.length === 13 ? normalizedPhone.slice(2) : null;
+      const plusVariant = '+' + normalizedPhone;
+
+      // Check existing player
+      const existingPlayer = await prisma.player.findFirst({
+        where: {
+          OR: [
+            { phone: normalizedPhone },
+            { phone: plusVariant },
+            ...(localVariant ? [{ phone: localVariant }] : [])
+          ]
+        }
+      });
+
+      // Check existing owner
+      const existingOwner = await prisma.owner.findFirst({
+        where: {
+          OR: [
+            { phone: normalizedPhone },
+            { phone: plusVariant },
+            ...(localVariant ? [{ phone: localVariant }] : [])
+          ]
+        }
+      });
+
+      if (existingPlayer || existingOwner) {
+        return NextResponse.json({ error: 'This phone number is already registered.' }, { status: 400 });
+      }
+    }
+
     // Generate a 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 

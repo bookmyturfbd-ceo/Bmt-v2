@@ -292,7 +292,7 @@ export default function InteractionBoardPage() {
 
   if (loading) return (
     <div className="min-h-[100dvh] bg-[#0a0a0a] flex items-center justify-center">
-      <Loader2 size={36} className="animate-spin text-fuchsia-500" />
+      <Loader2 size={36} className="animate-spin text-[#00ff41]" />
     </div>
   );
   if (!matchData) return (
@@ -347,7 +347,7 @@ export default function InteractionBoardPage() {
           </button>
           <div className="flex items-center gap-2">
             <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-full border ${
-              match.status === 'INTERACTION' ? 'bg-fuchsia-500/20 border-fuchsia-500/30 text-fuchsia-400' :
+              match.status === 'INTERACTION' ? 'bg-[#00ff41]/10 border-[#00ff41]/25 text-[#00ff41]' :
               match.status === 'SCHEDULED'   ? 'bg-amber-500/20  border-amber-500/30  text-amber-400' :
               match.status === 'LIVE'        ? 'bg-red-500/20    border-red-500/30    text-red-400 animate-pulse' :
               match.status === 'SCORE_ENTRY' ? 'bg-blue-500/20   border-blue-500/30   text-blue-400' :
@@ -358,15 +358,15 @@ export default function InteractionBoardPage() {
         </div>
 
         {/* Compact teams strip */}
-        <div className="flex items-center px-3 pb-2.5 gap-2">
-          {/* My team */}
+        <div className="flex items-center px-4 pb-3 gap-3">
+          {/* Challenger Team (My Team) */}
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-neutral-800 border border-[#00ff41]/30 overflow-hidden flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-neutral-800 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
               {myTeam.logoUrl
                 ? <img src={myTeam.logoUrl} className="w-full h-full object-cover" alt={myTeam.name} />
                 : <Shield size={14} className="text-[#00ff41]" />}
             </div>
-            <div className="min-w-0">
+            <div className="flex-1 min-w-0">
               <p className="text-[12px] font-black text-white truncate leading-tight">{myTeam.name}</p>
               {(() => {
                 const r = getRankData(getSportMmr(myTeam));
@@ -375,33 +375,21 @@ export default function InteractionBoardPage() {
             </div>
           </div>
 
-          {/* VS pill */}
-          <div className="flex flex-col items-center gap-0.5 shrink-0 px-1">
-            <span className="text-[9px] font-black text-neutral-600 uppercase tracking-widest">
-              {isCricket ? '🏏' : sportType === 'FOOTBALL_FULL' ? '⚽' : '⚽'}
-            </span>
-            <span className="text-[10px] font-black text-neutral-500">VS</span>
-            <span className="text-[7px] text-neutral-700 font-bold uppercase tracking-wide">
-              {sportType === 'CRICKET_7' || sportType === 'CRICKET_FULL' || sportType === 'CRICKET' ? 'Cricket'
-                : sportType.startsWith('FUTSAL') ? 'Futsal'
-                : sportType.startsWith('FOOTBALL') ? 'Football'
-                : sportType}
-            </span>
-          </div>
+          <div className="text-neutral-600 font-bold text-xs shrink-0 px-1">VS</div>
 
-          {/* Opponent */}
-          <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
-            <div className="min-w-0 text-right">
+          {/* Opponent Team */}
+          <div className="flex items-center gap-2 flex-1 min-w-0 flex-row-reverse text-right">
+            <div className="flex-1 min-w-0">
               <p className="text-[12px] font-black text-white truncate leading-tight">{opponent.name}</p>
               {(() => {
                 const r = getRankData(getSportMmr(opponent));
                 return <span className={`inline-flex items-center justify-end gap-1 text-[9px] font-bold ${r.text}`}><img src={r.icon} className="w-3 h-3 object-contain" alt="" />{r.label}</span>;
               })()}
             </div>
-            <div className="w-8 h-8 rounded-xl bg-neutral-800 border border-fuchsia-500/30 overflow-hidden flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-neutral-800 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
               {opponent.logoUrl
                 ? <img src={opponent.logoUrl} className="w-full h-full object-cover" alt={opponent.name} />
-                : <Shield size={14} className="text-fuchsia-400" />}
+                : <Shield size={14} className="text-neutral-400" />}
             </div>
           </div>
         </div>
@@ -439,8 +427,8 @@ export default function InteractionBoardPage() {
             <button onClick={() => setRosterView('mine')}
               className={`flex-1 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-black transition-all ${
                 rosterView === 'mine'
-                  ? amLocked ? 'bg-[#00ff41]/20 border-[#00ff41]/40 text-[#00ff41]' : 'bg-fuchsia-600/20 border-fuchsia-500/40 text-fuchsia-300'
-                  : amLocked ? 'bg-[#00ff41]/10 border-[#00ff41]/20 text-[#00ff41]/70' : 'bg-neutral-900 border-white/5 text-neutral-500'
+                  ? 'bg-[#00ff41]/20 border-[#00ff41]/40 text-[#00ff41]'
+                  : 'bg-neutral-900 border-white/5 text-neutral-500'
               }`}>
               {amLocked ? <Lock size={11} /> : <Clock size={11} />}
               <span className="truncate">You</span>
@@ -450,8 +438,8 @@ export default function InteractionBoardPage() {
             <button onClick={() => setRosterView('opponent')}
               className={`flex-1 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-black transition-all ${
                 rosterView === 'opponent'
-                  ? opponentLocked ? 'bg-fuchsia-500/20 border-fuchsia-500/40 text-fuchsia-200' : 'bg-neutral-800 border-white/10 text-neutral-400'
-                  : opponentLocked ? 'bg-fuchsia-500/10 border-fuchsia-500/20 text-fuchsia-400' : 'bg-neutral-900 border-white/5 text-neutral-500'
+                  ? 'bg-[#00ff41]/20 border-[#00ff41]/40 text-[#00ff41]'
+                  : 'bg-neutral-900 border-white/5 text-neutral-500'
               }`}>
               {opponentLocked ? <Lock size={11} /> : <Clock size={11} />}
               <span className="truncate">{opponent.name}</span>
@@ -475,12 +463,12 @@ export default function InteractionBoardPage() {
                     <div className="mb-4">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Formation <span className="text-red-400">*</span></p>
-                        {formation && <span className="text-[10px] font-black text-fuchsia-400">{formation} selected</span>}
+                        {formation && <span className="text-[10px] font-black text-[#00ff41]">{formation} selected</span>}
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {formations.map(f => (
                           <button key={f} onClick={() => setFormation(f)}
-                            className={`px-4 py-2 rounded-xl text-xs font-black border transition-all ${formation === f ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-neutral-900 border-white/10 text-neutral-500 hover:border-fuchsia-500/40'}`}>
+                            className={`px-4 py-2 rounded-xl text-xs font-black border transition-all ${formation === f ? 'bg-[#00ff41] border-[#00ff41] text-black' : 'bg-neutral-900 border-white/10 text-neutral-500 hover:border-[#00ff41]/40'}`}>
                             {f}
                           </button>
                         ))}
@@ -570,7 +558,7 @@ export default function InteractionBoardPage() {
                       <button
                         onClick={() => doAction('lock_roster', { picks: Object.entries(picks).map(([memberId, isStarter]) => ({ memberId, isStarter })), formation })}
                         disabled={saving || starterCount < minStarters || (isFutsal && !formation)}
-                        className="w-full py-3 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-black uppercase rounded-2xl flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+                        className="w-full py-3 bg-[#00ff41] hover:bg-[#00dd38] text-black font-black uppercase rounded-2xl flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
                         {saving ? <Loader2 size={16} className="animate-spin" /> : <><Lock size={16} /> Lock Roster for This Match</>}
                       </button>
                     </div>
@@ -587,10 +575,10 @@ export default function InteractionBoardPage() {
                 return (
                   <div className="mt-1">
                     {!opponentLocked && (
-                      <div className="mb-4 px-3 py-3 bg-fuchsia-500/10 border border-fuchsia-500/20 rounded-2xl flex flex-col items-center justify-center text-center animate-pulse shadow-[0_0_15px_rgba(168,85,247,0.1)]">
-                        <Clock size={18} className="text-fuchsia-400 mb-1.5" />
-                        <span className="text-xs font-black text-fuchsia-300">Waiting for {opponent.name}</span>
-                        <span className="text-[10px] text-fuchsia-400/60 font-bold mt-0.5">They need to lock their roster before moving to step 2</span>
+                      <div className="mb-4 px-3 py-3 bg-[#00ff41]/5 border border-[#00ff41]/20 rounded-2xl flex flex-col items-center justify-center text-center animate-pulse shadow-[0_0_15px_rgba(0,255,65,0.02)]">
+                        <Clock size={18} className="text-[#00ff41] mb-1.5" />
+                        <span className="text-xs font-black text-[#00ff41]">Waiting for {opponent.name}</span>
+                        <span className="text-[10px] text-[#00ff41]/60 font-bold mt-0.5">They need to lock their roster before moving to step 2</span>
                       </div>
                     )}
                     <div className="flex items-center justify-between mb-3 px-1">
@@ -675,12 +663,12 @@ export default function InteractionBoardPage() {
               return (
                 <div className="mt-1">
                   <div className="flex items-center justify-between mb-3 px-1">
-                    <div className="flex items-center gap-2 text-fuchsia-400">
+                    <div className="flex items-center gap-2 text-[#00ff41]">
                       <Lock size={13} />
                       <span className="text-xs font-black">{opponent.name} — Locked</span>
                     </div>
                     {opponentFormation && (
-                      <span className="text-[10px] font-black text-fuchsia-300 bg-fuchsia-500/20 border border-fuchsia-500/30 px-2 py-0.5 rounded-lg">{opponentFormation}</span>
+                      <span className="text-[10px] font-black text-[#00ff41] bg-[#00ff41]/10 border border-[#00ff41]/25 px-2 py-0.5 rounded-lg">{opponentFormation}</span>
                     )}
                   </div>
 
@@ -755,7 +743,7 @@ export default function InteractionBoardPage() {
             </div>
             <button
               onClick={() => setCurrentStep(2)}
-              className="w-full py-3.5 rounded-2xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+              className="w-full py-3.5 rounded-2xl bg-[#00ff41] hover:bg-[#00dd38] text-black font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
             >
               Continue to Booking →
             </button>
@@ -842,7 +830,7 @@ export default function InteractionBoardPage() {
               <p className="font-black text-white">{match.venueType === 'BMT' ? 'Book via BMT' : 'We&apos;ll Book Ourselves'} proposed</p>
               <p className="text-xs text-neutral-500 mt-1">Waiting for {opponent?.name} to accept…</p>
               <div className="flex gap-1 justify-center mt-3">
-                {[1,2,3].map(i => <div key={i} className="w-2 h-2 rounded-full bg-fuchsia-500 animate-bounce" style={{animationDelay:`${i*0.15}s`}} />)}
+                {[1,2,3].map(i => <div key={i} className="w-2 h-2 rounded-full bg-[#00ff41] animate-bounce" style={{animationDelay:`${i*0.15}s`}} />)}
               </div>
               {/* Allow Team A to change their mind */}
               {isOMC && (
@@ -867,7 +855,7 @@ export default function InteractionBoardPage() {
               <div className="text-4xl mb-3">{match.venueType === 'BMT' ? '🏟️' : '📋'}</div>
               <p className="font-black text-[#00ff41]">✓ Opponent accepted!</p>
               <p className="text-xs text-neutral-500 mt-1">Advancing to booking…</p>
-              <button onClick={() => setCurrentStep(3)} className="mt-4 px-5 py-2 bg-fuchsia-600 text-white font-black rounded-xl text-sm">Continue →</button>
+              <button onClick={() => setCurrentStep(3)} className="mt-4 px-5 py-2 bg-[#00ff41] text-black font-black rounded-xl text-sm hover:bg-[#00dd38] transition-colors">Continue →</button>
             </div>
           )}
 
@@ -939,16 +927,6 @@ export default function InteractionBoardPage() {
               <p className="text-xs mt-1">{match.venueType === 'BMT' ? '🏟️ BMT Booking' : '📋 Open WBT'} proposed</p>
             </div>
           )}
-
-          {/* Team B — confirmed, advance */}
-          {!isTeamA && match.venueType && match.venueConfirmedByB && (
-            <div className="mt-8 text-center">
-              <div className="text-4xl mb-3">{match.venueType === 'BMT' ? '🏟️' : '📋'}</div>
-              <p className="font-black text-[#00ff41]">✓ Venue confirmed!</p>
-              <button onClick={() => setCurrentStep(3)} className="mt-4 px-5 py-2 bg-fuchsia-600 text-white font-black rounded-xl text-sm">Go to Booking →</button>
-            </div>
-          )}
-
         </div>
       )}
 
@@ -970,7 +948,7 @@ export default function InteractionBoardPage() {
                     <p className="font-black text-white text-base">{slotInfo.turfName}</p>
                     <p className="text-sm text-neutral-300 mt-1">🕒 {slotInfo.startTime}–{slotInfo.endTime}</p>
                     <p className="text-xs text-neutral-500 mt-0.5">📅 {match.matchDate}</p>
-                    <p className="text-xs font-bold text-fuchsia-400 mt-2">৳{Math.round(slotInfo.price / 2)} each (50/50 split)</p>
+                    <p className="text-xs font-bold text-[#00ff41] mt-2">৳{Math.round(slotInfo.price / 2)} each (50/50 split)</p>
                   </>
                 ) : (
                   <p className="text-neutral-500 text-sm">Loading slot details…</p>
@@ -1035,7 +1013,7 @@ export default function InteractionBoardPage() {
                     <p className="font-black text-white text-base">{slotInfo.turfName}</p>
                     <p className="text-sm text-neutral-300 mt-1">🕒 {slotInfo.startTime}–{slotInfo.endTime}</p>
                     <p className="text-xs text-neutral-500 mt-0.5">📅 {match.matchDate}</p>
-                    <p className="text-xs font-bold text-fuchsia-400 mt-2">৳{Math.round(slotInfo.price / 2)} each (50/50 split)</p>
+                    <p className="text-xs font-bold text-[#00ff41] mt-2">৳{Math.round(slotInfo.price / 2)} each (50/50 split)</p>
                   </>
                 ) : (
                   <p className="text-neutral-500 text-sm">Loading slot details…</p>
@@ -1055,14 +1033,14 @@ export default function InteractionBoardPage() {
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
                 <input value={venueSearch} onChange={e => { setVenueSearch(e.target.value); }}
                   placeholder="Search turfs…"
-                  className="w-full bg-neutral-900 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white outline-none focus:border-fuchsia-500/50 placeholder:text-neutral-600" />
+                  className="w-full bg-neutral-900 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white outline-none focus:border-[#00ff41]/50 placeholder:text-neutral-600" />
               </div>
               <input type="date" value={venueDate} onChange={e => { setVenueDate(e.target.value); loadVenues(matchData?.match.sportType ?? matchData?.match.teamA.sportType ?? ''); }}
-                className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-fuchsia-500/50 shrink-0 w-36" />
+                className="bg-neutral-900 border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-[#00ff41]/50 shrink-0 w-36" />
             </div>
 
             {venuesLoading ? (
-              <div className="flex justify-center py-16"><Loader2 size={24} className="animate-spin text-fuchsia-500" /></div>
+              <div className="flex justify-center py-16"><Loader2 size={24} className="animate-spin text-[#00ff41]" /></div>
             ) : turfs.filter((t:any) => !venueSearch || t.name.toLowerCase().includes(venueSearch.toLowerCase())).length === 0 ? (
               <div className="py-16 text-center text-neutral-500">
                 <MapPin size={32} className="mx-auto mb-3 opacity-20" />
@@ -1303,9 +1281,9 @@ export default function InteractionBoardPage() {
           if (!chatMessages.length) loadChat();
           setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 150);
         }}
-        className="fixed bottom-20 right-4 z-[100] w-12 h-12 rounded-full bg-fuchsia-600 hover:bg-fuchsia-500 flex items-center justify-center shadow-lg shadow-fuchsia-500/30 transition-all active:scale-95"
+        className="fixed bottom-20 right-4 z-[100] w-12 h-12 rounded-full bg-[#00ff41] hover:bg-[#00dd38] flex items-center justify-center shadow-lg shadow-[#00ff41]/20 transition-all active:scale-95"
       >
-        <MessageCircle size={20} className="text-white" />
+        <MessageCircle size={20} className="text-black" />
         {chatUnread > 0 && (
           <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center animate-bounce">
             {chatUnread > 9 ? '9+' : chatUnread}
@@ -1341,9 +1319,9 @@ export default function InteractionBoardPage() {
                 <div key={m.id} className={`flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
                   <div className={`flex items-center gap-1.5 px-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                     <span className="text-[9px] text-neutral-500 font-bold">{m.player?.fullName}</span>
-                    <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full ${isMe ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>{roleLabel}</span>
+                    <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full ${isMe ? 'bg-[#00ff41]/20 text-[#00ff41] border border-[#00ff41]/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>{roleLabel}</span>
                   </div>
-                  <div className={`px-3 py-2 rounded-2xl max-w-[78%] text-sm ${isMe ? 'bg-fuchsia-600 text-white rounded-tr-sm' : 'bg-neutral-800 border border-white/10 text-white rounded-tl-sm'}`}>{m.message}</div>
+                  <div className={`px-3 py-2 rounded-2xl max-w-[78%] text-sm ${isMe ? 'bg-[#00ff41] text-black rounded-tr-sm' : 'bg-neutral-800 border border-white/10 text-white rounded-tl-sm'}`}>{m.message}</div>
                   <span className="text-[9px] text-neutral-600 px-1">{new Date(m.createdAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>
                 </div>
               );
@@ -1360,12 +1338,12 @@ export default function InteractionBoardPage() {
                 onKeyDown={e => e.key === 'Enter' && sendChat()}
                 placeholder="Message opponent OMC…"
                 autoFocus
-                className="flex-1 bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-neutral-600 outline-none focus:border-fuchsia-500/50"
+                className="flex-1 bg-neutral-900 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-neutral-600 outline-none focus:border-[#00ff41]/50"
               />
               <button
                 onClick={sendChat}
                 disabled={chatSending || !chatMsg.trim()}
-                className="w-11 h-11 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 flex items-center justify-center disabled:opacity-50 shrink-0"
+                className="w-11 h-11 rounded-xl bg-[#00ff41] hover:bg-[#00dd38] text-black flex items-center justify-center disabled:opacity-50 shrink-0"
               >
                 {chatSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
               </button>
@@ -1404,7 +1382,7 @@ export default function InteractionBoardPage() {
                   <button key={m.id} onClick={() => setScorerPlayerId(m.playerId)}
                     className={`flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
                       scorerPlayerId === m.playerId
-                        ? 'bg-fuchsia-600/20 border-fuchsia-500/50 text-fuchsia-300'
+                        ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]'
                         : 'bg-neutral-900 border-white/5 text-white hover:border-white/15'
                     }`}>
                     <div className="w-9 h-9 rounded-full bg-neutral-800 flex items-center justify-center overflow-hidden shrink-0">
@@ -1414,13 +1392,13 @@ export default function InteractionBoardPage() {
                       <p className="font-black text-sm truncate">{m.player?.fullName}</p>
                       <p className="text-[10px] text-neutral-500 capitalize">{m.sportRole || m.role}</p>
                     </div>
-                    {scorerPlayerId === m.playerId && <CheckCircle size={16} className="text-fuchsia-400 shrink-0" />}
+                    {scorerPlayerId === m.playerId && <CheckCircle size={16} className="text-[#00ff41] shrink-0" />}
                   </button>
                 ))}
               </div>
               <div className="shrink-0 pt-4">
                 <button onClick={assignScorer} disabled={!scorerPlayerId || scorerSaving}
-                  className="w-full py-3.5 rounded-2xl bg-fuchsia-600 text-white font-black text-sm disabled:opacity-40 flex items-center justify-center gap-2 transition-all">
+                  className="w-full py-3.5 rounded-2xl bg-[#00ff41] hover:bg-[#00dd38] text-black font-black text-sm disabled:opacity-40 flex items-center justify-center gap-2 transition-all">
                   {scorerSaving ? <Loader2 size={16} className="animate-spin" /> : '✓ Assign Scorer'}
                 </button>
               </div>

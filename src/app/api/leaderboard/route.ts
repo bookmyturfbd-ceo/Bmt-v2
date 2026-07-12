@@ -54,6 +54,21 @@ export async function GET(req: NextRequest) {
 
   try {
     if (type === 'teams') {
+      // Fetch completed tournament matches to compute played & wins if tournament category
+      const completedTMatches = await prisma.tournamentMatch.findMany({
+        where: { status: 'COMPLETED' },
+        select: { teamAId: true, teamBId: true, winnerId: true }
+      });
+      const tPlayedMap = new Map<string, number>();
+      const tWinsMap = new Map<string, number>();
+      completedTMatches.forEach(m => {
+        tPlayedMap.set(m.teamAId, (tPlayedMap.get(m.teamAId) ?? 0) + 1);
+        tPlayedMap.set(m.teamBId, (tPlayedMap.get(m.teamBId) ?? 0) + 1);
+        if (m.winnerId) {
+          tWinsMap.set(m.winnerId, (tWinsMap.get(m.winnerId) ?? 0) + 1);
+        }
+      });
+
       if (sport === 'ALL') {
         const teams = await prisma.team.findMany({
           where: {
@@ -85,9 +100,16 @@ export async function GET(req: NextRequest) {
         });
 
         const enriched = teams.map(t => {
-          const allMatches = [...t.matchesAsTeamA, ...t.matchesAsTeamB];
-          const wins   = allMatches.filter(m => m.winnerId === t.id).length;
-          const played = allMatches.length;
+          let played = 0;
+          let wins = 0;
+          if (category === 'tournament') {
+            played = tPlayedMap.get(t.id) ?? 0;
+            wins = tWinsMap.get(t.id) ?? 0;
+          } else {
+            const allMatches = [...t.matchesAsTeamA, ...t.matchesAsTeamB];
+            wins   = allMatches.filter(m => m.winnerId === t.id).length;
+            played = allMatches.length;
+          }
           const mmrFieldForTeam = t.sportType?.includes('CRICKET')
             ? (category === 'tournament' ? 'tournamentCricketMmr' : 'cricketMmr')
             : (category === 'tournament' ? 'tournamentFootballMmr' : 'footballMmr');
@@ -116,7 +138,6 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ leaderboard: top50 });
       } else {
         const whereClause: any = {
-          [mmrField]: { gte: minMmr, lte: maxMmr },
           isDisbanded: false,
           sportType: { in: sportTypes },
         };
@@ -151,9 +172,16 @@ export async function GET(req: NextRequest) {
         });
 
         const enriched = teams.map((t, idx) => {
-          const allMatches = [...t.matchesAsTeamA, ...t.matchesAsTeamB];
-          const wins   = allMatches.filter(m => m.winnerId === t.id).length;
-          const played = allMatches.length;
+          let played = 0;
+          let wins = 0;
+          if (category === 'tournament') {
+            played = tPlayedMap.get(t.id) ?? 0;
+            wins = tWinsMap.get(t.id) ?? 0;
+          } else {
+            const allMatches = [...t.matchesAsTeamA, ...t.matchesAsTeamB];
+            wins   = allMatches.filter(m => m.winnerId === t.id).length;
+            played = allMatches.length;
+          }
           const mmr    = t[mmrField as keyof typeof t] as number;
           return {
             rank     : idx + 1,
@@ -168,7 +196,9 @@ export async function GET(req: NextRequest) {
             winRate  : played > 0 ? Math.round((wins / played) * 100) : 0,
             isDisbanded: t.isDisbanded,
           };
-        });
+        })
+        .filter(t => t.mmr >= minMmr && t.mmr <= maxMmr)
+        .sort((a, b) => b.mmr - a.mmr);
 
         return NextResponse.json({ leaderboard: enriched });
       }

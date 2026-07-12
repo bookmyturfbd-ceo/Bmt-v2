@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { getCookie } from '@/lib/cookies';
 import { Link } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
@@ -117,6 +118,7 @@ export default function ProfilePage() {
   const t = useTranslations('Profile');
   const params = useParams();
   const locale = (params?.locale as string) || 'en';
+  const router = useRouter();
 
   const [isAuthed, setIsAuthed] = useState<boolean | null>(null);
   const [playerId, setPlayerId] = useState('');
@@ -135,6 +137,13 @@ export default function ProfilePage() {
   const [showBadgeModal, setShowBadgeModal] = useState(false);
   const [togglingBadge, setTogglingBadge] = useState<string | null>(null);
   const avatarRef = useRef<HTMLInputElement>(null);
+
+  const signOut = () => {
+    ['bmt_auth', 'bmt_role', 'bmt_player_id', 'bmt_name'].forEach(k => {
+      document.cookie = `${k}=; path=/; max-age=0`;
+    });
+    router.replace(`/${locale}/login`);
+  };
 
   const loadData = useCallback(async (pid: string) => {
     const [ps, bs, ss, ts, so] = await Promise.all([
@@ -164,6 +173,12 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (profile && !loading) {
+      // ── Redirect to new FIFA-style public profile ──────────────────────────
+      // The /player/[code] page shows the owner view when logged in.
+      if (profile.playerCode) {
+        router.replace(`/${locale}/player/${profile.playerCode}`);
+        return;
+      }
       const matchStats = profile.matchStats || [];
       const rankCount = matchStats.filter((s: any) => s.team?.teamType !== 'TOURNAMENT').length;
       const tourneyCount = matchStats.filter((s: any) => s.team?.teamType === 'TOURNAMENT').length;
@@ -682,6 +697,18 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+
+      {/* ── Sign Out Button ── */}
+      <div className="mx-4 mt-6">
+        <button
+          onClick={signOut}
+          className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-black hover:bg-red-500/15 active:scale-95 transition-all"
+        >
+          <LogOut size={15} />
+          Sign out
+        </button>
+      </div>
+
       {/* ── Badge Showcase Modal ── */}
       {showBadgeModal && (
         <div className="fixed inset-0 z-[100] flex flex-col justify-end">

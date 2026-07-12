@@ -7,51 +7,52 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { name, email, phone, password, inviteToken } = body;
     
-    if (!name || !email || !password || !inviteToken) {
+    if (!name || !email || !password) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Validate invite
-    const invite = await prisma.organizerInvite.findUnique({ where: { inviteToken } });
-    if (!invite) {
-      return NextResponse.json({ success: false, error: 'Invalid invite token' }, { status: 400 });
-    }
-
-    if (invite.status !== 'PENDING' || invite.expiresAt < new Date()) {
-      return NextResponse.json({ success: false, error: 'Invite token is expired or already used' }, { status: 400 });
+    // Validate invite if provided
+    let invite = null;
+    if (inviteToken) {
+      invite = await prisma.organizerInvite.findUnique({ where: { inviteToken } });
+      if (!invite) {
+        return NextResponse.json({ success: false, error: 'Invalid invite token' }, { status: 400 });
+      }
+      if (invite.status !== 'PENDING' || invite.expiresAt < new Date()) {
+        return NextResponse.json({ success: false, error: 'Invite token is expired or already used' }, { status: 400 });
+      }
     }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create organizer and wallet in a transaction
-    const [organizer] = await prisma.$transaction([
-      prisma.organizer.create({
-        data: {
-          name,
-          email: normalizedEmail,
-          phone: phone || '',
-          password: hashedPassword,
-          isVerified: true,
-          inviteId: invite.id,
-          wallet: {
-            create: { balance: 0 }
-          }
+    // Create organizer and wallet
+    const organizer = await prisma.organizer.create({
+      data: {
+        name,
+        email: normalizedEmail,
+        phone: phone || '',
+        password: hashedPassword,
+        isVerified: true,
+        inviteId: invite ? invite.id : null,
+        wallet: {
+          create: { balance: 0 }
         }
-      }),
-      prisma.organizerInvite.update({
-        where: { id: invite.id },
-        data: { status: 'ACCEPTED', acceptedAt: new Date() }
-      })
-    ]);
-
-    // Update invite with organizer ID
-    await prisma.organizerInvite.update({
-      where: { id: invite.id },
-      data: { organizerUserId: organizer.id }
+      }
     });
+
+    if (invite) {
+      await prisma.organizerInvite.update({
+        where: { id: invite.id },
+        data: {
+          status: 'ACCEPTED',
+          acceptedAt: new Date(),
+          organizerUserId: organizer.id
+        }
+      });
+    }
 
     // Don't return password
     const { password: _, ...safeOrganizer } = organizer;

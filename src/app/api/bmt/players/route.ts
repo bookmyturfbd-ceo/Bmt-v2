@@ -105,10 +105,33 @@ export async function POST(req: NextRequest) {
   }
   
   // Duplicate phone check
+  const normalizedPhone = phone.trim();
+  const localVariant = normalizedPhone.startsWith('8801') && normalizedPhone.length === 13 ? normalizedPhone.slice(2) : null;
+  const plusVariant = '+' + normalizedPhone;
+
+  // Check existing player
   const existingPhone = await prisma.player.findFirst({
-    where: { phone: { equals: phone.trim() } },
+    where: {
+      OR: [
+        { phone: normalizedPhone },
+        { phone: plusVariant },
+        ...(localVariant ? [{ phone: localVariant }] : [])
+      ]
+    }
   });
-  if (existingPhone) {
+
+  // Check existing owner
+  const existingOwner = await prisma.owner.findFirst({
+    where: {
+      OR: [
+        { phone: normalizedPhone },
+        { phone: plusVariant },
+        ...(localVariant ? [{ phone: localVariant }] : [])
+      ]
+    }
+  });
+
+  if (existingPhone || existingOwner) {
     return NextResponse.json(
       { error: 'An account with this phone number already exists.' },
       { status: 409 }

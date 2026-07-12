@@ -1,4 +1,5 @@
 'use client';
+import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 
@@ -15,6 +16,27 @@ interface SponsorSettings {
 
 export default function SponsorsBar({ sponsors, settings }: { sponsors: Sponsor[]; settings: SponsorSettings }) {
   const t = useTranslations('Home');
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!settings.autoSlide || !sponsors || sponsors.length <= 1) return;
+
+    const interval = setInterval(() => {
+      if (!scrollRef.current) return;
+      const el = scrollRef.current;
+      const maxScroll = el.scrollWidth - el.clientWidth;
+
+      if (el.scrollLeft >= maxScroll - 5) {
+        el.scrollTo({ left: 0, behavior: 'smooth' });
+      } else {
+        // Scroll by one sponsor item's width + gap
+        el.scrollBy({ left: 100, behavior: 'smooth' });
+      }
+    }, settings.intervalMs);
+
+    return () => clearInterval(interval);
+  }, [settings.autoSlide, settings.intervalMs, sponsors]);
+
   if (!sponsors || sponsors.length === 0) return null;
 
   return (
@@ -23,7 +45,10 @@ export default function SponsorsBar({ sponsors, settings }: { sponsors: Sponsor[
         <h3 className="text-xs font-black uppercase tracking-widest text-[var(--muted)]">{t('ourPartners')}</h3>
       </div>
 
-      <div className="flex items-center justify-center gap-2 md:gap-3 py-1">
+      <div 
+        ref={scrollRef}
+        className="flex items-center gap-2 md:gap-3 py-1 overflow-x-auto hide-scrollbar [&::-webkit-scrollbar]:hidden scroll-smooth snap-x snap-mandatory justify-start sm:justify-center"
+      >
         {sponsors.map((sponsor) => {
           const content = (
             <div className="w-full aspect-square rounded-2xl md:rounded-3xl border border-[var(--panel-border)] bg-white/[0.02] backdrop-blur-md p-1.5 md:p-2 flex flex-col items-center justify-between hover:border-accent/40 hover:bg-white/[0.04] transition-all shadow-lg group">
@@ -47,14 +72,21 @@ export default function SponsorsBar({ sponsors, settings }: { sponsors: Sponsor[
                 href={sponsor.ctaLink} 
                 target="_blank" 
                 rel="noopener noreferrer" 
-                className="flex-1 min-w-[70px] max-w-[110px] outline-none"
+                className="flex-1 min-w-[85px] max-w-[110px] shrink-0 snap-center outline-none"
                 draggable={false}
               >
                 {content}
               </a>
             );
           }
-          return <div key={sponsor.id} className="flex-1 min-w-[70px] max-w-[110px]">{content}</div>;
+          return (
+            <div 
+              key={sponsor.id} 
+              className="flex-1 min-w-[85px] max-w-[110px] shrink-0 snap-center"
+            >
+              {content}
+            </div>
+          );
         })}
       </div>
     </div>

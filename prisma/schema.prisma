@@ -251,8 +251,9 @@ model City {
 
   division Division @relation(fields: [divisionId], references: [id], onDelete: Cascade)
   turfs    Turf[]
-  homeTeams Team[]  @relation("TeamHomeAreas")
-  wbtTurfs WbtTurf[]
+  homeTeams   Team[]   @relation("TeamHomeAreas")
+  homePlayers Player[] @relation("PlayerHomeArea")
+  wbtTurfs    WbtTurf[]
 
   @@unique([name, divisionId])
   @@map("cities")
@@ -339,6 +340,11 @@ model Player {
   // Gamification & Badges
   badges               PlayerBadge[]
 
+  academies        Academy[]        @relation("PlayerAcademies")
+  coachedAcademies AcademyCoach[]  @relation("CoachPlayerProfiles")
+  inquiries        AcademyInquiry[] @relation("PlayerInquiries")
+  alumni           AcademyAlumni[]  @relation("PlayerAlumni")
+
   // Cricket Stats Relations
   battingPerformances  BattingPerformance[]
   bowlingPerformances  BowlingPerformance[]
@@ -348,7 +354,50 @@ model Player {
 
   proposedSingleScorerFor Match[] @relation("MatchProposedScorer")
 
+  // Public identity fields (all visible on /player/[code])
+  position      String?   // GK | DEF | MID | FWD
+  preferredFoot String?   // L | R | Both
+  homeAreaId    String?
+  homeArea      City?     @relation("PlayerHomeArea", fields: [homeAreaId], references: [id])
+  ageBracket    String?   // U18 | 18-24 | 25-34 | 35+
+
+  // Khep availability — supply-side for future Khep Market (see KHEP_MARKET_HOOK)
+  khepAvailability KhepAvailability?
+
   @@map("players")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KHEP AVAILABILITY — Supply-side inventory for future Khep Market
+// KHEP_MARKET_HOOK: search/marketplace UI is a later feature; toggle + storage built here
+// ─────────────────────────────────────────────────────────────────────────────
+
+model KhepAvailability {
+  playerId  String   @id
+  available Boolean  @default(false)
+  positions String[] // e.g. ["GK", "DEF"]
+  areas     String[] // city name strings for quick display
+  updatedAt DateTime @updatedAt
+
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("khep_availability")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SEASONS — Named competitive periods for HoF + reward surfacing
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Season {
+  id        String   @id @default(cuid())
+  name      String   @unique  // e.g. "Season 1"
+  sport     String?            // null = all sports; "FUTSAL" | "CRICKET" etc.
+  startsAt  DateTime
+  endsAt    DateTime
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("seasons")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -395,6 +444,7 @@ model Owner {
   ledgerEntries LedgerEntry[]
   ledgerConclusions LedgerConclusion[]
   financeLock   FinanceLock?
+  academies     Academy[]     @relation("OwnerAcademies")
 
   @@map("owners")
 }
@@ -855,6 +905,7 @@ model Team {
   announcements       TeamAnnouncement[]
 
   isSubscribed Boolean @default(false)
+  isVerified   Boolean @default(false)
   homeAreas    City[]  @relation("TeamHomeAreas")
   homeTurfs    Turf[]  @relation("TeamHomeTurfs")
   
@@ -863,6 +914,8 @@ model Team {
   isDisbanded  Boolean  @default(false)
   teamCode     String?  @unique
   invitations  TeamInvitation[]
+  lineupTemplates TeamLineupTemplate[]
+  openChallenges OpenChallenge[]
 
   @@map("teams")
 }
@@ -2397,3 +2450,202 @@ model AttendanceRecord {
   @@unique([bookingId, date])
   @@map("attendance_records")
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEAM LINEUP TEMPLATES
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum MatchFormat {
+  F_5v5   @map("5v5")
+  F_6v6   @map("6v6")
+  F_7v7   @map("7v7")
+  F_11v11 @map("11v11")
+}
+
+model TeamLineupTemplate {
+  id        String      @id @default(cuid())
+  teamId    String      @map("team_id")
+  format    MatchFormat
+  formation String
+  positions Json        // [{ slot: 'ALA_L', player_id: uuid|null }, ...]
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  team      Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, format])
+  @@map("team_lineup_templates")
+}
+
+model OpenChallenge {
+  id          String   @id @default(cuid())
+  teamId      String   @map("team_id")
+  format      String   // e.g. "FUTSAL_5", "CRICKET_7", "FOOTBALL_FULL", etc.
+  windowStart DateTime @map("window_start")
+  windowEnd   DateTime @map("window_end")
+  area        String
+  tierMin     String?  @map("tier_min")
+  tierMax     String?  @map("tier_max")
+  note        String?
+  status      String   @default("open") // open | accepted | expired | withdrawn
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@map("open_challenges")
+}
+
+enum AcademyVerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum AcademyStatus {
+  DRAFT
+  PUBLISHED
+  SUSPENDED
+}
+
+model Academy {
+  id                 String                     @id @default(cuid())
+  ownerPlayerId      String?                    @map("owner_player_id")
+  ownerOwnerId       String?                    @map("owner_owner_id")
+  name               String
+  slug               String                     @unique
+  tagline            String?
+  description        String?
+  sport              String[]                   // e.g. ["FUTSAL", "FOOTBALL", "CRICKET"]
+  address            String
+  area               String
+  lat                Float?
+  lng                Float?
+  phone              String
+  whatsapp           String?
+  facebookUrl        String?                    @map("facebook_url")
+  verificationStatus AcademyVerificationStatus  @default(UNVERIFIED) @map("verification_status")
+  status             AcademyStatus              @default(DRAFT)
+  featured           Boolean                    @default(false)
+  createdAt          DateTime                   @default(now()) @map("created_at")
+  updatedAt          DateTime                   @updatedAt @map("updated_at")
+
+  ownerPlayer        Player?                    @relation("PlayerAcademies", fields: [ownerPlayerId], references: [id])
+  ownerOwner         Owner?                     @relation("OwnerAcademies", fields: [ownerOwnerId], references: [id])
+  
+  media              AcademyMedia[]
+  programs           AcademyProgram[]
+  coaches            AcademyCoach[]
+  inquiries          AcademyInquiry[]
+  alumni             AcademyAlumni[]
+  views              AcademyListingView[]
+
+  @@map("academies")
+}
+
+enum AcademyMediaType {
+  PHOTO
+  VIDEO_URL
+}
+
+model AcademyMedia {
+  id          String           @id @default(cuid())
+  academyId   String           @map("academy_id")
+  type        AcademyMediaType @default(PHOTO)
+  url         String
+  sortOrder   Int              @default(0) @map("sort_order")
+  caption     String?
+
+  academy     Academy          @relation(fields: [academyId], references: [id], onDelete: Cascade)
+
+  @@map("academy_media")
+}
+
+model AcademyProgram {
+  id            String    @id @default(cuid())
+  academyId     String    @map("academy_id")
+  name          String
+  sport         String
+  ageGroup      String    @map("age_group") // e.g. 'U10', 'U14', '16+', 'Adults'
+  scheduleText  String    @map("schedule_text")
+  monthlyFeeBdt Int?      @map("monthly_fee_bdt") // null = "contact for fee"
+  batchSize     Int?      @map("batch_size")
+  description   String?
+  sortOrder     Int       @default(0) @map("sort_order")
+
+  academy       Academy   @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  inquiries     AcademyInquiry[]
+
+  @@map("academy_programs")
+}
+
+model AcademyCoach {
+  id            String    @id @default(cuid())
+  academyId     String    @map("academy_id")
+  coachPlayerId String?   @map("coach_player_id") // real BMT player/coach profile trust link
+  name          String
+  title         String
+  photoUrl      String?   @map("photo_url")
+  bio           String?
+  sortOrder     Int       @default(0) @map("sort_order")
+
+  academy       Academy   @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  coachPlayer   Player?   @relation("CoachPlayerProfiles", fields: [coachPlayerId], references: [id])
+
+  @@map("academy_coaches")
+}
+
+enum AcademyInquiryStatus {
+  NEW
+  CONTACTED
+  ENROLLED
+  CLOSED
+}
+
+model AcademyInquiry {
+  id              String               @id @default(cuid())
+  academyId       String               @map("academy_id")
+  fromPlayerId    String               @map("from_player_id")
+  programId       String?              @map("program_id")
+  studentName     String               @map("student_name")
+  studentAge      Int?                 @map("student_age")
+  message         String
+  phone           String
+  status          AcademyInquiryStatus @default(NEW)
+  createdAt       DateTime             @default(now()) @map("created_at")
+  statusUpdatedAt DateTime             @updatedAt @map("status_updated_at")
+
+  academy         Academy              @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  fromPlayer      Player               @relation("PlayerInquiries", fields: [fromPlayerId], references: [id])
+  program         AcademyProgram?      @relation(fields: [programId], references: [id], onDelete: SetNull)
+
+  @@map("academy_inquiries")
+}
+
+model AcademyAlumni {
+  id                 String   @id @default(cuid())
+  academyId          String   @map("academy_id")
+  playerId           String   @map("player_id")
+  addedBy            String   @map("added_by") // 'ACADEMY' | 'PLAYER'
+  confirmedByPlayer  Boolean  @default(false) @map("confirmed_by_player")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  academy            Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
+  player             Player   @relation("PlayerAlumni", fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([academyId, playerId])
+  @@map("academy_alumni")
+}
+
+model AcademyListingView {
+  id        String   @id @default(cuid())
+  academyId String   @map("academy_id")
+  playerId  String?  @map("player_id")
+  ipAddress String?  @map("ip_address")
+  viewedAt  DateTime @default(now()) @map("viewed_at")
+
+  academy   Academy  @relation(fields: [academyId], references: [id], onDelete: Cascade)
+
+  @@map("academy_listing_views")
+}
+
+

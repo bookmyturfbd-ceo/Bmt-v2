@@ -1,12 +1,17 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { MapPin, Tent, Trophy, Users, Star, X, Loader2, Swords, Clock, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useParams, useRouter, useSearchParams, usePathname } from 'next/navigation';
+import Link from 'next/link';
+import {
+  MapPin, Tent, Trophy, Users, Star, X, Loader2, Swords,
+  Clock, CheckCircle2, XCircle, AlertTriangle, Settings,
+  ChevronRight, Zap, Shield, Target, TrendingUp, BarChart2, Award, UserCircle2
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import SquadManager from '@/components/teams/SquadManager';
 import { getRankData } from '@/lib/rankUtils';
 
-// Local rank math removed, using canonical getRankData from rankUtils
-// ── Season Countdown ──
+// ── Season Countdown ──────────────────────────────────────────────────────
 function useCountdown(endDate: string | null) {
   const [remaining, setRemaining] = useState('');
   useEffect(() => {
@@ -27,85 +32,104 @@ function useCountdown(endDate: string | null) {
   return remaining;
 }
 
-// ── Editable Decree Card ────────────────────────────────────────────────────
+// ── Skeleton components ────────────────────────────────────────────────────
+function SkeletonBlock({ className = '' }: { className?: string }) {
+  return (
+    <div
+      className={`bg-[var(--bg-surface-raised)] rounded-xl animate-pulse ${className}`}
+    />
+  );
+}
+
+function SkeletonBanners() {
+  return (
+    <div className="grid grid-cols-3 gap-2 px-4 py-6">
+      <SkeletonBlock className="h-64 rounded-2xl" />
+      <div className="flex flex-col items-center gap-3 pt-6">
+        <SkeletonBlock className="w-20 h-20 rounded-full" />
+        <SkeletonBlock className="h-4 w-28" />
+        <SkeletonBlock className="h-3 w-16" />
+        <SkeletonBlock className="h-8 w-full rounded-lg" />
+        <SkeletonBlock className="h-8 w-full rounded-lg" />
+      </div>
+      <SkeletonBlock className="h-64 rounded-2xl" />
+    </div>
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <div className="bmt-surface p-4 flex flex-col gap-3">
+      <SkeletonBlock className="h-4 w-32" />
+      <SkeletonBlock className="h-3 w-full" />
+      <SkeletonBlock className="h-3 w-3/4" />
+    </div>
+  );
+}
+
+// ── Editable Decree Card ──────────────────────────────────────────────────
 function EditableDecree({
   ann, isOMC, isEditing, saving,
   onEdit, onDelete, onSave, onCancel,
 }: {
-  ann: any;
-  isOMC: boolean;
-  isEditing: boolean;
-  saving: boolean;
-  onEdit: () => void;
-  onDelete: () => void;
-  onSave: (title: string, content: string) => void;
-  onCancel: () => void;
+  ann: any; isOMC: boolean; isEditing: boolean; saving: boolean;
+  onEdit: () => void; onDelete: () => void;
+  onSave: (title: string, content: string) => void; onCancel: () => void;
 }) {
   const [editTitle,   setEditTitle]   = useState(ann.title);
   const [editContent, setEditContent] = useState(ann.content);
-
-  // Reset local state whenever a different decree enters edit mode
   useEffect(() => {
     if (isEditing) { setEditTitle(ann.title); setEditContent(ann.content); }
   }, [isEditing, ann.title, ann.content]);
 
   return (
-    <div className="border border-[#a67c52]/20 rounded-2xl overflow-hidden" style={{ background: 'rgba(0,0,0,0.3)' }}>
+    <div
+      className="rounded-2xl overflow-hidden"
+      style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(166,124,82,0.2)' }}
+    >
       {isEditing ? (
         <div className="p-4 flex flex-col gap-2">
-          <p className="text-[#d4af37] text-[9px] font-black uppercase tracking-widest mb-1">✏️ Edit Decree</p>
+          <p style={{ color: 'var(--gold)' }} className="text-[9px] font-black uppercase tracking-widest mb-1">✏️ Edit Decree</p>
           <input
             value={editTitle}
             onChange={e => setEditTitle(e.target.value)}
-            className="w-full bg-black/50 border border-[#a67c52]/30 rounded-xl px-4 py-2.5 text-sm text-[#e6d0a3] focus:outline-none focus:border-[#d4af37] font-serif italic placeholder:text-[#a67c52]/40"
+            className="w-full bg-black/50 rounded-xl px-4 py-2.5 text-sm focus:outline-none font-serif italic"
+            style={{ border: '1px solid rgba(166,124,82,0.3)', color: '#e6d0a3' }}
           />
           <textarea
             value={editContent}
             onChange={e => setEditContent(e.target.value)}
             rows={3}
-            className="w-full bg-black/50 border border-[#a67c52]/30 rounded-xl px-4 py-2.5 text-sm text-[#e6d0a3] focus:outline-none focus:border-[#d4af37] font-serif resize-none"
+            className="w-full bg-black/50 rounded-xl px-4 py-2.5 text-sm focus:outline-none font-serif resize-none"
+            style={{ border: '1px solid rgba(166,124,82,0.3)', color: '#e6d0a3' }}
           />
           <div className="flex gap-2 mt-1">
             <button
               onClick={() => onSave(editTitle, editContent)}
               disabled={saving || !editTitle.trim() || !editContent.trim()}
-              className="flex-1 py-2 rounded-xl font-black text-sm transition-all disabled:opacity-40 border border-[#d4af37]/50"
-              style={{ background: 'linear-gradient(90deg, #6b3c10, #a06420, #6b3c10)', color: '#fde8a0' }}
-            >
-              💾 Save
-            </button>
+              className="flex-1 py-2 rounded-xl font-black text-sm transition-all disabled:opacity-40"
+              style={{ background: 'linear-gradient(90deg,#6b3c10,#a06420,#6b3c10)', color: '#fde8a0', border: `1px solid rgba(212,175,55,0.5)` }}
+            >💾 Save</button>
             <button
               onClick={onCancel}
-              className="flex-1 py-2 rounded-xl font-black text-sm bg-neutral-800 hover:bg-neutral-700 text-[#a67c52] border border-[#a67c52]/20 transition-colors"
-            >
-              Cancel
-            </button>
+              className="flex-1 py-2 rounded-xl font-black text-sm transition-colors"
+              style={{ background: 'var(--bg-surface-raised)', color: '#a67c52', border: '1px solid rgba(166,124,82,0.2)' }}
+            >Cancel</button>
           </div>
         </div>
       ) : (
         <div className="p-4">
           <div className="flex items-start justify-between gap-2 mb-1.5">
-            <p className="font-serif font-black text-[#e6d0a3] text-sm leading-snug flex-1">{ann.title}</p>
+            <p className="font-serif font-black text-sm leading-snug flex-1" style={{ color: '#e6d0a3' }}>{ann.title}</p>
             {isOMC && (
               <div className="flex gap-1.5 shrink-0">
-                <button
-                  onClick={onEdit}
-                  className="text-[9px] px-2 py-1 rounded-lg bg-[#a67c52]/10 hover:bg-[#a67c52]/20 border border-[#a67c52]/20 text-[#a67c52] hover:text-[#d4af37] font-black uppercase tracking-wider transition-colors"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={onDelete}
-                  disabled={saving}
-                  className="text-[9px] px-2 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 font-black uppercase tracking-wider transition-colors disabled:opacity-40"
-                >
-                  Del
-                </button>
+                <button onClick={onEdit} className="text-[9px] px-2 py-1 rounded-lg font-black uppercase tracking-wider transition-colors" style={{ background: 'rgba(166,124,82,0.1)', border: '1px solid rgba(166,124,82,0.2)', color: '#a67c52' }}>Edit</button>
+                <button onClick={onDelete} disabled={saving} className="text-[9px] px-2 py-1 rounded-lg font-black uppercase tracking-wider transition-colors disabled:opacity-40" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>Del</button>
               </div>
             )}
           </div>
-          <p className="font-serif text-[#a67c52] text-xs leading-relaxed whitespace-pre-wrap">{ann.content}</p>
-          <p className="text-[#a67c52]/40 text-[9px] font-bold mt-2 uppercase tracking-widest">
+          <p className="font-serif text-xs leading-relaxed whitespace-pre-wrap" style={{ color: '#a67c52' }}>{ann.content}</p>
+          <p className="text-[9px] font-bold mt-2 uppercase tracking-widest" style={{ color: 'rgba(166,124,82,0.4)' }}>
             {new Date(ann.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
           </p>
         </div>
@@ -114,54 +138,179 @@ function EditableDecree({
   );
 }
 
+// ── Compact Rank Badge ─────────────────────────────────────────────────────
+function CompactRankBadge({
+  label, mmr, rankData, isProv, provisionalCount, provTarget,
+}: {
+  label: string; mmr: number; rankData: any; isProv: boolean;
+  provisionalCount: number; provTarget: number;
+}) {
+  return (
+    <div
+      className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl flex-1"
+      style={{
+        background: isProv ? 'var(--bg-surface)' : `rgba(${rankData.glow},0.08)`,
+        border: isProv ? '1px solid var(--border-subtle)' : `1px solid rgba(${rankData.glow},0.25)`,
+      }}
+    >
+      <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: isProv ? 'var(--text-muted)' : rankData.color }}>{label}</p>
+      {isProv ? (
+        <span className="text-[9px] font-black" style={{ color: 'var(--text-muted)' }}>{provisionalCount}/{provTarget}</span>
+      ) : (
+        <span className="text-[10px] font-black" style={{ color: rankData.color }}>{rankData.label}</span>
+      )}
+      <span className="text-[8px] font-bold" style={{ color: 'var(--text-muted)' }}>{isProv ? 'Provisional' : mmr + ' MMR'}</span>
+    </div>
+  );
+}
+
+// ── Rank Banner (full size for Overview tab) ───────────────────────────────
+function RankBanner({
+  label, mmr, rankData, isProv, provisionalCount, provTarget, labelColor,
+}: {
+  label: string; mmr: number; rankData: any; isProv: boolean;
+  provisionalCount: number; provTarget: number; labelColor: string;
+}) {
+  return (
+    <div className="flex flex-col items-center relative z-0">
+      <div
+        style={{
+          clipPath: 'polygon(0% 0%,100% 0%,95% 5%,95% 85%,100% 90%,80% 90%,50% 100%,20% 90%,0% 90%,5% 85%,5% 5%)',
+          background: isProv
+            ? 'linear-gradient(to bottom,rgba(163,163,163,0.2),rgba(10,10,10,0.9))'
+            : `linear-gradient(to bottom,rgba(${rankData.glow},0.4),rgba(10,10,10,0.9))`,
+        }}
+        className={`w-full h-80 backdrop-blur-md flex flex-col items-center justify-start pt-8 pb-10 shadow-2xl relative overflow-hidden group ${isProv ? 'bmt-shimmer' : ''}`}
+      >
+        <img
+          src="/banners/Banner%2001.svg"
+          className="absolute top-0 left-0 w-full h-full object-cover mix-blend-overlay opacity-60 group-hover:scale-105 transition-transform duration-700 pointer-events-none"
+          alt=""
+        />
+        <div
+          className="absolute inset-[2px] pointer-events-none"
+          style={{
+            clipPath: 'polygon(0% 0%,100% 0%,95% 5%,95% 85%,100% 90%,80% 90%,50% 100%,20% 90%,0% 90%,5% 85%,5% 5%)',
+            background: isProv
+              ? 'linear-gradient(to bottom,rgba(163,163,163,0.1),transparent)'
+              : `linear-gradient(to bottom,rgba(${rankData.glow},0.2),transparent)`,
+          }}
+        />
+        <p className="text-[10px] font-bold uppercase tracking-widest leading-tight" style={{ color: labelColor }}>
+          {label.toUpperCase()}
+        </p>
+        <p className="text-[10px] font-bold uppercase tracking-widest leading-tight mb-1" style={{ color: labelColor }}>MMR</p>
+        <p className="text-sm font-black tracking-widest">{isProv ? '—' : mmr}</p>
+        <div className="w-8 h-[1px] my-2" style={isProv ? { background: 'rgba(163,163,163,0.3)' } : { background: `rgba(${rankData.glow},0.4)` }} />
+        <div className="mt-auto flex flex-col items-center w-full">
+          {isProv ? (
+            <div className="w-16 h-16 rounded-full border-2 border-dashed border-neutral-700 flex items-center justify-center text-neutral-500 text-2xl font-black bg-neutral-900 mb-2">?</div>
+          ) : (
+            <img src={rankData.icon} className="w-20 h-20 object-contain drop-shadow-[0_4px_16px_rgba(255,255,255,0.25)]" alt="Rank" />
+          )}
+          <p className="text-[10px] font-bold uppercase tracking-widest mt-1 text-neutral-500">Rank</p>
+          <p className="text-xs font-black text-center leading-tight px-1" style={{ color: isProv ? '#a3a3a3' : rankData.color }}>
+            {isProv ? `Unranked` : rankData.label}
+          </p>
+          {isProv && (
+            <p className="text-[9px] font-bold text-neutral-500 mt-1 uppercase tracking-wider">{provisionalCount}/{provTarget} Matches</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Tab definitions ────────────────────────────────────────────────────────
+const TABS = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'squad',    label: 'Squad'    },
+  { key: 'stats',    label: 'Stats'    },
+] as const;
+type TabKey = typeof TABS[number]['key'];
+
+// ── Framer Motion variants ─────────────────────────────────────────────────
+const tabVariants = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' as const } },
+  exit:    { opacity: 0, y: -4, transition: { duration: 0.15, ease: 'easeIn' as const } },
+};
+
+const btnTap = { scale: 0.97 };
+
+// ─────────────────────────────────────────────────────────────────────────────
 export default function SingleTeamPage() {
   const { id, locale = 'en' } = useParams() as { id: string; locale?: string };
-  const router = useRouter();
-  
+  const router   = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // ── Tab state ──
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+    const t = searchParams.get('tab') as TabKey | null;
+    return TABS.some(tab => tab.key === t) ? (t as TabKey) : 'overview';
+  });
+
+  const switchTab = useCallback((t: TabKey) => {
+    setActiveTab(t);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', t);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [pathname, router, searchParams]);
+
+  // ── Core data ──
   const [team, setTeam] = useState<any>(null);
   const [activeSeason, setActiveSeason] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [saving,  setSaving]  = useState(false);
 
+  // ── Announcement state ──
   const [showAnnouncements, setShowAnnouncements] = useState(false);
-  const [announcements, setAnnouncements] = useState<any[]>([]);
-  const [newAnnTitle, setNewAnnTitle] = useState('');
-  const [newAnnContent, setNewAnnContent] = useState('');
-  const [editingAnnId, setEditingAnnId] = useState<string | null>(null);
+  const [announcements,     setAnnouncements]     = useState<any[]>([]);
+  const [newAnnTitle,       setNewAnnTitle]       = useState('');
+  const [newAnnContent,     setNewAnnContent]     = useState('');
+  const [editingAnnId,      setEditingAnnId]      = useState<string | null>(null);
+
+  // ── CM bookings state ──
   const [showCMHistory, setShowCMHistory] = useState(false);
-  const [cmSlots, setCmSlots] = useState<any[]>([]);
-  
+  const [cmSlots,       setCmSlots]       = useState<any[]>([]);
+
+  // ── Role ──
   const [myRole, setMyRole] = useState('none');
   const isOM  = ['owner', 'manager'].includes(myRole);
   const isOMC = ['owner', 'manager', 'captain'].includes(myRole);
 
-  // Modals
+  // ── Modals ──
   const [showAreaModal, setShowAreaModal] = useState(false);
   const [showTurfModal, setShowTurfModal] = useState(false);
   const [showSubModal,  setShowSubModal]  = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showSportModal, setShowSportModal] = useState(false);
-  const [newSportType, setNewSportType] = useState('');
-  const [deletePassword, setDeletePassword] = useState('');
-  const [deleteError, setDeleteError] = useState('');
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [leaving,        setLeaving]        = useState(false);
   const [search, setSearch] = useState('');
 
-  // Lookup data for dropdowns
+  // ── Stats tab state ──
+  const [statsMode, setStatsMode] = useState<'ranked' | 'tournament'>('ranked');
+  const [matchFilter, setMatchFilter] = useState<'all' | 'ranked' | 'tournament'>('all');
+  const [expandedMatch, setExpandedMatch] = useState<string | null>(null);
+
+  // ── Lookup data ──
   const [cities, setCities] = useState<any[]>([]);
-  const [turfs, setTurfs]   = useState<any[]>([]);
+  const [turfs,  setTurfs]  = useState<any[]>([]);
 
   const seasonCountdown = useCountdown(activeSeason?.endDate ?? null);
 
   useEffect(() => {
-    fetch(`/api/teams/${id}?t=${Date.now()}`, { cache: 'no-store' }).then(r => r.json()).then(d => {
-      setTeam(d.team);
-      if (d.activeSeason) setActiveSeason(d.activeSeason);
-      if (d.team && d.myPlayerId) {
-        const me = d.team.members.find((m: any) => m.playerId === d.myPlayerId);
-        setMyRole(me?.role || (d.team.ownerId === d.myPlayerId ? 'owner' : 'none'));
-      }
-      setLoading(false);
-    });
+    fetch(`/api/teams/${id}?t=${Date.now()}`, { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => {
+        setTeam(d.team);
+        if (d.activeSeason) setActiveSeason(d.activeSeason);
+        if (d.team && d.myPlayerId) {
+          const me = d.team.members.find((m: any) => m.playerId === d.myPlayerId);
+          setMyRole(me?.role || (d.team.ownerId === d.myPlayerId ? 'owner' : 'none'));
+        }
+        setLoading(false);
+      });
 
     fetch('/api/bmt/cities').then(r => r.json()).then(d => setCities(Array.isArray(d) ? d : d.cities || []));
     fetch('/api/bmt/turfs').then(r => r.json()).then(d => setTurfs(Array.isArray(d) ? d : d.turfs || []));
@@ -169,60 +318,80 @@ export default function SingleTeamPage() {
     fetch('/api/bmt/slots').then(r => r.json()).then(d => setCmSlots(Array.isArray(d) ? d : []));
   }, [id]);
 
+  // ── Loading skeleton ──
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <Loader2 size={32} className="text-accent animate-spin" />
+      <div className="min-h-screen pb-24 font-sans" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
+        <SkeletonBanners />
+        <div className="max-w-md mx-auto px-4 flex flex-col gap-3 mt-4">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
       </div>
     );
   }
 
-  if (!team) return <div className="text-center p-8">Team not found</div>;
+  if (!team) return <div className="text-center p-8" style={{ color: 'var(--text-muted)' }}>Team not found</div>;
 
+  // ── Derived values ──
   let sportName = 'Futsal';
   if (team.sportType === 'FOOTBALL' || team.sportType === 'FOOTBALL_FULL') sportName = 'Football';
-  else if (team.sportType === 'CRICKET' || team.sportType === 'CRICKET_7' || team.sportType === 'CRICKET_FULL') sportName = 'Cricket';
-  
-  const sportEmoji = team.sportType?.includes('CRICKET') ? '🏏' : '⚽';
-  
-  let maxRosterLimit = 15;
+  else if (team.sportType?.includes('CRICKET')) sportName = 'Cricket';
 
-  const isCricketSport = team.sportType?.includes('CRICKET') || team.sportType === 'CRICKET';
-  const rankedMmr = isCricketSport ? (team.cricketMmr ?? 1000) : (team.footballMmr ?? 1000);
-  const tournamentMmr = isCricketSport ? (team.tournamentCricketMmr ?? 1000) : (team.tournamentFootballMmr ?? 1000);
+  const sportEmoji   = team.sportType?.includes('CRICKET') ? '🏏' : '⚽';
+  const maxRosterLimit = 15;
 
-  const rankData = getRankData(rankedMmr);
-  const rankedRankData = getRankData(rankedMmr);
+  const isCricketSport  = team.sportType?.includes('CRICKET');
+  const rankedMmr       = isCricketSport ? (team.cricketMmr ?? 1000) : (team.footballMmr ?? 1000);
+  const tournamentMmr   = isCricketSport ? (team.tournamentCricketMmr ?? 1000) : (team.tournamentFootballMmr ?? 1000);
+
+  const rankedRankData     = getRankData(rankedMmr);
   const tournamentRankData = getRankData(tournamentMmr);
+
+  const completedRankedCount =
+    (team.matchesAsTeamA || []).filter((m: any) => m.status === 'COMPLETED').length +
+    (team.matchesAsTeamB || []).filter((m: any) => m.status === 'COMPLETED').length;
+  const completedTournamentCount = (team.tournamentMatches || []).filter((m: any) => m.status === 'COMPLETED').length;
+
+  const isRankedProv      = completedRankedCount < 3;
+  const isTournamentProv  = completedTournamentCount < 3;
+  const isRankedCalib     = !isRankedProv && completedRankedCount < 5;
+
   const isSubActive = team.challengeSubscription?.active === true;
 
-  // API Handlers
+  const cmMatches = [...(team?.matchesAsTeamA || []), ...(team?.matchesAsTeamB || [])]
+    .filter((m: any) => m.bookingCode)
+    .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  const handleShareTeamCard = async () => {
+    const shareUrl = `${window.location.origin}/api/teams/${team.id}/og-image`;
+    if (navigator.share) {
+      try { await navigator.share({ title: team.name, text: `Check out our team card for ${team.name}!`, url: shareUrl }); }
+      catch {}
+    } else {
+      await navigator.clipboard.writeText(shareUrl);
+      alert('Link to Team Card copied!');
+    }
+  };
+
   const handleUpdateAreas = async (newCityIds: string[]) => {
     setSaving(true);
     const res = await fetch(`/api/teams/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ action: 'set_home_areas', payload: { cityIds: newCityIds } })
+      method: 'PATCH', body: JSON.stringify({ action: 'set_home_areas', payload: { cityIds: newCityIds } }),
     });
-    if (res.ok) {
-      const data = await res.json();
-      setTeam({ ...team, homeAreas: data.homeAreas });
-    }
-    setSaving(false);
-    setShowAreaModal(false);
+    if (res.ok) { const d = await res.json(); setTeam({ ...team, homeAreas: d.homeAreas }); }
+    setSaving(false); setShowAreaModal(false);
   };
 
   const handleUpdateTurfs = async (newTurfIds: string[]) => {
     setSaving(true);
     const res = await fetch(`/api/teams/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ action: 'set_home_turfs', payload: { turfIds: newTurfIds } })
+      method: 'PATCH', body: JSON.stringify({ action: 'set_home_turfs', payload: { turfIds: newTurfIds } }),
     });
-    if (res.ok) {
-      const data = await res.json();
-      setTeam({ ...team, homeTurfs: data.homeTurfs });
-    }
-    setSaving(false);
-    setShowTurfModal(false);
+    if (res.ok) { const d = await res.json(); setTeam({ ...team, homeTurfs: d.homeTurfs }); }
+    setSaving(false); setShowTurfModal(false);
   };
 
   const handleCreateAnnouncement = async () => {
@@ -231,13 +400,9 @@ export default function SingleTeamPage() {
     const res = await fetch(`/api/teams/${id}/announcements`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: newAnnTitle, content: newAnnContent })
+      body: JSON.stringify({ title: newAnnTitle, content: newAnnContent }),
     });
-    if (res.ok) {
-      const ann = await res.json();
-      setAnnouncements([ann, ...announcements]);
-      setNewAnnTitle(''); setNewAnnContent('');
-    }
+    if (res.ok) { const ann = await res.json(); setAnnouncements([ann, ...announcements]); setNewAnnTitle(''); setNewAnnContent(''); }
     setSaving(false);
   };
 
@@ -251,748 +416,940 @@ export default function SingleTeamPage() {
   const handleSaveEdit = async (annId: string, title: string, content: string) => {
     setSaving(true);
     const res = await fetch(`/api/teams/${id}/announcements?annId=${annId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, content })
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, content }),
     });
-    if (res.ok) {
-      const ann = await res.json();
-      setAnnouncements(announcements.map(a => a.id === annId ? ann : a));
-    }
-    setEditingAnnId(null);
-    setSaving(false);
-  };
-
-  const cmMatches = [...(team?.matchesAsTeamA || []), ...(team?.matchesAsTeamB || [])]
-    .filter(m => m.bookingCode)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-  const handleToggleSub = async () => {
-    setSaving(true);
-    const res = await fetch(`/api/teams/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ action: 'toggle_subscription' })
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setTeam({ ...team, isSubscribed: data.isSubscribed });
-    }
-    setSaving(false);
-  };
-
-  const handleDeleteTeam = async () => {
-    if (!deletePassword) return;
-    setSaving(true);
-    setDeleteError('');
-    const res = await fetch(`/api/teams/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'delete_team', payload: { password: deletePassword } })
-    });
-    
-    if (res.ok) {
-       router.push('/en/teams');
-    } else {
-       const data = await res.json();
-       setDeleteError(data.error || 'Failed to delete team.');
-       setSaving(false);
-    }
+    if (res.ok) { const ann = await res.json(); setAnnouncements(announcements.map(a => a.id === annId ? ann : a)); }
+    setEditingAnnId(null); setSaving(false);
   };
 
   const handleLeaveTeam = async () => {
-    if (!confirm('Are you sure you want to leave this team?')) return;
+    if (!confirm('Leave this team? You will lose your roster slot and lineup placement.')) return;
     setSaving(true);
     const res = await fetch(`/api/teams/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'leave_team' })
+      body: JSON.stringify({ action: 'leave_team' }),
     });
-    
-    if (res.ok) {
-       router.push(`/${locale}/teams`);
-    } else {
-       const data = await res.json();
-       alert(data.error || 'Failed to leave team.');
-       setSaving(false);
-    }
+    if (res.ok) { router.push(`/${locale}/teams`); }
+    else { const d = await res.json(); alert(d.error || 'Failed to leave team.'); setSaving(false); }
   };
 
+  const handleLeaveChallenge = async () => {
+    setLeaving(true);
+    const res = await fetch(`/api/teams/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'leave_challenge_market' }),
+    });
+    if (res.ok) {
+      setTeam({ ...team, isSubscribed: false, challengeSubscription: { ...team.challengeSubscription, active: false } });
+      setShowLeaveModal(false);
+    } else {
+      const d = await res.json();
+      alert(d.error || 'Failed to leave Challenge Market.');
+    }
+    setLeaving(false);
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background pb-24 font-sans text-white">
-      
-      {/* HEADER SECTION */}
-      <div className="relative w-full pb-6 px-4 overflow-hidden rounded-b-[40px] border-b border-accent/20 bg-gradient-to-b from-neutral-900 via-background to-background">
-        {/* Rank-colored background glow */}
-        <div
-          className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 rounded-full blur-3xl pointer-events-none"
-          style={{ background: `rgba(${rankedRankData.glow}, 0.08)` }}
-        />
+    <div className="min-h-screen pb-32 font-sans" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
 
-        {/* ── BANNER SECTION ── */}
-        <div className="max-w-md mx-auto grid grid-cols-3 items-start gap-2 relative z-10">
+      {/* CM pulse animation */}
+      <style>{`
+        @keyframes cm-pulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(0, 255, 65, 0.5); }
+          50% { box-shadow: 0 0 0 5px rgba(0, 255, 65, 0); }
+        }
+        .cm-dot-pulse { animation: cm-pulse 2s ease-in-out infinite; }
+      `}</style>
 
-          {/* Left Banner: Ranked Rank & MMR */}
-          <div className="flex flex-col items-center relative z-0">
+      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          STICKY HEADER
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      <div
+        className="sticky top-5 z-40 w-full"
+        style={{ background: 'rgba(5,5,5,0.92)', backdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border-subtle)' }}
+      >
+        <div className="max-w-md mx-auto px-4 pt-3 pb-1">
+
+          {/* Row 1: crest + name + sport chip + gear */}
+          <div className="flex items-center gap-2.5 mb-2">
             <div
-              style={{
-                clipPath: 'polygon(0% 0%, 100% 0%, 95% 5%, 95% 85%, 100% 90%, 80% 90%, 50% 100%, 20% 90%, 0% 90%, 5% 85%, 5% 5%)',
-                background: `linear-gradient(to bottom, rgba(${rankedRankData.glow},0.4), rgba(10,10,10,0.9))`
-              }}
-              className="w-full h-80 backdrop-blur-md flex flex-col items-center justify-start pt-8 pb-10 shadow-2xl relative overflow-hidden group"
+              className="w-9 h-9 rounded-full flex-shrink-0 overflow-hidden flex items-center justify-center"
+              style={{ background: 'var(--bg-surface)', border: '2px solid var(--accent)', boxShadow: '0 0 12px rgba(0,255,65,0.2)' }}
             >
-              <img src="/banners/Banner%2001.svg" className="absolute top-0 left-0 w-full h-full object-cover mix-blend-overlay opacity-60 group-hover:scale-105 transition-transform duration-700 pointer-events-none" alt="" />
-              <div
-                className="absolute inset-[2px] pointer-events-none"
-                style={{
-                  clipPath: 'polygon(0% 0%, 100% 0%, 95% 5%, 95% 85%, 100% 90%, 80% 90%, 50% 100%, 20% 90%, 0% 90%, 5% 85%, 5% 5%)',
-                  background: `linear-gradient(to bottom, rgba(${rankedRankData.glow},0.2), transparent)`
-                }}
-              />
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#00ff41] leading-tight">RANKED</p>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#00ff41] leading-tight mb-1">MMR</p>
-              <p className="text-sm font-black tracking-widest">{rankedMmr}</p>
-              <div className="w-8 h-[1px] my-2" style={{ background: `rgba(${rankedRankData.glow},0.4)` }} />
-              <div className="mt-auto flex flex-col items-center w-full">
-                <img src={rankedRankData.icon} className="w-20 h-20 object-contain drop-shadow-[0_4px_16px_rgba(255,255,255,0.25)]" alt="Rank" />
-                <p className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: rankedRankData.color }}>Rank</p>
-                <p className="text-xs font-black text-white text-center leading-tight px-1" style={{ color: rankedRankData.color }}>
-                  {rankedRankData.label}
-                </p>
+              {team.logoUrl
+                ? <img src={team.logoUrl} alt={team.name} className="w-full h-full object-cover" />
+                : <span className="text-lg">{sportEmoji}</span>
+              }
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <h1 className="font-black text-sm leading-tight truncate">{team.name}</h1>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="text-[10px]">{sportEmoji}</span>
+                <span className="text-[10px] font-bold" style={{ color: 'var(--text-muted)' }}>{sportName}</span>
+                {team.teamCode && (
+                  <span
+                    className="text-[9px] font-black px-1.5 py-0.5 rounded-md"
+                    style={{ background: 'var(--accent-soft)', color: 'var(--accent)', border: '1px solid rgba(0,255,65,0.2)' }}
+                  >
+                    {team.teamCode}
+                  </span>
+                )}
+                {isSubActive && (
+                  <span
+                    className="text-[8px] font-black px-1.5 py-0.5 rounded-full flex items-center gap-1"
+                    style={{ background: 'rgba(0,255,65,0.08)', color: 'var(--accent)', border: '1px solid rgba(0,255,65,0.3)' }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full cm-dot-pulse flex-shrink-0" style={{ background: 'var(--accent)' }} />
+                    OPEN TO CHALLENGES
+                  </span>
+                )}
               </div>
             </div>
+
+            <Link
+              href={`/${locale}/teams/${id}/settings`}
+              className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-muted)' }}
+            >
+              <Settings size={14} />
+            </Link>
           </div>
 
-          {/* Middle: Logo, Name, Sport & subscription pill */}
-          <div className="flex flex-col items-center mt-6 relative z-20">
-            <div className="w-24 h-24 rounded-full border-4 border-[#0a0a0a] ring-2 ring-accent/60 shadow-[0_0_20px_rgba(0,255,65,0.2)] overflow-hidden flex items-center justify-center bg-neutral-800">
-              {team.logoUrl ? (
-                <img src={team.logoUrl} alt={team.name} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-4xl">{sportEmoji}</span>
-              )}
-            </div>
-            <h1 className="mt-3 text-xl font-black text-center leading-tight whitespace-nowrap">{team.name}</h1>
-            {team.teamCode && (
-              <div className="inline-flex items-center justify-center text-[10px] font-black text-accent bg-accent/10 px-2 py-0.5 rounded-lg border border-accent/20 mt-1">
-                CODE: {team.teamCode}
+          {/* Row 2: compact rank badges */}
+          <div className="flex items-center gap-2 mb-2">
+            <CompactRankBadge
+              label="Ranked"
+              mmr={rankedMmr}
+              rankData={rankedRankData}
+              isProv={isRankedProv}
+              provisionalCount={completedRankedCount}
+              provTarget={3}
+            />
+            <div className="flex flex-col items-center gap-0.5 px-2">
+              <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0" style={{ background: 'var(--bg-surface)' }}>
+                {team.logoUrl ? <img src={team.logoUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-base">{sportEmoji}</span>}
               </div>
+              <span className="text-[8px] font-bold" style={{ color: 'var(--text-muted)' }}>
+                {team.members?.length || 1}/{maxRosterLimit}
+              </span>
+            </div>
+            <CompactRankBadge
+              label="Tournament"
+              mmr={tournamentMmr}
+              rankData={tournamentRankData}
+              isProv={isTournamentProv}
+              provisionalCount={completedTournamentCount}
+              provTarget={3}
+            />
+          </div>
+
+          {/* Row 3: Challenge Market button */}
+          <div className="mb-2.5">
+            {isSubActive ? (
+              <motion.button
+                whileTap={btnTap}
+                onClick={() => setShowLeaveModal(true)}
+                className="w-full py-2 rounded-xl font-black text-xs flex items-center justify-center gap-2 transition-colors"
+                style={{ background: 'var(--bg-surface)', color: 'var(--accent)', border: '1px solid rgba(0,255,65,0.35)' }}
+              >
+                <span className="w-2 h-2 rounded-full cm-dot-pulse flex-shrink-0" style={{ background: 'var(--accent)' }} />
+                Listed in Challenge Market ✓
+              </motion.button>
+            ) : (
+              <motion.button
+                whileTap={btnTap}
+                onClick={() => setShowSubModal(true)}
+                className="w-full py-2.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-colors"
+                style={{ background: 'var(--accent)', color: '#000', boxShadow: '0 0 16px rgba(0,255,65,0.2)' }}
+              >
+                <Swords size={12} />
+                ⚔️ Join Challenge Market
+              </motion.button>
             )}
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className="text-xs">{sportEmoji}</span>
-              <span className="text-[11px] font-bold tracking-wide text-[var(--muted)]">{sportName}</span>
-              {isOM && (
-                <button
-                  onClick={() => { setNewSportType(team.sportType); setShowSportModal(true); }}
-                  className="ml-1 opacity-60 hover:opacity-100 hover:text-accent transition-opacity p-0.5"
-                  title="Change Sport Type"
-                >
-                  ✏️
-                </button>
-              )}
-            </div>
+          </div>
 
-            <div className="flex items-center gap-2 mt-2">
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 border border-white/10 shadow-inner backdrop-blur-sm">
-                <Users size={12} className="text-white/80" />
-                <span className="text-[11px] font-bold text-white tracking-wide">{team.members?.length || 1} / {maxRosterLimit} Players</span>
-              </div>
-            </div>
+          {/* Tab bar */}
+          <div className="flex" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+            {TABS.map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => switchTab(tab.key)}
+                className="flex-1 py-2 text-xs font-black uppercase tracking-wider transition-colors relative"
+                style={{ color: activeTab === tab.key ? 'var(--accent)' : 'var(--text-muted)' }}
+              >
+                {tab.label}
+                {activeTab === tab.key && (
+                  <motion.div
+                    layoutId="tab-underline"
+                    className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full"
+                    style={{ background: 'var(--accent)' }}
+                  />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
 
-            <div className="mt-3 w-full flex flex-col items-center gap-2 z-30">
-              {/* CM Subscription Status Pill */}
-              <button onClick={() => setShowSubModal(true)} className="relative group focus:outline-none">
-                {isSubActive ? (
-                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-fuchsia-600/20 border border-fuchsia-500/40 text-[10px] font-black text-fuchsia-400 uppercase tracking-wider group-hover:bg-fuchsia-600/30 transition-colors">
-                    <Swords size={10} />
-                    CM Subscribed
+      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          TAB CONTENT
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      <div className="max-w-md mx-auto px-4 mt-4">
+        <AnimatePresence mode="wait">
+
+          {/* ────────────────────── TAB: OVERVIEW ────────────────────────── */}
+          {activeTab === 'overview' && (
+            <motion.div key="overview" {...tabVariants} className="flex flex-col gap-4">
+
+              {/* MMR Banners */}
+              <div className="grid grid-cols-3 items-start gap-2">
+                <RankBanner
+                  label="Ranked"
+                  mmr={rankedMmr}
+                  rankData={rankedRankData}
+                  isProv={isRankedProv}
+                  provisionalCount={completedRankedCount}
+                  provTarget={3}
+                  labelColor="var(--accent)"
+                />
+                {/* Center: crest + quick actions */}
+                <div className="flex flex-col items-center mt-6">
+                  <div
+                    className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center"
+                    style={{ background: 'var(--bg-surface)', border: '4px solid var(--bg-base)', outline: '2px solid rgba(0,255,65,0.4)', boxShadow: '0 0 20px rgba(0,255,65,0.2)' }}
+                  >
+                    {team.logoUrl ? <img src={team.logoUrl} alt={team.name} className="w-full h-full object-cover" /> : <span className="text-4xl">{sportEmoji}</span>}
                   </div>
-                ) : (
-                  <div className="relative flex items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-800/60 border border-white/10 text-[10px] font-black text-white/30 uppercase tracking-wider overflow-hidden group-hover:bg-neutral-800 transition-colors">
-                    <Swords size={10} />
-                    <span>Subscribed</span>
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="w-[85%] h-[2px] bg-red-500/80 -rotate-2 mix-blend-screen" />
+                  <h2 className="mt-2 text-sm font-black text-center leading-tight">{team.name}</h2>
+                  <div className="flex flex-col gap-1.5 mt-3 w-full">
+                    <motion.button
+                      whileTap={btnTap}
+                      onClick={() => setShowAnnouncements(true)}
+                      className="w-full py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wide flex items-center justify-center gap-1"
+                      style={{ background: 'var(--bg-surface-raised)', color: '#d4af37', border: '1px solid rgba(212,175,55,0.25)' }}
+                    >
+                      📜 Team Scroll
+                    </motion.button>
+                    <motion.button
+                      whileTap={btnTap}
+                      onClick={handleShareTeamCard}
+                      className="w-full py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wide flex items-center justify-center gap-1"
+                      style={{ background: 'var(--bg-surface-raised)', color: 'var(--accent)', border: '1px solid rgba(0,255,65,0.2)' }}
+                    >
+                      🔗 Share Card
+                    </motion.button>
+                  </div>
+                </div>
+                <RankBanner
+                  label="Tournament"
+                  mmr={tournamentMmr}
+                  rankData={tournamentRankData}
+                  isProv={isTournamentProv}
+                  provisionalCount={completedTournamentCount}
+                  provTarget={3}
+                  labelColor="var(--gold)"
+                />
+              </div>
+
+              {/* XP Bar — feature-flagged. Hidden when NEXT_PUBLIC_FEATURE_XP !== 'true' */}
+              {process.env.NEXT_PUBLIC_FEATURE_XP === 'true' && (
+                <div className="bmt-surface p-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs font-black" style={{ color: 'var(--accent)' }}>Level {team.level}</span>
+                    <span className="text-[10px] font-bold" style={{ color: 'var(--text-muted)' }}>{team.xp} XP</span>
+                  </div>
+                  <div className="w-full h-2.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-surface-raised)' }}>
+                    <motion.div
+                      className="h-full rounded-full relative"
+                      style={{ background: 'linear-gradient(90deg, rgba(0,255,65,0.5), var(--accent))' }}
+                      initial={{ width: '0%' }}
+                      animate={{ width: `${Math.min(100, Math.max(5, (team.xp % 100)))}%` }}
+                      transition={{ duration: 0.8, ease: 'easeOut' }}
+                    />
+                  </div>
+                  <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>Next unlock: Crest Frame at Level 3</p>
+                </div>
+              )}
+
+              {/* Match History */}
+              <div className="bmt-surface overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--accent-soft)' }}>
+                    <Clock size={13} style={{ color: 'var(--accent)' }} />
+                  </div>
+                  <p className="font-black text-sm">Match History</p>
+                </div>
+                <div className="p-4 flex flex-col gap-2">
+                  {[...(team.matchesAsTeamA || []), ...(team.matchesAsTeamB || [])]
+                    .filter((m: any) => m.status === 'COMPLETED')
+                    .sort((a: any, b: any) => new Date(b.updatedAt ?? b.createdAt).getTime() - new Date(a.updatedAt ?? a.createdAt).getTime())
+                    .slice(0, 5)
+                    .map((m: any) => {
+                      const isTeamA = m.teamA_Id === team.id;
+                      const opp = isTeamA ? m.teamB : m.teamA;
+                      const teamScore = isTeamA ? m.scoreA : m.scoreB;
+                      const oppScore  = isTeamA ? m.scoreB : m.scoreA;
+                      const won = teamScore > oppScore;
+                      return (
+                        <div key={m.id} className="flex items-center justify-between p-2.5 rounded-xl" style={{ background: 'var(--bg-surface-raised)' }}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black"
+                              style={{ background: won ? 'rgba(0,255,65,0.15)' : 'rgba(239,68,68,0.15)', color: won ? 'var(--accent)' : '#f87171' }}
+                            >
+                              {won ? 'W' : 'L'}
+                            </div>
+                            <span className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>vs {opp?.name || 'Unknown'}</span>
+                          </div>
+                          <span className="text-xs font-black" style={{ color: won ? 'var(--accent)' : '#f87171' }}>
+                            {teamScore ?? '—'} – {oppScore ?? '—'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  {[...(team.matchesAsTeamA || []), ...(team.matchesAsTeamB || [])].filter((m: any) => m.status === 'COMPLETED').length === 0 && (
+                    <p className="text-center py-4 text-xs font-bold" style={{ color: 'var(--text-muted)' }}>No matches yet</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Trophy Cabinet */}
+              {(team.trophies?.length > 0) && (
+                <div className="bmt-surface overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(212,175,55,0.1)' }}>
+                      <Trophy size={13} style={{ color: 'var(--gold)' }} />
+                    </div>
+                    <p className="font-black text-sm">Trophy Cabinet</p>
+                  </div>
+                  <div className="p-4 grid grid-cols-3 gap-3">
+                    {team.trophies.map((t: any) => (
+                      <div key={t.id} className="flex flex-col items-center gap-1 p-2 rounded-xl" style={{ background: 'var(--bg-surface-raised)' }}>
+                        <span className="text-2xl">🏆</span>
+                        <p className="text-[9px] font-black text-center leading-tight" style={{ color: 'var(--gold)' }}>{t.name || t.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Hall of Fame */}
+              {(team.hallOfFame?.length > 0) && (
+                <div className="bmt-surface overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(212,175,55,0.1)' }}>
+                      <Star size={13} style={{ color: 'var(--gold)' }} />
+                    </div>
+                    <p className="font-black text-sm">Hall of Fame</p>
+                  </div>
+                  <div className="p-4 flex flex-col gap-2">
+                    {team.hallOfFame.map((p: any) => (
+                      <div key={p.id} className="flex items-center gap-3 p-2.5 rounded-xl" style={{ background: 'var(--bg-surface-raised)' }}>
+                        <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center" style={{ background: 'rgba(212,175,55,0.1)', border: '1px solid rgba(212,175,55,0.3)' }}>
+                          {p.avatarUrl ? <img src={p.avatarUrl} alt="" className="w-full h-full object-cover" /> : <Star size={14} style={{ color: 'var(--gold)' }} />}
+                        </div>
+                        <div>
+                          <p className="text-xs font-black leading-tight">{p.name || p.username}</p>
+                          <p className="text-[10px]" style={{ color: 'var(--gold)' }}>{p.reason || 'Legend'}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </motion.div>
+          )}
+
+          {/* ────────────────────── TAB: SQUAD ────────────────────────────── */}
+          {activeTab === 'squad' && (
+            <motion.div key="squad" {...tabVariants} className="flex flex-col gap-4">
+              <SquadManager
+                team={team}
+                setTeam={setTeam}
+                myRole={myRole}
+                tournamentMatches={team.tournamentMatches || []}
+              />
+            </motion.div>
+          )}
+
+                    {/* ────────────────────── TAB: STATS ────────────────────────────── */}
+          {activeTab === 'stats' && (() => {
+            const allRanked = [...(team.matchesAsTeamA || []), ...(team.matchesAsTeamB || [])];
+            const allTournament = team.tournamentMatches || [];
+            const completedRanked = allRanked.filter((m: any) => m.status === 'COMPLETED');
+            const completedTourney = allTournament.filter((m: any) => m.status === 'COMPLETED');
+
+            const calcStats = (matches: any[]) => {
+              let w = 0, d = 0, l = 0, gf = 0, ga = 0, streak: string[] = [];
+              matches.forEach((m: any) => {
+                const isA = m.teamA_Id === team.id || m.teamAId === team.id;
+                const myG = isA ? (m.scoreA ?? 0) : (m.scoreB ?? 0);
+                const opG = isA ? (m.scoreB ?? 0) : (m.scoreA ?? 0);
+                gf += myG; ga += opG;
+                if (m.winnerId === team.id) { w++; streak.push('W'); }
+                else if (!m.winnerId) { d++; streak.push('D'); }
+                else { l++; streak.push('L'); }
+              });
+              const recent = streak.slice(-5).reverse();
+              const cur = recent[0] || null;
+              let streakStr = '';
+              if (cur) { let cnt = 0; for (const r of recent) { if (r === cur) cnt++; else break; } streakStr = cur + cnt; }
+              return { played: matches.length, w, d, l, gf, ga, gd: gf - ga,
+                winRate: matches.length > 0 ? Math.round((w / matches.length) * 100) : 0, streak: streakStr };
+            };
+
+            const rankedSt = calcStats(completedRanked);
+            const tourneySt = calcStats(completedTourney);
+            const activeStats = statsMode === 'ranked' ? rankedSt : tourneySt;
+
+            // Player stats
+            const allPS: any[] = team.playerStats || [];
+            const pMap: Record<string, any> = {};
+            allPS.forEach((ps: any) => {
+              const pid = ps.playerId;
+              if (!pid) return;
+              if (!pMap[pid]) pMap[pid] = { goals: 0, assists: 0, motm: 0, rs: 0, rc: 0, player: ps.player };
+              pMap[pid].goals += ps.goals || 0;
+              pMap[pid].assists += ps.assists || 0;
+              if (ps.motm) pMap[pid].motm++;
+              if (ps.rating) { pMap[pid].rs += ps.rating; pMap[pid].rc++; }
+            });
+            const pArr = Object.values(pMap);
+            const hasPS = pArr.length > 0;
+            const topScorer = [...pArr].sort((a: any, b: any) => b.goals - a.goals)[0];
+            const topAssist = [...pArr].sort((a: any, b: any) => b.assists - a.assists)[0];
+            const topMotm   = [...pArr].sort((a: any, b: any) => b.motm - a.motm)[0];
+            const topRating = [...pArr].sort((a: any, b: any) => (b.rc > 0 ? b.rs/b.rc : 0) - (a.rc > 0 ? a.rs/a.rc : 0))[0];
+
+            // Filtered matches
+            const rRows = allRanked.filter((m: any) => m.status === 'COMPLETED').map((m: any) => ({ ...m, _t: 'ranked' }));
+            const tRows = completedTourney.map((m: any) => ({ ...m, _t: 'tournament' }));
+            const filtered = (matchFilter === 'all' ? [...rRows, ...tRows] : matchFilter === 'ranked' ? rRows : tRows)
+              .sort((a: any, b: any) => new Date(b.updatedAt ?? b.createdAt).getTime() - new Date(a.updatedAt ?? a.createdAt).getTime());
+
+            const resColor = (m: any) => {
+              if (m.winnerId === team.id) return { b: 'var(--accent)', c: '#000', l: 'W' };
+              if (!m.winnerId) return { b: '#3b82f6', c: '#fff', l: 'D' };
+              return { b: '#ef4444', c: '#fff', l: 'L' };
+            };
+
+            return (
+              <motion.div key='stats' {...tabVariants} className='flex flex-col gap-4'>
+
+                {/* A) TEAM STATS */}
+                <div className='bmt-surface overflow-hidden'>
+                  <div className='flex items-center justify-between px-4 py-3' style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                    <div className='flex items-center gap-2'>
+                      <div className='w-7 h-7 rounded-lg flex items-center justify-center' style={{ background: 'var(--accent-soft)' }}>
+                        <TrendingUp size={13} style={{ color: 'var(--accent)' }} />
+                      </div>
+                      <p className='font-black text-sm'>TEAM STATS</p>
+                    </div>
+                    <div className='flex p-0.5 rounded-lg' style={{ background: 'var(--bg-surface-raised)', border: '1px solid var(--border-subtle)' }}>
+                      {(['ranked', 'tournament'] as const).map(mode => (
+                        <button key={mode} onClick={() => setStatsMode(mode)}
+                          className='text-[9px] font-black uppercase px-2.5 py-1 rounded-md transition-colors capitalize'
+                          style={{ background: statsMode === mode ? 'var(--accent)' : 'transparent', color: statsMode === mode ? '#000' : 'var(--text-muted)' }}
+                        >{mode}</button>
+                      ))}
+                    </div>
+                  </div>
+                  {activeStats.played === 0 ? (
+                    <div className='p-6 flex flex-col items-center gap-3'>
+                      <div className='w-12 h-12 rounded-2xl flex items-center justify-center' style={{ background: 'var(--bg-surface-raised)' }}>
+                        <BarChart2 size={22} style={{ color: 'var(--text-muted)' }} />
+                      </div>
+                      <p className='text-xs font-bold text-center' style={{ color: 'var(--text-muted)' }}>Stats appear after your first {statsMode} match</p>
+                    </div>
+                  ) : (
+                    <div className='p-4 grid grid-cols-2 gap-3'>
+                      {[
+                        { label: 'Played', value: String(activeStats.played), accent: false },
+                        { label: 'Win Rate', value: activeStats.winRate + '%', accent: true },
+                        { label: 'W / D / L', value: activeStats.w + 'W ' + activeStats.d + 'D ' + activeStats.l + 'L', accent: false },
+                        { label: 'Goals For / Against', value: activeStats.gf + ' / ' + activeStats.ga, accent: false },
+                        { label: 'Goal Difference', value: (activeStats.gd > 0 ? '+' : '') + activeStats.gd, accent: activeStats.gd > 0 },
+                        { label: 'Current Streak', value: activeStats.streak || '—', accent: (activeStats.streak || '').startsWith('W') },
+                      ].map(row => (
+                        <div key={row.label} className='rounded-xl p-3' style={{ background: 'var(--bg-surface-raised)' }}>
+                          <p className='text-[9px] font-bold uppercase tracking-widest mb-0.5' style={{ color: 'var(--text-muted)' }}>{row.label}</p>
+                          <p className='font-black text-sm' style={{ color: row.accent ? 'var(--accent)' : 'var(--text-primary)' }}>{row.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* B) PLAYER STATS */}
+                <div className='bmt-surface overflow-hidden'>
+                  <div className='flex items-center gap-2 px-4 py-3' style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                    <div className='w-7 h-7 rounded-lg flex items-center justify-center' style={{ background: 'rgba(212,175,55,0.12)' }}>
+                      <Award size={13} style={{ color: 'var(--gold)' }} />
+                    </div>
+                    <p className='font-black text-sm'>PLAYER STATS</p>
+                  </div>
+                  {!hasPS ? (
+                    <div className='p-6 flex flex-col items-center gap-3'>
+                      <div className='w-12 h-12 rounded-2xl flex items-center justify-center' style={{ background: 'var(--bg-surface-raised)' }}>
+                        <Users size={22} style={{ color: 'var(--text-muted)' }} />
+                      </div>
+                      <p className='text-xs font-bold text-center' style={{ color: 'var(--text-muted)' }}>Player stats appear after your first match</p>
+                    </div>
+                  ) : (
+                    <div className='p-3 flex flex-col gap-2'>
+                      {([
+                        { icon: '\u26bd', label: 'Top Scorer', player: topScorer, stat: (topScorer?.goals || 0) + ' goals' },
+                        { icon: '\uD83C\uDFAF', label: 'Most Assists', player: topAssist, stat: (topAssist?.assists || 0) + ' assists' },
+                        { icon: '\u2b50', label: 'Most MOTM', player: topMotm, stat: (topMotm?.motm || 0) + '\u00d7 MOTM' },
+                        { icon: '\uD83D\uDCCA', label: 'Highest Avg Rating', player: topRating, stat: topRating && topRating.rc > 0 ? (topRating.rs/topRating.rc).toFixed(1) : '\u2014' },
+                      ] as any[]).filter(r => r.player).map((row: any) => (
+                        <Link key={row.label}
+                          href={row.player?.player?.id ? '/' + locale + '/player/' + row.player.player.id : '#'}
+                          className='flex items-center gap-3 p-2.5 rounded-xl transition-colors'
+                          style={{ background: 'var(--bg-surface-raised)' }}
+                        >
+                          <span className='text-lg'>{row.icon}</span>
+                          <div className='w-8 h-8 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0' style={{ background: 'var(--bg-surface)' }}>
+                            {row.player.player?.avatarUrl ? <img src={row.player.player.avatarUrl} className='w-full h-full object-cover' alt='' /> : <UserCircle2 size={18} style={{ color: 'var(--text-muted)' }} />}
+                          </div>
+                          <div className='flex-1 min-w-0'>
+                            <p className='text-[9px] font-black uppercase tracking-widest' style={{ color: 'var(--text-muted)' }}>{row.label}</p>
+                            <p className='text-xs font-black truncate'>{row.player.player?.fullName}</p>
+                          </div>
+                          <span className='text-xs font-black' style={{ color: 'var(--accent)' }}>{row.stat}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* C) MATCH HISTORY */}
+                <div className='bmt-surface overflow-hidden'>
+                  <div className='flex items-center gap-2 px-4 py-3' style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                    <div className='w-7 h-7 rounded-lg flex items-center justify-center' style={{ background: 'var(--accent-soft)' }}>
+                      <Clock size={13} style={{ color: 'var(--accent)' }} />
+                    </div>
+                    <p className='font-black text-sm'>MATCH HISTORY</p>
+                  </div>
+                  <div className='flex gap-2 px-4 pt-3'>
+                    {(['all', 'ranked', 'tournament'] as const).map(f => (
+                      <button key={f} onClick={() => setMatchFilter(f)}
+                        className='text-[10px] font-black px-3 py-1 rounded-full capitalize transition-colors'
+                        style={{ background: matchFilter === f ? 'var(--accent)' : 'var(--bg-surface-raised)', color: matchFilter === f ? '#000' : 'var(--text-muted)', border: matchFilter === f ? 'none' : '1px solid var(--border-subtle)' }}
+                      >{f}</button>
+                    ))}
+                  </div>
+                  <div className='p-4 flex flex-col gap-2'>
+                    {filtered.length === 0 ? (
+                      <div className='py-8 flex flex-col items-center gap-3'>
+                        <div className='w-12 h-12 rounded-2xl flex items-center justify-center' style={{ background: 'var(--bg-surface-raised)' }}>
+                          <Clock size={22} style={{ color: 'var(--text-muted)' }} />
+                        </div>
+                        <p className='text-xs font-bold' style={{ color: 'var(--text-muted)' }}>No matches yet</p>
+                      </div>
+                    ) : filtered.map((m: any) => {
+                      const isA = m.teamA_Id === team.id || m.teamAId === team.id;
+                      const opp = m._t === 'ranked' ? (isA ? m.teamB : m.teamA) : m.opponent;
+                      const myScore = isA ? m.scoreA : m.scoreB;
+                      const opScore = isA ? m.scoreB : m.scoreA;
+                      const res = resColor(m);
+                      const isExp = expandedMatch === m.id;
+                      const mStats = (m.playerStats || []).filter((ps: any) => team.members?.some((mb: any) => mb.playerId === ps.playerId));
+                      return (
+                        <div key={m.id}>
+                          <button onClick={() => setExpandedMatch(isExp ? null : m.id)}
+                            className='w-full flex items-center gap-3 p-3 rounded-xl text-left transition-colors'
+                            style={{ background: 'var(--bg-surface-raised)', border: isExp ? '1px solid rgba(0,255,65,0.2)' : '1px solid transparent' }}
+                          >
+                            <span className='w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black flex-shrink-0'
+                              style={{ background: res.b, color: res.c }}>{res.l}</span>
+                            <span className='text-xs font-bold flex-1 truncate' style={{ color: 'var(--text-secondary)' }}>vs {opp?.name || 'Unknown'}</span>
+                            <span className='text-xs font-black' style={{ color: res.b }}>{myScore ?? '\u2014'} \u2013 {opScore ?? '\u2014'}</span>
+                            {m._t === 'tournament' && <span className='text-[8px] px-1.5 py-0.5 rounded-full font-black' style={{ background: 'rgba(212,175,55,0.12)', color: 'var(--gold)' }}>CUP</span>}
+                            <span className='text-[9px]' style={{ color: 'var(--text-muted)' }}>{new Date(m.updatedAt ?? m.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                          </button>
+                          {isExp && (
+                            <div className='mt-1 rounded-xl overflow-hidden' style={{ background: 'rgba(0,255,65,0.03)', border: '1px solid rgba(0,255,65,0.1)' }}>
+                              {mStats.length === 0 ? (
+                                <p className='text-[10px] text-center py-3 font-bold' style={{ color: 'var(--text-muted)' }}>No player data for this match</p>
+                              ) : (
+                                <div className='overflow-x-auto'>
+                                  <table className='w-full text-[10px]'>
+                                    <thead><tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                      <th className='text-left px-3 py-2 font-black uppercase tracking-wider' style={{ color: 'var(--text-muted)' }}>Player</th>
+                                      <th className='px-2 py-2 font-black text-center' style={{ color: 'var(--text-muted)' }}>G</th>
+                                      <th className='px-2 py-2 font-black text-center' style={{ color: 'var(--text-muted)' }}>A</th>
+                                      <th className='px-2 py-2 font-black text-center' style={{ color: 'var(--text-muted)' }}>Rtg</th>
+                                      <th className='px-2 py-2 font-black text-center' style={{ color: 'var(--text-muted)' }}>\u2605</th>
+                                    </tr></thead>
+                                    <tbody>
+                                      {mStats.map((ps: any) => (
+                                        <tr key={ps.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                          <td className='px-3 py-2 font-bold truncate max-w-[120px]'>{ps.player?.fullName || '\u2014'}</td>
+                                          <td className='px-2 py-2 text-center font-black' style={{ color: 'var(--accent)' }}>{ps.goals ?? 0}</td>
+                                          <td className='px-2 py-2 text-center font-bold'>{ps.assists ?? 0}</td>
+                                          <td className='px-2 py-2 text-center font-bold'>{ps.rating ? ps.rating.toFixed(1) : '\u2014'}</td>
+                                          <td className='px-2 py-2 text-center'>{ps.motm ? '\u2b50' : ''}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* D) Trophy Cabinet */}
+                {(team.trophies?.length > 0) && (
+                  <div className='bmt-surface overflow-hidden'>
+                    <div className='flex items-center gap-2 px-4 py-3' style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                      <div className='w-7 h-7 rounded-lg flex items-center justify-center' style={{ background: 'rgba(212,175,55,0.1)' }}>
+                        <Trophy size={13} style={{ color: 'var(--gold)' }} />
+                      </div>
+                      <p className='font-black text-sm'>Trophy Cabinet</p>
+                    </div>
+                    <div className='p-4 grid grid-cols-3 gap-3'>
+                      {team.trophies.map((t: any) => (
+                        <div key={t.id} className='flex flex-col items-center gap-1 p-2 rounded-xl' style={{ background: 'var(--bg-surface-raised)' }}>
+                          <span className='text-2xl'>\uD83C\uDFC6</span>
+                          <p className='text-[9px] font-black text-center leading-tight' style={{ color: 'var(--gold)' }}>{t.name || t.label}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
-              </button>
 
-              {/* Team Announcements Trigger */}
-              <button onClick={() => setShowAnnouncements(true)} className="flex items-center gap-1.5 px-5 py-1 bg-neutral-800/80 hover:bg-neutral-800 rounded-full text-[10px] font-black uppercase text-amber-500 border border-amber-500/30 transition-colors shadow-[0_0_10px_rgba(245,158,11,0.1)]">
-                📜 Team Scroll
-              </button>
-            </div>
-          </div>
+                {/* D) Hall of Fame */}
+                {(team.hallOfFame?.length > 0) && (
+                  <div className='bmt-surface overflow-hidden'>
+                    <div className='flex items-center gap-2 px-4 py-3' style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                      <div className='w-7 h-7 rounded-lg flex items-center justify-center' style={{ background: 'rgba(212,175,55,0.1)' }}>
+                        <Star size={13} style={{ color: 'var(--gold)' }} />
+                      </div>
+                      <p className='font-black text-sm'>Hall of Fame</p>
+                    </div>
+                    <div className='p-4 flex flex-col gap-2'>
+                      {team.hallOfFame.map((p: any) => (
+                        <div key={p.id} className='flex items-center gap-3 p-2.5 rounded-xl' style={{ background: 'var(--bg-surface-raised)' }}>
+                          <div className='w-8 h-8 rounded-full overflow-hidden flex items-center justify-center' style={{ background: 'rgba(212,175,55,0.1)', border: '1px solid rgba(212,175,55,0.3)' }}>
+                            {p.avatarUrl ? <img src={p.avatarUrl} alt='' className='w-full h-full object-cover' /> : <Star size={14} style={{ color: 'var(--gold)' }} />}
+                          </div>
+                          <div>
+                            <p className='text-xs font-black leading-tight'>{p.name || p.username}</p>
+                            <p className='text-[10px]' style={{ color: 'var(--gold)' }}>{p.reason || 'Legend'}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-          {/* Right Banner: Tournament Rank & MMR */}
-          <div className="flex flex-col items-center relative z-0">
-            <div
-              style={{
-                clipPath: 'polygon(0% 0%, 100% 0%, 95% 5%, 95% 85%, 100% 90%, 80% 90%, 50% 100%, 20% 90%, 0% 90%, 5% 85%, 5% 5%)',
-                background: `linear-gradient(to bottom, rgba(${tournamentRankData.glow},0.4), rgba(10,10,10,0.9))`
-              }}
-              className="w-full h-80 backdrop-blur-md flex flex-col items-center justify-start pt-8 pb-10 shadow-2xl relative overflow-hidden group"
-            >
-              <img src="/banners/Banner%2001.svg" className="absolute top-0 left-0 w-full h-full object-cover mix-blend-overlay opacity-60 group-hover:scale-105 transition-transform duration-700 pointer-events-none" alt="" />
-              <div
-                className="absolute inset-[2px] pointer-events-none"
-                style={{
-                  clipPath: 'polygon(0% 0%, 100% 0%, 95% 5%, 95% 85%, 100% 90%, 80% 90%, 50% 100%, 20% 90%, 0% 90%, 5% 85%, 5% 5%)',
-                  background: `linear-gradient(to bottom, rgba(${tournamentRankData.glow},0.2), transparent)`
-                }}
-              />
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#d4af37] leading-tight">TOURNAMENT</p>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#d4af37] leading-tight mb-1">MMR</p>
-              <p className="text-sm font-black tracking-widest">{tournamentMmr}</p>
-              <div className="w-8 h-[1px] my-2" style={{ background: `rgba(${tournamentRankData.glow},0.4)` }} />
-              <div className="mt-auto flex flex-col items-center w-full">
-                <img src={tournamentRankData.icon} className="w-20 h-20 object-contain drop-shadow-[0_4px_16px_rgba(255,255,255,0.25)]" alt="Tournament Rank" />
-                <p className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: tournamentRankData.color }}>Rank</p>
-                <p className="text-xs font-black text-white text-center leading-tight px-1" style={{ color: tournamentRankData.color }}>
-                  {tournamentRankData.label}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+                {/* Leave Team */}
+                {myRole !== 'none' && myRole !== 'owner' && (
+                  <div className='bmt-surface overflow-hidden'>
+                    <div className='p-4 flex flex-col gap-3'>
+                      <p className='text-xs font-bold' style={{ color: 'var(--text-muted)' }}>
+                        Leaving removes you from the roster and lineup. Your personal MMR is unaffected.
+                      </p>
+                      <motion.button whileTap={btnTap} onClick={handleLeaveTeam} disabled={saving}
+                        className='w-full py-3 rounded-xl font-black text-xs flex justify-center items-center gap-2 transition-colors'
+                        style={{ border: '1px solid rgba(239,68,68,0.4)', color: '#f87171' }}
+                      >
+                        {saving ? <Loader2 size={16} className='animate-spin' /> : 'Leave Team'}
+                      </motion.button>
+                    </div>
+                  </div>
+                )}
 
-        {/* Level Bar */}
-        <div className="max-w-[280px] mx-auto mt-6 relative z-10">
-           <div className="flex justify-between items-end mb-1.5 px-1">
-             <span className="text-[11px] font-black text-accent uppercase tracking-wider">Level {team.level}</span>
-             <span className="text-[10px] font-bold text-[var(--muted)]">{team.xp} XP</span>
-           </div>
-           <div className="w-full h-2.5 bg-black/60 rounded-full border border-white/5 overflow-hidden ring-1 ring-black/20">
-             <div 
-               className="h-full bg-gradient-to-r from-accent/50 to-accent rounded-full relative"
-               style={{ width: `${Math.min(100, Math.max(5, (team.xp % 100)))}%` }}
-             >
-               <div className="absolute top-0 right-0 bottom-0 w-2 bg-white/30 rounded-full blur-[1px]" />
-             </div>
-           </div>
-        </div>
+              </motion.div>
+            );
+          })()}
 
+        </AnimatePresence>
       </div>
 
-      {/* STRATEGY & INFO SECTIONS */}
-      <div className="max-w-md mx-auto px-4 mt-6 flex flex-col gap-4">
-        
-        {/* Home Areas Box */}
-        <div className="glass-panel p-1.5 rounded-lg border border-[var(--panel-border)]">
-          <div className="flex items-center gap-1.5 mb-1">
-            <MapPin size={10} className="text-accent" />
-            <h3 className="font-black text-[9px] tracking-widest uppercase">Home Areas</h3>
-            <span className="text-[8px] text-[var(--muted)] ml-auto font-semibold">Max 3</span>
-          </div>
-          
-          <div className="flex flex-wrap gap-2">
-            {team.homeAreas?.length === 0 ? (
-              <p className="text-xs text-[var(--muted)] italic w-full text-center py-2">No home operating zones set.</p>
-            ) : (
-              team.homeAreas?.map((area: any) => (
-                <div key={area.id} className="text-[9px] font-bold px-2 py-1 rounded-full bg-neutral-800/80 border border-white/10 flex items-center gap-1 group whitespace-nowrap">
-                  <MapPin size={8} className="text-accent" />
-                  <span className="truncate max-w-[120px]">{area.name}</span>
-                  {isOM && (
-                    <button 
-                      onClick={() => handleUpdateAreas(team.homeAreas.filter((a: any) => a.id !== area.id).map((a: any) => a.id))}
-                      className="ml-0.5 opacity-40 hover:opacity-100 hover:text-red-400 transition-opacity"
-                    >
-                      <X size={10} />
-                    </button>
-                  )}
-                </div>
-              ))
-            )}
-            
-            {isOM && (team.homeAreas?.length || 0) < 3 && (
-              <button 
-                onClick={() => { setSearch(''); setShowAreaModal(true); }}
-                className="text-[11px] font-bold px-3 py-1.5 rounded-xl border border-dashed border-accent/40 text-accent hover:bg-accent/10 transition-colors flex items-center gap-1"
-                disabled={saving}
-              >
-                + Add Area
-              </button>
-            )}
-          </div>
-        </div>
+      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          MODALS
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
 
-        {/* Home Turfs Box */}
-        <div className="glass-panel p-1.5 rounded-lg border border-[var(--panel-border)]">
-          <div className="flex items-center gap-1.5 mb-1">
-            <Tent size={10} className="text-accent" />
-            <h3 className="font-black text-[9px] tracking-widest uppercase">Home Turfs</h3>
-            <span className="text-[8px] text-[var(--muted)] ml-auto font-semibold">Max 3</span>
-          </div>
-          
-          <div className="flex flex-wrap gap-2">
-            {team.homeTurfs?.length === 0 ? (
-              <p className="text-xs text-[var(--muted)] italic w-full text-center py-2">No preferred venues set.</p>
-            ) : (
-              team.homeTurfs?.map((turf: any) => (
-                <div key={turf.id} className="text-[9px] font-bold px-2 py-1 rounded-full bg-neutral-800/80 border border-white/10 flex items-center gap-1 group whitespace-nowrap">
-                  <Tent size={8} className="text-accent" />
-                  <span className="truncate max-w-[120px]">{turf.name}</span>
-                  {isOM && (
-                    <button 
-                      onClick={() => handleUpdateTurfs(team.homeTurfs.filter((t: any) => t.id !== turf.id).map((t: any) => t.id))}
-                      className="ml-0.5 opacity-40 hover:opacity-100 hover:text-red-400 transition-opacity"
-                    >
-                      <X size={10} />
-                    </button>
-                  )}
-                </div>
-              ))
-            )}
-            
-            {isOM && (team.homeTurfs?.length || 0) < 3 && (
-              <button 
-                onClick={() => { setSearch(''); setShowTurfModal(true); }}
-                className="text-xs w-full py-2.5 rounded-xl border border-dashed border-white/20 text-[var(--muted)] hover:border-accent/40 hover:text-accent font-bold transition-colors"
-                disabled={saving}
-              >
-                + Connect Turf
-              </button>
-            )}
-          </div>
-        </div>
-
-      </div>
-
-      <div className="max-w-md mx-auto px-4 mt-6">
-        {/* CM Booking History Box */}
-        <div className="mt-4 glass-panel border border-[var(--panel-border)] rounded-2xl overflow-hidden mb-6 relative">
-          <div className="px-4 py-3.5 flex items-center justify-between relative z-10">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center"><Clock size={13} className="text-blue-400" /></div>
-              <p className="font-black text-sm">CM Joint Bookings</p>
-            </div>
-          </div>
-          <div className="border-t border-white/5 p-4 flex flex-col gap-3 relative z-10">
-            <button onClick={() => setShowCMHistory(true)} className="w-full py-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 font-bold text-xs rounded-xl transition-colors border border-blue-500/30">
-              View Shared Ledgers
-            </button>
-          </div>
-        </div>
-        <SquadManager team={team} setTeam={setTeam} myRole={myRole} tournamentMatches={team.tournamentMatches || []} />
-        
-        {/* TEAM DANGER ZONE */}
-        {myRole === 'owner' && (
-          <div className="mt-6 glass-panel border border-red-500/20 rounded-2xl p-4 flex flex-col gap-3 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-3 opacity-10 pointer-events-none transform translate-x-1/4 -translate-y-1/4 group-hover:scale-110 group-hover:opacity-20 transition-all">
-              <AlertTriangle size={80} className="text-red-500" />
-            </div>
-            <div className="flex items-center gap-2 text-red-500 mb-1 relative z-10">
-              <AlertTriangle size={16} />
-              <h3 className="font-black text-sm uppercase tracking-widest">Danger Zone</h3>
-            </div>
-            <p className="text-xs text-[var(--muted)] leading-relaxed mb-1 relative z-10">Deleting this team is permanent and cannot be undone. All matches, trophies, and CM progress will be forever lost.</p>
-            <button 
-              onClick={() => setShowDeleteModal(true)} 
-              className="w-full py-3 rounded-xl border border-red-500/40 text-red-400 font-black text-xs hover:bg-red-500/10 transition-colors uppercase tracking-widest relative z-10"
-            >
-              Delete Team
-            </button>
-          </div>
-        )}
-
-        {/* LEAVE TEAM ZONE */}
-        {myRole !== 'none' && myRole !== 'owner' && (
-          <div className="mt-6 glass-panel border border-red-500/20 rounded-2xl p-4 flex flex-col gap-3 relative overflow-hidden group">
-            <div className="flex items-center gap-2 text-red-500 mb-1 relative z-10">
-              <AlertTriangle size={16} />
-              <h3 className="font-black text-sm uppercase tracking-widest">Leave Team</h3>
-            </div>
-            <p className="text-xs text-[var(--muted)] leading-relaxed mb-1 relative z-10">
-              Are you sure you want to leave this team? You will lose your roster slot, lineup placement, and shared MMR achievements.
-            </p>
-            <button 
-              onClick={handleLeaveTeam} 
-              disabled={saving}
-              className="w-full py-3 rounded-xl border border-red-500/40 text-red-400 font-black text-xs hover:bg-red-500/10 transition-colors uppercase tracking-widest relative z-10 flex justify-center items-center gap-2"
-            >
-              {saving ? <Loader2 size={16} className="animate-spin" /> : 'Leave Team'}
-            </button>
-          </div>
-        )}
-
-      </div>
-
-      {/* AREA MODAL */}
+      {/* Area Modal */}
       {showAreaModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-4 pb-0 sm:pb-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAreaModal(false)} />
-          <div className="relative w-full max-w-md bg-neutral-900 border border-[var(--panel-border)] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col h-[70vh] sm:h-[600px] animate-in slide-in-from-bottom flex flex-col">
-            <div className="p-4 border-b border-[var(--panel-border)] flex items-center justify-between shrink-0">
+          <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col h-[70vh] sm:h-[600px]" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
+            <div className="p-4 flex items-center justify-between shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
               <h2 className="font-black text-lg">Select Home Area</h2>
-              <button onClick={() => setShowAreaModal(false)} className="p-2 hover:bg-white/5 rounded-full"><X size={20} /></button>
+              <button onClick={() => setShowAreaModal(false)} className="p-2 rounded-full hover:bg-white/5"><X size={20} /></button>
             </div>
             <div className="p-4 shrink-0">
-              <input 
-                type="text" placeholder="Search cities..."
-                className="w-full bg-neutral-800 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent"
-                value={search} onChange={e => setSearch(e.target.value)}
-              />
+              <input type="text" placeholder="Search cities..." className="w-full rounded-xl px-4 py-3 text-sm focus:outline-none" style={{ background: 'var(--bg-surface-raised)', border: '1px solid var(--border-subtle)' }} value={search} onChange={e => setSearch(e.target.value)} />
             </div>
             <div className="flex-1 overflow-y-auto p-4 pt-0 gap-2 flex flex-col">
               {cities.filter((c: any) => c.name.toLowerCase().includes(search.toLowerCase()) && !team.homeAreas?.find((ha: any) => ha.id === c.id))
                 .map((city: any) => (
-                <button 
-                  key={city.id}
-                  onClick={() => handleUpdateAreas([...(team.homeAreas?.map((a: any) => a.id) || []), city.id])}
-                  className="w-full text-left p-3 rounded-xl bg-neutral-800/50 hover:bg-neutral-800 border border-transparent hover:border-accent/30 transition-colors flex items-center gap-3"
-                >
-                  <MapPin size={16} className="text-[var(--muted)]" />
-                  <div>
-                    <p className="font-bold text-sm leading-tight">{city.name}</p>
-                    <p className="text-[10px] text-[var(--muted)]">{city.division?.name || 'Division'}</p>
-                  </div>
-                </button>
-              ))}
+                  <button key={city.id} onClick={() => handleUpdateAreas([...(team.homeAreas?.map((a: any) => a.id) || []), city.id])}
+                    className="w-full text-left p-3 rounded-xl flex items-center gap-3 transition-colors"
+                    style={{ background: 'var(--bg-surface-raised)', border: '1px solid transparent' }}
+                  >
+                    <MapPin size={16} style={{ color: 'var(--text-muted)' }} />
+                    <div>
+                      <p className="font-bold text-sm leading-tight">{city.name}</p>
+                      <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{city.division?.name || 'Division'}</p>
+                    </div>
+                  </button>
+                ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* TURF MODAL */}
+      {/* Turf Modal */}
       {showTurfModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-4 pb-0 sm:pb-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowTurfModal(false)} />
-          <div className="relative w-full max-w-md bg-neutral-900 border border-[var(--panel-border)] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col h-[70vh] sm:h-[600px] animate-in slide-in-from-bottom flex flex-col">
-            <div className="p-4 border-b border-[var(--panel-border)] flex items-center justify-between shrink-0">
+          <div className="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col h-[70vh] sm:h-[600px]" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}>
+            <div className="p-4 flex items-center justify-between shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
               <h2 className="font-black text-lg">Connect Home Turf</h2>
-              <button onClick={() => setShowTurfModal(false)} className="p-2 hover:bg-white/5 rounded-full"><X size={20} /></button>
+              <button onClick={() => setShowTurfModal(false)} className="p-2 rounded-full hover:bg-white/5"><X size={20} /></button>
             </div>
             <div className="p-4 shrink-0">
-              <input 
-                type="text" placeholder="Search turfs..."
-                className="w-full bg-neutral-800 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent"
-                value={search} onChange={e => setSearch(e.target.value)}
-              />
+              <input type="text" placeholder="Search turfs..." className="w-full rounded-xl px-4 py-3 text-sm focus:outline-none" style={{ background: 'var(--bg-surface-raised)', border: '1px solid var(--border-subtle)' }} value={search} onChange={e => setSearch(e.target.value)} />
             </div>
             <div className="flex-1 overflow-y-auto p-4 pt-0 gap-2 flex flex-col">
               {turfs.filter((t: any) => t.name.toLowerCase().includes(search.toLowerCase()) && !team.homeTurfs?.find((ht: any) => ht.id === t.id))
                 .map((turf: any) => (
-                <button 
-                  key={turf.id}
-                  onClick={() => handleUpdateTurfs([...(team.homeTurfs?.map((t: any) => t.id) || []), turf.id])}
-                  className="w-full text-left p-3 rounded-xl bg-neutral-800/50 hover:bg-neutral-800 border border-transparent hover:border-accent/30 transition-colors flex items-center gap-3"
-                >
-                  <Tent size={16} className="text-[var(--muted)]" />
-                  <div>
-                    <p className="font-bold text-sm leading-tight">{turf.name}</p>
-                    <p className="text-[10px] text-[var(--muted)] uppercase tracking-wider mt-0.5">{turf.city?.name || 'City'} • {turf.area || 'Area'}</p>
-                  </div>
-                </button>
-              ))}
+                  <button key={turf.id} onClick={() => handleUpdateTurfs([...(team.homeTurfs?.map((t: any) => t.id) || []), turf.id])}
+                    className="w-full text-left p-3 rounded-xl flex items-center gap-3 transition-colors"
+                    style={{ background: 'var(--bg-surface-raised)', border: '1px solid transparent' }}
+                  >
+                    <Tent size={16} style={{ color: 'var(--text-muted)' }} />
+                    <div>
+                      <p className="font-bold text-sm leading-tight">{turf.name}</p>
+                      <p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: 'var(--text-muted)' }}>{turf.city?.name || 'City'} • {turf.area || 'Area'}</p>
+                    </div>
+                  </button>
+                ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Sub Modal ── */}
+      {/* Challenge Market / Subscription Modal */}
       {showSubModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowSubModal(false)}>
-          <div className="bg-neutral-900 border border-white/10 rounded-3xl p-6 w-full max-w-sm flex flex-col shadow-2xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="w-12 h-12 rounded-full bg-neutral-800 border border-white/10 flex items-center justify-center mb-4 text-[#00ff41]">
-              <Swords size={20} />
+          <div
+            className="rounded-3xl p-6 w-full max-w-sm flex flex-col shadow-2xl relative overflow-hidden"
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-full flex items-center justify-center mb-4" style={{ background: 'var(--accent-soft)', border: '1px solid rgba(0,255,65,0.2)' }}>
+              <Swords size={20} style={{ color: 'var(--accent)' }} />
             </div>
-            <h3 className="font-black text-xl mb-1 text-white">Challenge Market Stats</h3>
-            <p className="text-[11px] text-[var(--muted)] mb-6 font-bold">
-              Subscription rules and history for <span className="text-white">{team.name}</span>
+            <h3 className="font-black text-xl mb-1">Challenge Market</h3>
+            <p className="text-[11px] mb-6 font-bold" style={{ color: 'var(--text-muted)' }}>
+              Status for <span style={{ color: 'var(--text-primary)' }}>{team.name}</span>
             </p>
 
-            <div className="bg-black/50 border border-white/5 rounded-2xl p-4 mb-2 flex flex-col gap-3">
-               <div>
-                  <span className="text-[10px] uppercase font-black tracking-widest text-[var(--muted)] block mb-1">Status</span>
-                  {isSubActive ? (
-                    <span className="text-xs font-black text-fuchsia-400 bg-fuchsia-500/20 px-2 py-1 rounded-lg border border-fuchsia-500/20">Active</span>
-                  ) : (
-                    <span className="text-xs font-black text-white/30 bg-white/5 px-2 py-1 rounded-lg border border-white/10">Inactive</span>
-                  )}
-               </div>
-
-               {team.challengeSubscription?.subscribedAt && (
-                 <div>
-                   <span className="text-[10px] uppercase font-black tracking-widest text-[var(--muted)] block mb-1">Subscribed Since</span>
-                   <p className="text-sm font-bold text-white">{new Date(team.challengeSubscription.subscribedAt).toLocaleDateString()}</p>
-                 </div>
-               )}
-
-               {team.challengeSubscription?.gracePeriodEnd && (
-                 <div>
-                   <span className="text-[10px] uppercase font-black tracking-widest text-[var(--muted)] block mb-1">Grace Period Ends</span>
-                   <p className="text-sm font-bold text-red-400">{new Date(team.challengeSubscription.gracePeriodEnd).toLocaleString()}</p>
-                 </div>
-               )}
+            <div className="rounded-2xl p-4 mb-2 flex flex-col gap-3" style={{ background: 'var(--bg-base)', border: '1px solid var(--border-subtle)' }}>
+              <div>
+                <span className="text-[10px] uppercase font-black tracking-widest block mb-1" style={{ color: 'var(--text-muted)' }}>Status</span>
+                {isSubActive ? (
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: 'var(--accent)' }} />
+                    <span className="text-xs font-black" style={{ color: 'var(--accent)' }}>Challenge Market Active</span>
+                  </div>
+                ) : (
+                  <span className="text-xs font-black" style={{ color: 'var(--text-muted)' }}>Inactive</span>
+                )}
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-black tracking-widest block mb-1" style={{ color: 'var(--text-muted)' }}>Pricing</span>
+                <span className="text-xs font-black" style={{ color: 'var(--accent)' }}>Free during launch</span>
+              </div>
+              {team.challengeSubscription?.subscribedAt && (
+                <div>
+                  <span className="text-[10px] uppercase font-black tracking-widest block mb-1" style={{ color: 'var(--text-muted)' }}>Active Since</span>
+                  <p className="text-sm font-bold">{new Date(team.challengeSubscription.subscribedAt).toLocaleDateString()}</p>
+                </div>
+              )}
+              {team.challengeSubscription?.gracePeriodEnd && (
+                <div>
+                  <span className="text-[10px] uppercase font-black tracking-widest block mb-1" style={{ color: 'var(--text-muted)' }}>Grace Period Ends</span>
+                  <p className="text-sm font-bold" style={{ color: '#f87171' }}>{new Date(team.challengeSubscription.gracePeriodEnd).toLocaleString()}</p>
+                </div>
+              )}
             </div>
 
             <div className="mt-4 flex gap-2">
-              <button 
+              <motion.button
+                whileTap={btnTap}
                 onClick={() => setShowSubModal(false)}
-                className="w-full py-3 bg-neutral-800 hover:bg-neutral-700 text-white font-bold rounded-xl transition-colors text-sm"
-              >
-                Close
-              </button>
+                className="w-full py-3 font-bold rounded-xl transition-colors text-sm"
+                style={{ background: 'var(--bg-surface-raised)', color: 'var(--text-secondary)' }}
+              >Close</motion.button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ANNOUNCEMENT MODAL - MEDIEVAL SCROLL */}
+      {/* Announcement Modal — Team Scroll (keeps medieval theme intact) */}
       {showAnnouncements && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-sm" onClick={() => setShowAnnouncements(false)}>
-          <div 
-            className="w-full max-w-md flex flex-col shadow-2xl relative overflow-hidden rounded-t-3xl sm:rounded-3xl border border-[#a67c52]/40"
-            style={{ background: 'linear-gradient(180deg, #1e1208 0%, #120c06 60%, #0d0805 100%)', maxHeight: '85dvh' }}
+          <div
+            className="w-full max-w-md flex flex-col shadow-2xl relative overflow-hidden rounded-t-3xl sm:rounded-3xl"
+            style={{ background: 'linear-gradient(180deg,#1e1208 0%,#120c06 60%,#0d0805 100%)', maxHeight: '85dvh', border: '1px solid rgba(166,124,82,0.4)' }}
             onClick={e => e.stopPropagation()}
           >
-            {/* Scroll top rod */}
-            <div className="h-3 w-full shrink-0" style={{ background: 'linear-gradient(90deg, #3a1e08, #8c5e2a, #d4af37, #8c5e2a, #3a1e08)' }} />
-            {/* Decorative wood grain lines */}
-            <div className="absolute top-3 left-0 w-full h-px bg-[#a67c52]/30 pointer-events-none" />
-
-            {/* Header */}
-            <div className="px-6 pt-4 pb-3 border-b border-[#a67c52]/20 flex items-center justify-between shrink-0">
+            <div className="h-3 w-full shrink-0" style={{ background: 'linear-gradient(90deg,#3a1e08,#8c5e2a,#d4af37,#8c5e2a,#3a1e08)' }} />
+            <div className="px-6 pt-4 pb-3 flex items-center justify-between shrink-0" style={{ borderBottom: '1px solid rgba(166,124,82,0.2)' }}>
               <div>
-                <h3 className="font-serif text-xl text-[#d4af37] font-black italic tracking-wide">⚔️ Royal Decrees</h3>
-                <p className="text-[#a67c52] text-[10px] font-bold uppercase tracking-widest">{team.name}</p>
+                <h3 className="font-serif text-xl font-black italic tracking-wide" style={{ color: 'var(--gold)' }}>⚔️ Royal Decrees</h3>
+                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: '#a67c52' }}>{team.name}</p>
               </div>
-              <button onClick={() => setShowAnnouncements(false)} className="w-8 h-8 flex items-center justify-center rounded-full border border-[#a67c52]/30 text-[#a67c52] hover:text-[#d4af37] hover:border-[#d4af37]/50 transition-colors"><X size={16} /></button>
+              <button onClick={() => setShowAnnouncements(false)} className="w-8 h-8 flex items-center justify-center rounded-full" style={{ border: '1px solid rgba(166,124,82,0.3)', color: '#a67c52' }}><X size={16} /></button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4" style={{ scrollbarColor: '#a67c52 transparent' }}>
-              {/* OMC: Write new decree */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4">
               {isOMC && (
-                <div className="border border-[#a67c52]/30 rounded-2xl overflow-hidden" style={{ background: 'rgba(0,0,0,0.4)' }}>
-                  <div className="px-4 py-2.5 border-b border-[#a67c52]/20">
-                    <p className="text-[#d4af37] text-[9px] font-black uppercase tracking-widest">✍️ Scribe New Decree</p>
+                <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(166,124,82,0.3)' }}>
+                  <div className="px-4 py-2.5" style={{ borderBottom: '1px solid rgba(166,124,82,0.2)' }}>
+                    <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: 'var(--gold)' }}>✍️ Scribe New Decree</p>
                   </div>
                   <div className="p-4 flex flex-col gap-2">
-                    <input
-                      value={newAnnTitle}
-                      onChange={e => setNewAnnTitle(e.target.value)}
-                      placeholder="Decree Title..."
-                      className="w-full bg-black/50 border border-[#a67c52]/20 rounded-xl px-4 py-2.5 text-sm text-[#e6d0a3] focus:outline-none focus:border-[#d4af37] font-serif italic placeholder:text-[#a67c52]/40"
-                    />
-                    <textarea
-                      value={newAnnContent}
-                      onChange={e => setNewAnnContent(e.target.value)}
-                      placeholder="Write your decree here..."
-                      rows={3}
-                      className="w-full bg-black/50 border border-[#a67c52]/20 rounded-xl px-4 py-2.5 text-sm text-[#e6d0a3] focus:outline-none focus:border-[#d4af37] font-serif placeholder:text-[#a67c52]/40 resize-none"
-                    />
-                    <button
-                      onClick={handleCreateAnnouncement}
-                      disabled={saving || !newAnnTitle.trim() || !newAnnContent.trim()}
-                      className="w-full py-2.5 rounded-xl font-black text-sm transition-all disabled:opacity-40 border border-[#d4af37]/50"
-                      style={{ background: 'linear-gradient(90deg, #6b3c10, #a06420, #6b3c10)', color: '#fde8a0' }}
-                    >
+                    <input value={newAnnTitle} onChange={e => setNewAnnTitle(e.target.value)} placeholder="Decree Title..." className="w-full bg-black/50 rounded-xl px-4 py-2.5 text-sm focus:outline-none font-serif italic" style={{ border: '1px solid rgba(166,124,82,0.2)', color: '#e6d0a3' }} />
+                    <textarea value={newAnnContent} onChange={e => setNewAnnContent(e.target.value)} placeholder="Write your decree here..." rows={3} className="w-full bg-black/50 rounded-xl px-4 py-2.5 text-sm focus:outline-none font-serif resize-none" style={{ border: '1px solid rgba(166,124,82,0.2)', color: '#e6d0a3' }} />
+                    <button onClick={handleCreateAnnouncement} disabled={saving || !newAnnTitle.trim() || !newAnnContent.trim()} className="w-full py-2.5 rounded-xl font-black text-sm transition-all disabled:opacity-40" style={{ background: 'linear-gradient(90deg,#6b3c10,#a06420,#6b3c10)', color: '#fde8a0', border: '1px solid rgba(212,175,55,0.5)' }}>
                       📜 Publish Decree
                     </button>
                   </div>
                 </div>
               )}
-
-              {/* Decree list */}
               {announcements.length === 0 ? (
-                <div className="text-center py-12 text-[#a67c52]/60 font-serif italic text-sm">No decrees have been scribed yet.</div>
+                <div className="text-center py-12 font-serif italic text-sm" style={{ color: 'rgba(166,124,82,0.6)' }}>No decrees have been scribed yet.</div>
               ) : (
                 <div className="flex flex-col gap-3">
-                  {announcements.map(ann => {
-                    const isEditing = editingAnnId === ann.id;
-                    return (
-                      <EditableDecree
-                        key={ann.id}
-                        ann={ann}
-                        isOMC={isOMC}
-                        isEditing={isEditing}
-                        saving={saving}
-                        onEdit={() => setEditingAnnId(ann.id)}
-                        onDelete={() => handleDeleteAnnouncement(ann.id)}
-                        onSave={(title, content) => handleSaveEdit(ann.id, title, content)}
-                        onCancel={() => setEditingAnnId(null)}
-                      />
-                    );
-                  })}
+                  {announcements.map(ann => (
+                    <EditableDecree key={ann.id} ann={ann} isOMC={isOMC} isEditing={editingAnnId === ann.id} saving={saving}
+                      onEdit={() => setEditingAnnId(ann.id)} onDelete={() => handleDeleteAnnouncement(ann.id)}
+                      onSave={(title, content) => handleSaveEdit(ann.id, title, content)} onCancel={() => setEditingAnnId(null)}
+                    />
+                  ))}
                 </div>
               )}
             </div>
-
-            {/* Scroll bottom rod */}
-            <div className="h-3 w-full shrink-0" style={{ background: 'linear-gradient(90deg, #3a1e08, #8c5e2a, #d4af37, #8c5e2a, #3a1e08)' }} />
+            <div className="h-3 w-full shrink-0" style={{ background: 'linear-gradient(90deg,#3a1e08,#8c5e2a,#d4af37,#8c5e2a,#3a1e08)' }} />
           </div>
         </div>
       )}
 
-      {/* CM HISTORY MODAL */}
+      {/* Split Costs / Match Bookings Modal (renamed from CM History) */}
       {showCMHistory && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 pb-0 sm:pb-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowCMHistory(false)}>
-          <div className="bg-neutral-900 border border-[var(--panel-border)] rounded-t-3xl sm:rounded-3xl p-6 w-full max-w-md flex flex-col h-[75vh] shadow-2xl relative animate-in slide-in-from-bottom" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4 border-b border-white/5 pb-4">
+          <div
+            className="rounded-t-3xl sm:rounded-3xl p-6 w-full max-w-md flex flex-col h-[75vh] shadow-2xl relative"
+            style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4 pb-4" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400"><Clock size={16} /></div>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'var(--accent-soft)', border: '1px solid rgba(0,255,65,0.2)' }}>
+                  <Clock size={16} style={{ color: 'var(--accent)' }} />
+                </div>
                 <div>
-                  <h3 className="font-black text-lg text-white leading-none">Shared Ledger</h3>
-                  <p className="text-[10px] text-[var(--muted)] font-bold uppercase tracking-widest mt-1">Challenge Market</p>
+                  <h3 className="font-black text-lg leading-none">Cost Split</h3>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mt-1" style={{ color: 'var(--text-muted)' }}>Match Bookings</p>
                 </div>
               </div>
-              <button onClick={() => setShowCMHistory(false)} className="p-2 hover:bg-white/5 rounded-full"><X size={20} /></button>
+              <button onClick={() => setShowCMHistory(false)} className="p-2 rounded-full hover:bg-white/5"><X size={20} /></button>
             </div>
 
             <div className="flex-1 overflow-y-auto pr-2 flex flex-col gap-3">
               {cmMatches.length === 0 ? (
-                 <div className="text-center py-10 text-[var(--muted)] text-sm font-bold">No generated CM bookings found.</div>
-              ) : cmMatches.map(m => {
-                 const isTeamA = m.teamA_Id === team.id;
-                 const opp = isTeamA ? m.teamB : m.teamA;
-                 const oppName = opp?.name || 'Unknown Team';
-                 const bookingId = isTeamA ? m.bookingIdA : m.bookingIdB;
-                 return (
-                   <div key={m.id} className="bg-neutral-800/40 border border-white/5 p-4 rounded-2xl flex flex-col gap-2 relative overflow-hidden group hover:border-blue-500/30 transition-colors">
-                     <div className="absolute top-0 right-0 p-2 opacity-10 blur-sm pointer-events-none group-hover:blur-none group-hover:opacity-30 transition-all">
-                       <Clock size={40} className="text-blue-500" />
-                     </div>
-                     <p className="text-[10px] uppercase font-black text-blue-400 tracking-widest leading-none">Booking #{bookingId?.slice(-6).toUpperCase() || m.bookingCode}</p>
-                     
-                     <div className="flex items-center justify-between mt-1">
-                       <div className="font-black text-sm">vs {oppName}</div>
-                       <div className="bg-blue-500/20 border border-blue-500/40 text-blue-300 text-[10px] uppercase font-black px-2 py-0.5 rounded-md">
-                         CODE: {m.bookingCode}
-                       </div>
-                     </div>
-                     <div className="flex justify-between items-center mt-1">
-                       <span className="text-[11px] font-bold text-blue-100">{(() => { const sl = cmSlots.find((s) => s.id === m.selectedSlotId); return sl ? turfs.find((t) => t.id === sl.turfId)?.name || 'Venue' : (m.selectedSlotId ? 'Venue Booked' : 'Venue TBD'); })()}</span>
-                       <span className="text-[11px] font-black text-blue-400">{(() => { const sl = cmSlots.find((s) => s.id === m.selectedSlotId); return sl ? '৳' + (sl.price / 2).toLocaleString() : '—'; })()}</span>
-                     </div>
-                     
-                     <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
-                        <span className="text-xs text-[var(--muted)] font-bold">{m.matchDate ? new Date(m.matchDate).toLocaleDateString() : new Date(m.createdAt).toLocaleDateString()}</span>
-                        <span className="text-xs font-black text-green-400">{m.status === 'COMPLETED' ? 'FINISHED' : 'PENDING'}</span>
-                     </div>
-                   </div>
-                 );
+                <div className="text-center py-10 text-sm font-bold" style={{ color: 'var(--text-muted)' }}>No match bookings found.</div>
+              ) : cmMatches.map((m: any) => {
+                const isTeamA   = m.teamA_Id === team.id;
+                const opp       = isTeamA ? m.teamB : m.teamA;
+                const bookingId = isTeamA ? m.bookingIdA : m.bookingIdB;
+                const slot      = cmSlots.find(s => s.id === m.selectedSlotId);
+                const venueName = slot ? turfs.find(t => t.id === slot.turfId)?.name || 'Venue' : (m.selectedSlotId ? 'Venue Booked' : 'Venue TBD');
+                const splitCost = slot ? '৳' + (slot.price / 2).toLocaleString() : '—';
+                return (
+                  <div key={m.id}
+                    className="p-4 rounded-2xl flex flex-col gap-2 relative overflow-hidden transition-colors"
+                    style={{ background: 'var(--bg-surface-raised)', border: '1px solid var(--border-subtle)' }}
+                  >
+                    <p className="text-[10px] uppercase font-black tracking-widest leading-none" style={{ color: 'var(--accent)' }}>
+                      Booking #{bookingId?.slice(-6).toUpperCase() || m.bookingCode}
+                    </p>
+                    <div className="flex items-center justify-between mt-1">
+                      <div className="font-black text-sm">vs {opp?.name || 'Unknown Team'}</div>
+                      <div className="text-[10px] uppercase font-black px-2 py-0.5 rounded-md" style={{ background: 'var(--accent-soft)', color: 'var(--accent)', border: '1px solid rgba(0,255,65,0.2)' }}>
+                        {m.bookingCode}
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center mt-1">
+                      <span className="text-[11px] font-bold" style={{ color: 'var(--text-secondary)' }}>{venueName}</span>
+                      <span className="text-[11px] font-black" style={{ color: 'var(--accent)' }}>{splitCost}</span>
+                    </div>
+                    <div className="flex items-center justify-between mt-2 pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                      <span className="text-xs font-bold" style={{ color: 'var(--text-muted)' }}>
+                        {m.matchDate ? new Date(m.matchDate).toLocaleDateString() : new Date(m.createdAt).toLocaleDateString()}
+                      </span>
+                      <span className="text-xs font-black" style={{ color: m.status === 'COMPLETED' ? 'var(--accent)' : 'var(--text-muted)' }}>
+                        {m.status === 'COMPLETED' ? 'FINISHED' : 'PENDING'}
+                      </span>
+                    </div>
+                  </div>
+                );
               })}
             </div>
           </div>
         </div>
       )}
 
-      {/* DELETE TEAM MODAL */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowDeleteModal(false)}>
-          <div className="bg-neutral-900 border border-red-500/40 rounded-3xl p-6 w-full max-w-sm flex flex-col shadow-[0_0_50px_rgba(255,0,0,0.15)] relative overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="w-12 h-12 rounded-full bg-red-900/30 text-red-400 flex items-center justify-center mb-4">
-              <AlertTriangle size={24} />
+
+      {/* ── Leave Challenge Market Modal ── */}
+      {showLeaveModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowLeaveModal(false)}>
+          <div className="bg-neutral-900 border border-[var(--border-subtle)] rounded-3xl p-6 w-full max-w-sm flex flex-col items-center text-center shadow-2xl relative overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4" style={{ background: 'var(--accent-soft)', border: '1px solid rgba(0,255,65,0.3)' }}>
+              <Swords size={26} style={{ color: 'var(--accent)' }} />
             </div>
-            <h3 className="font-black text-xl mb-1 text-white">Delete Team?</h3>
-            <p className="text-xs text-red-200/80 mb-6 font-medium leading-relaxed">
-              This action is <span className="font-black text-red-400 underline">irreversible</span>. Enter your account password to confirm termination of <strong>{team.name}</strong>.
+            <h3 className="font-black text-lg mb-1">Leave Challenge Market?</h3>
+            <p className="text-xs mb-6 font-medium" style={{ color: 'var(--text-muted)' }}>
+              Your team will be removed from the listing. You can rejoin at any time by subscribing again.
             </p>
-
-            {deleteError && (
-              <div className="w-full p-3 bg-red-500/10 border border-red-500/30 rounded-xl mb-4 text-xs text-red-400 font-bold">
-                {deleteError}
-              </div>
-            )}
-
-            <div className="flex flex-col gap-1.5 mb-6">
-              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Your Password</label>
-              <input 
-                type="password"
-                placeholder="Enter account password..."
-                value={deletePassword}
-                onChange={e => setDeletePassword(e.target.value)}
-                className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500/50 text-white placeholder:text-white/20 font-mono"
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <button 
-                onClick={() => setShowDeleteModal(false)}
-                className="flex-1 py-3 bg-neutral-800 hover:bg-neutral-700 text-white font-bold rounded-xl transition-colors text-sm"
+            <div className="w-full flex gap-3">
+              <button
+                onClick={() => setShowLeaveModal(false)}
+                disabled={leaving}
+                className="flex-[1] py-3 rounded-xl font-bold text-sm transition-colors disabled:opacity-50"
+                style={{ background: 'var(--bg-surface-raised)', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)' }}
               >
                 Cancel
               </button>
-              <button 
-                onClick={handleDeleteTeam}
-                disabled={saving || !deletePassword}
-                className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl transition-all shadow-lg text-sm uppercase tracking-widest border border-red-400/30 disabled:opacity-50 flex justify-center items-center gap-2"
+              <button
+                onClick={handleLeaveChallenge}
+                disabled={leaving}
+                className="flex-[2] py-3 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}
               >
-                {saving ? <Loader2 size={16} className="animate-spin" /> : 'Confirm'}
+                {leaving ? <Loader2 size={15} className="animate-spin" /> : 'Leave Challenge Market'}
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* CHANGE SPORT TYPE MODAL */}
-      {showSportModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowSportModal(false)}>
-          <div className="bg-neutral-900 border border-white/10 rounded-3xl p-6 w-full max-w-sm flex flex-col shadow-2xl relative" onClick={e => e.stopPropagation()}>
-            <h3 className="font-black text-xl mb-1 text-white">Change Sport Type</h3>
-            <p className="text-xs text-[var(--muted)] mb-6 font-bold">
-              Select the new sport type for <span className="text-white">{team.name}</span>.
-            </p>
-
-            <div className="flex flex-col gap-2 mb-6">
-              {[
-                { value: 'FUTSAL', label: 'Futsal', emoji: '⚽' },
-                { value: 'FOOTBALL', label: 'Football', emoji: '⚽' },
-                { value: 'CRICKET', label: 'Cricket', emoji: '🏏' },
-              ].map((sport) => (
-                <button
-                  key={sport.value}
-                  onClick={() => setNewSportType(sport.value)}
-                  className={`w-full text-left p-3 rounded-xl border transition-all flex items-center gap-3 ${
-                    newSportType === sport.value
-                      ? 'bg-accent/15 border-accent text-white font-black'
-                      : 'bg-neutral-800/50 border-white/5 text-neutral-300 hover:bg-neutral-800'
-                  }`}
-                >
-                  <span className="text-lg">{sport.emoji}</span>
-                  <span className="text-sm">{sport.label}</span>
-                  {newSportType === sport.value && <span className="ml-auto text-accent">✓</span>}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowSportModal(false)}
-                className="flex-1 py-3 bg-neutral-800 hover:bg-neutral-700 text-white font-bold rounded-xl transition-colors text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={async () => {
-                  if (!newSportType) return;
-                  setSaving(true);
-                  const res = await fetch(`/api/teams/${id}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'change_sport_type', payload: { sportType: newSportType } })
-                  });
-                  if (res.ok) {
-                    const data = await res.json();
-                    setTeam({ ...team, sportType: data.sportType });
-                    setShowSportModal(false);
-                  } else {
-                    const data = await res.json();
-                    alert(data.error || 'Failed to update sport type');
-                  }
-                  setSaving(false);
-                }}
-                disabled={saving || !newSportType || newSportType === team.sportType}
-                className="flex-1 py-3 bg-accent hover:bg-accent/80 text-black font-black rounded-xl transition-all text-sm disabled:opacity-50"
-              >
-                {saving ? <Loader2 size={16} className="animate-spin mx-auto text-black" /> : 'Save'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }

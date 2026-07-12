@@ -6,10 +6,11 @@ import { useTranslations } from 'next-intl';
 import {
   Swords, ChevronLeft, Shield, Loader2, Trophy, Users, Flame,
   ChevronDown, X, CheckCircle, XCircle, Clock, ExternalLink,
-  Zap, Lock, AlertTriangle, History, ChevronUp, Award
+  Zap, Lock, AlertTriangle, History, ChevronUp, Award, ShieldCheck
 } from 'lucide-react';
 import { getRankData, TIER_RANGES, BADGES_BY_SPORT, maxBadges, type BadgeDef } from '@/lib/rankUtils';
 import { useMatchResult } from '@/context/MatchResultContext';
+import { getCookie } from '@/lib/cookies';
 
 const sportName = (s: string) => {
   if (s === 'FUTSAL' || s.startsWith('FUTSAL_')) return 'Futsal';
@@ -42,10 +43,21 @@ export default function MarketPage() {
   // ── Discover filters ───────────────────────────────────────────────────────
   const [sportFilter,    setSportFilter]    = useState('ALL');
   const [divisionFilter, setDivisionFilter] = useState('ALL');
+  const [formatFilter,   setFormatFilter]   = useState('ALL');
+  const [areaFilter,     setAreaFilter]     = useState('ALL');
+  const [sortType,       setSortType]       = useState('relevance');
   const [scoutTeamId,    setScoutTeamId]    = useState('ALL');
   const [showRankMenu,   setShowRankMenu]   = useState(false);
   const [showSportMenu,  setShowSportMenu]  = useState(false);
+  const [showFormatMenu, setShowFormatMenu] = useState(false);
+  const [showAreaMenu,   setShowAreaMenu]   = useState(false);
+  const [showSortMenu,   setShowSortMenu]   = useState(false);
   const [teamSearchQuery, setTeamSearchQuery] = useState('');
+  const [openChallenges,  setOpenChallenges]  = useState<any[]>([]);
+  const [visibleCount,    setVisibleCount]    = useState(10);
+  const [showPostChallengeModal, setShowPostChallengeModal] = useState(false);
+  const [showAcceptConfirmModal, setShowAcceptConfirmModal] = useState<any>(null);
+  const [showScoutSwitcher, setShowScoutSwitcher] = useState(false);
 
   // ── Score modal ─────────────────────────────────────────────────────────────
   const [scoreModalId,     setScoreModalId]     = useState<string | null>(null);
@@ -98,11 +110,17 @@ export default function MarketPage() {
   // ── Data loading ────────────────────────────────────────────────────────────
   const loadMarket = useCallback(() => {
     setLoading(true);
-    fetch('/api/interact/market')
-      .then(r => r.json())
-      .then(d => { setMyTeams(d.myTeams || []); setOtherTeams(d.otherTeams || []); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    Promise.all([
+      fetch('/api/interact/market').then(r => r.json()),
+      fetch('/api/interact/open-challenge').then(r => r.json())
+    ])
+    .then(([marketData, challengeData]) => {
+      setMyTeams(marketData.myTeams || []);
+      setOtherTeams(marketData.otherTeams || []);
+      setOpenChallenges(challengeData.openChallenges || []);
+    })
+    .catch(() => {})
+    .finally(() => setLoading(false));
   }, []);
 
   const loadChallenges = useCallback(() => {
@@ -123,6 +141,60 @@ export default function MarketPage() {
       .catch(() => {})
       .finally(() => setChallengesLoading(false));
   }, []);
+
+  // Filter persistence loading
+  useEffect(() => {
+    try {
+      const pid = getCookie('bmt_player_id');
+      if (pid) {
+        const stored = localStorage.getItem(`bmt_discover_filters_${pid}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed.sportFilter) setSportFilter(parsed.sportFilter);
+          if (parsed.divisionFilter) setDivisionFilter(parsed.divisionFilter);
+          if (parsed.formatFilter) setFormatFilter(parsed.formatFilter);
+          if (parsed.areaFilter) setAreaFilter(parsed.areaFilter);
+          if (parsed.sortType) setSortType(parsed.sortType);
+        }
+      }
+    } catch {}
+  }, []);
+
+  const saveFilters = (sport: string, div: string, fmt: string, ar: string, srt: string) => {
+    try {
+      const pid = getCookie('bmt_player_id');
+      if (pid) {
+        localStorage.setItem(`bmt_discover_filters_${pid}`, JSON.stringify({
+          sportFilter: sport,
+          divisionFilter: div,
+          formatFilter: fmt,
+          areaFilter: ar,
+          sortType: srt
+        }));
+      }
+    } catch {}
+  };
+
+  const changeSportFilter = (val: string) => {
+    setSportFilter(val);
+    saveFilters(val, divisionFilter, formatFilter, areaFilter, sortType);
+  };
+  const changeDivisionFilter = (val: string) => {
+    setDivisionFilter(val);
+    saveFilters(sportFilter, val, formatFilter, areaFilter, sortType);
+  };
+  const changeFormatFilter = (val: string) => {
+    setFormatFilter(val);
+    saveFilters(sportFilter, divisionFilter, val, areaFilter, sortType);
+  };
+  const changeAreaFilter = (val: string) => {
+    setAreaFilter(val);
+    saveFilters(sportFilter, divisionFilter, formatFilter, val, sortType);
+  };
+  const changeSortType = (val: string) => {
+    setSortType(val);
+    saveFilters(sportFilter, divisionFilter, formatFilter, areaFilter, val);
+  };
 
   useEffect(() => { loadMarket(); loadChallenges(); }, [loadMarket, loadChallenges]);
 
@@ -204,14 +276,59 @@ export default function MarketPage() {
     });
   }, [challenges.upcoming, myTeams]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const getHeadToHead = (targetTeam: any) => {
+    const scout = myTeams.find(team => team.id === scoutTeamId) ?? myTeams[0];
+    if (!scout) return 'Never played';
+    const matches = targetTeam.history?.filter((h: any) => h.opponent?.id === scout.id) || [];
+    if (matches.length === 0) return 'Never played';
+    
+    let userWins = 0;
+    let targetWins = 0;
+    let draws = 0;
+    matches.forEach((m: any) => {
+      if (m.outcome === 'W') targetWins++;
+      else if (m.outcome === 'L') userWins++;
+      else draws++;
+    });
+    if (userWins > targetWins) {
+      return `You lead ${userWins}–${targetWins}`;
+    } else if (targetWins > userWins) {
+      return `They lead ${targetWins}–${userWins}`;
+    } else {
+      return `Tied ${userWins}–${targetWins}`;
+    }
+  };
+
+  const [chalNote, setChalNote] = useState('');
+  const [proposedDateInput, setProposedDateInput] = useState('');
+
   // ── Discover helpers ────────────────────────────────────────────────────────
   const [minMmr, maxMmr] = TIER_RANGES[divisionFilter] ?? [0, 9999];
-  const filteredTeams = otherTeams.filter(t => {
-    const matchesFilters = (sportFilter === 'ALL' || getSportFamily(t.sportType) === sportFilter) &&
-      (t.teamMmr ?? 1000) >= minMmr && (t.teamMmr ?? 1000) <= maxMmr;
-    
-    if (!matchesFilters) return false;
+  
+  // Unique list of all home areas in otherTeams
+  const allAreas = Array.from(new Set([
+    ...otherTeams.flatMap((t: any) => t.homeAreas?.map((a: any) => a.name) || []),
+    ...openChallenges.map((oc: any) => oc.area).filter(Boolean)
+  ])).sort() as string[];
 
+  const filteredTeams = otherTeams.filter(t => {
+    // 1. Sport filter
+    const matchesSport = sportFilter === 'ALL' || getSportFamily(t.sportType) === sportFilter;
+    if (!matchesSport) return false;
+
+    // 2. Division (Tier) filter
+    const matchesTier = (t.teamMmr ?? 1000) >= minMmr && (t.teamMmr ?? 1000) <= maxMmr;
+    if (!matchesTier) return false;
+
+    // 3. Format filter
+    const matchesFormat = formatFilter === 'ALL' || getFormatLabel(t.sportType) === formatFilter;
+    if (!matchesFormat) return false;
+
+    // 4. Area filter
+    const matchesArea = areaFilter === 'ALL' || t.homeAreas?.some((a: any) => a.name === areaFilter);
+    if (!matchesArea) return false;
+
+    // 5. Search query
     if (teamSearchQuery.trim()) {
       const q = teamSearchQuery.toLowerCase();
       const matchesName = t.name.toLowerCase().includes(q);
@@ -222,23 +339,169 @@ export default function MarketPage() {
     return true;
   });
 
+  const sortedTeams = [...filteredTeams].sort((a: any, b: any) => {
+    if (sortType === 'nearest') {
+      const scout = myTeams.find(t => t.id === scoutTeamId) ?? myTeams[0];
+      const scoutAreaIds = scout?.homeAreas?.map((ha: any) => ha.id) || [];
+      const aNear = a.homeAreas?.some((ha: any) => scoutAreaIds.includes(ha.id)) ? 1 : 0;
+      const bNear = b.homeAreas?.some((ha: any) => scoutAreaIds.includes(ha.id)) ? 1 : 0;
+      return bNear - aNear;
+    }
+    if (sortType === 'active') {
+      return (b.completedCount ?? 0) - (a.completedCount ?? 0);
+    }
+    if (sortType === 'rank_desc') {
+      return (b.teamMmr ?? 1000) - (a.teamMmr ?? 1000);
+    }
+    if (sortType === 'rank_asc') {
+      return (a.teamMmr ?? 1000) - (b.teamMmr ?? 1000);
+    }
+    if (sortType === 'newest') {
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }
+    
+    // Default relevance sort
+    const scout = myTeams.find(t => t.id === scoutTeamId) ?? myTeams[0];
+    const scoutMmr = scout?.teamMmr ?? 1000;
+    const aMmrDiff = Math.abs((a.teamMmr ?? 1000) - scoutMmr);
+    const bMmrDiff = Math.abs((b.teamMmr ?? 1000) - scoutMmr);
+
+    const scoutAreaIds = scout?.homeAreas?.map((ha: any) => ha.id) || [];
+    const aNear = a.homeAreas?.some((ha: any) => scoutAreaIds.includes(ha.id)) ? 1 : 0;
+    const bNear = b.homeAreas?.some((ha: any) => scoutAreaIds.includes(ha.id)) ? 1 : 0;
+
+    let aScore = 0;
+    let bScore = 0;
+
+    if (aMmrDiff <= 150) aScore += 100;
+    else if (aMmrDiff <= 300) aScore += 50;
+
+    if (bMmrDiff <= 150) bScore += 100;
+    else if (bMmrDiff <= 300) bScore += 50;
+
+    aScore += aNear * 40;
+    bScore += bNear * 40;
+
+    aScore += Math.min(10, a.completedCount ?? 0) * 2;
+    bScore += Math.min(10, b.completedCount ?? 0) * 2;
+
+    return bScore - aScore;
+  });
+
+  const filteredOpenChallenges = openChallenges.filter(oc => {
+    // 1. Sport filter
+    const matchesSport = sportFilter === 'ALL' || getSportFamily(oc.format) === sportFilter;
+    if (!matchesSport) return false;
+
+    // 2. Division (Tier) filter of poster team
+    const posterMmr = oc.team?.teamMmr ?? 1000;
+    const matchesTier = posterMmr >= minMmr && posterMmr <= maxMmr;
+    if (!matchesTier) return false;
+
+    // 3. Format filter
+    const matchesFormat = formatFilter === 'ALL' || getFormatLabel(oc.format) === formatFilter;
+    if (!matchesFormat) return false;
+
+    // 4. Area filter
+    const matchesArea = areaFilter === 'ALL' || oc.area === areaFilter;
+    if (!matchesArea) return false;
+
+    // 5. Search query
+    if (teamSearchQuery.trim()) {
+      const q = teamSearchQuery.toLowerCase();
+      const matchesName = oc.team?.name.toLowerCase().includes(q);
+      const matchesCode = oc.team?.teamCode ? oc.team.teamCode.toLowerCase().includes(q) : false;
+      return matchesName || matchesCode;
+    }
+
+    return true;
+  });
+
+  // 1. Near challenges (starts in next 24 hours)
+  const nearChallenges = filteredOpenChallenges.filter(oc => {
+    const hours = (new Date(oc.windowStart).getTime() - Date.now()) / (1000 * 60 * 60);
+    return hours >= -2 && hours <= 24;
+  }).sort((a, b) => new Date(a.windowStart).getTime() - new Date(b.windowStart).getTime());
+
+  // 2. Far challenges
+  const farChallenges = filteredOpenChallenges.filter(oc => {
+    const hours = (new Date(oc.windowStart).getTime() - Date.now()) / (1000 * 60 * 60);
+    return hours < -2 || hours > 24;
+  }).sort((a, b) => new Date(a.windowStart).getTime() - new Date(b.windowStart).getTime());
+
+  // 3. Interleaved feed list
+  const interleavedFeed: any[] = [];
+  nearChallenges.forEach(oc => interleavedFeed.push({ type: 'open_challenge', id: oc.id, data: oc }));
+  
+  let farIndex = 0;
+  sortedTeams.forEach((team, index) => {
+    interleavedFeed.push({ type: 'team', id: team.id, data: team });
+    if ((index + 1) % 3 === 0 && farIndex < farChallenges.length) {
+      interleavedFeed.push({ type: 'open_challenge', id: farChallenges[farIndex].id, data: farChallenges[farIndex] });
+      farIndex++;
+    }
+  });
+
+  while (farIndex < farChallenges.length) {
+    interleavedFeed.push({ type: 'open_challenge', id: farChallenges[farIndex].id, data: farChallenges[farIndex] });
+    farIndex++;
+  }
 
   const handleChallengeAttempt = (e: React.MouseEvent, target: any) => {
     e.stopPropagation();
     const targetFamily = getSportFamily(target.sportType);
-    const eligible = myTeams.filter(t => t.isSubscribed && getSportFamily(t.sportType) === targetFamily);
+    const eligible = myTeams.filter(t => getSportFamily(t.sportType) === targetFamily);
     setEligibleTeams(eligible);
     setSelectedChallenger(eligible[0]?.id || '');
     setChalMsg('');
     
-    // Initialize default format based on family
-    setSelectedFormat(targetFamily);
+    // Initialize default specific format based on family
+    if (targetFamily === 'FUTSAL') {
+      setSelectedFormat('FUTSAL_5');
+    } else if (targetFamily === 'CRICKET') {
+      setSelectedFormat('CRICKET_7');
+    } else {
+      setSelectedFormat('FOOTBALL_FULL');
+    }
     
+    setProposedDateInput('');
+    setChalNote('');
     setShowChallengeModal(target);
+  };
+
+  const getFormatSize = (sport: string): number => {
+    if (sport.includes('5')) return 5;
+    if (sport.includes('6')) return 6;
+    if (sport.includes('7')) return 7;
+    if (sport.includes('FULL') || sport === 'FOOTBALL' || sport === 'CRICKET') return 11;
+    return 5;
+  };
+
+  const getFormatLabel = (sport: string): string => {
+    if (sport.includes('5')) return '5v5';
+    if (sport.includes('6')) return '6v6';
+    if (sport.includes('7')) return '7v7';
+    if (sport.includes('FULL') || sport === 'FOOTBALL' || sport === 'CRICKET') return '11v11';
+    return '5v5';
   };
 
   const issueChallenge = async () => {
     if (!selectedChallenger || !showChallengeModal) return;
+
+    const N = getFormatSize(selectedFormat);
+    const challengerTeam = myTeams.find(t => t.id === selectedChallenger);
+    const challengerRosterSize = challengerTeam?.members?.length || 0;
+    if (challengerRosterSize < N) {
+      setChalMsg(`❌ You need ${N - challengerRosterSize} more player(s) for ${getFormatLabel(selectedFormat)} — invite someone or hire from Khep Market.`);
+      return;
+    }
+
+    const opponentRosterSize = showChallengeModal.members?.length || 0;
+    if (opponentRosterSize < N) {
+      setChalMsg(`❌ Opponent team needs ${N - opponentRosterSize} more player(s) for ${getFormatLabel(selectedFormat)}.`);
+      return;
+    }
+
     setChalSending(true);
     try {
       const res  = await fetch('/api/interact/challenge', {
@@ -248,11 +511,19 @@ export default function MarketPage() {
           challengerTeamId: selectedChallenger,
           opponentTeamId: showChallengeModal.id,
           sportType: selectedFormat,
+          note: chalNote,
+          proposedDate: proposedDateInput,
         }),
       });
       const data = await res.json();
       if (res.ok) {
         setChalMsg('✅ Challenge sent!');
+        // Optimistic addition to challenged set
+        setChallengedTeamIds(prev => {
+          const s = new Set(prev);
+          s.add(showChallengeModal.id);
+          return s;
+        });
         setTimeout(() => { setShowChallengeModal(null); setChalMsg(''); loadChallenges(); }, 2000);
       } else {
         setChalMsg(`❌ ${data.error}`);
@@ -261,8 +532,44 @@ export default function MarketPage() {
     setChalSending(false);
   };
 
+  const acceptOpenChallenge = async (oc: any, acceptingTeamId: string) => {
+    try {
+      const res = await fetch(`/api/interact/open-challenge/${oc.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acceptingTeamId })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert('Challenge Accepted!');
+        setOpenChallenges(prev => prev.filter(item => item.id !== oc.id));
+        loadMarket();
+        loadChallenges();
+        setShowAcceptConfirmModal(null);
+      } else {
+        alert(`Error: ${data.error}`);
+      }
+    } catch {
+      alert('Network error.');
+    }
+  };
+
   const respondChallenge = async (matchId: string, action: 'accept' | 'decline' | 'start') => {
     try {
+      if (action === 'accept') {
+        const match = challenges.received.find(m => m.id === matchId);
+        if (match) {
+          const myTeam = myTeams.find(t => t.id === match.teamB_Id);
+          if (myTeam) {
+            const N = getFormatSize(match.sportType || '');
+            const myRosterSize = myTeam.members?.length || 0;
+            if (myRosterSize < N) {
+              alert(`❌ You need ${N - myRosterSize} more player(s) for ${getFormatLabel(match.sportType || '')} — invite someone or hire from Khep Market.`);
+              return;
+            }
+          }
+        }
+      }
       if (action === 'accept' || action === 'decline') {
         const res = await fetch('/api/interact/challenge', {
           method: 'PATCH',
@@ -497,7 +804,7 @@ export default function MarketPage() {
             <ChevronLeft size={18} />
           </button>
           <div className="flex items-center gap-2 flex-1">
-            <Swords size={18} className="text-purple-400" />
+            <Swords size={18} className="text-[#00ff41]" />
             <h1 className="font-black text-lg tracking-tight">{trans('challengeMarket')}</h1>
           </div>
           {/* Active count badge */}
@@ -524,14 +831,14 @@ export default function MarketPage() {
                 onClick={() => setMasterTab(tab)}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-purple-600 text-white shadow-[0_0_16px_rgba(147,51,234,0.4)]'
+                    ? 'bg-[#00ff41] text-black shadow-[0_0_16px_rgba(0,255,65,0.4)]'
                     : 'text-neutral-500 hover:text-white hover:bg-white/5'
                 }`}
               >
                 <Icon size={13} />
                 {label}
                 {count !== null && count > 0 && (
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black ${isActive ? 'bg-white/20 text-white' : 'bg-purple-600/30 text-purple-300'}`}>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black ${isActive ? 'bg-black/20 text-black' : 'bg-[#00ff41]/20 text-[#00ff41]'}`}>
                     {count}
                   </span>
                 )}
@@ -547,12 +854,16 @@ export default function MarketPage() {
       {masterTab === 'discover' && (
         <div className="flex flex-col gap-3 pb-8">
 
-          {/* ── Scouting As Interactive Select ── */}
+          {/* ── Scouting As Context Bar (Trigger switcher sheet) ── */}
           {myTeams.length > 0 && (() => {
             const scout = myTeams.find(t => t.id === scoutTeamId) ?? myTeams[0];
+            const isProv = (scout.completedCount ?? 0) < 3;
             const sr = getRankData(scout.teamMmr ?? 1000);
             return (
-              <div className="mx-4 mt-4 flex items-center gap-3 px-3.5 py-2.5 bg-[#0d0d0d] border border-white/8 rounded-2xl relative">
+              <div 
+                onClick={() => setShowScoutSwitcher(true)}
+                className="mx-4 mt-4 flex items-center gap-3 px-3.5 py-2.5 bg-[#0d0d0d] border border-white/8 rounded-2xl cursor-pointer hover:border-[#00ff41]/40 hover:bg-neutral-900/50 transition-all select-none"
+              >
                 <div className="w-7 h-7 rounded-lg bg-neutral-800 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
                   {scout.logoUrl ? <img src={scout.logoUrl} className="w-full h-full object-cover" /> : <Shield size={12} className="text-[#00ff41]" />}
                 </div>
@@ -560,38 +871,31 @@ export default function MarketPage() {
                   <p className="text-[9px] text-neutral-600 font-bold uppercase tracking-widest leading-none mb-0.5">{trans('scoutingAs')}</p>
                   <p className="text-[13px] font-black text-white leading-tight truncate">
                     {scout.name}{' '}
-                    <span className="text-[10px] font-bold" style={{ color: sr.color }}>({sr.label})</span>
+                    <span className="text-[10px] font-bold" style={isProv ? { color: '#a3a3a3' } : { color: sr.color }}>
+                      ({isProv ? (locale === 'bn' ? 'আনর‌্যাঙ্কড' : 'Unranked') : sr.label})
+                    </span>
                   </p>
                 </div>
-                <ChevronDown size={14} className="text-neutral-600 shrink-0 pointer-events-none" />
-                <select 
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  value={scoutTeamId === 'ALL' ? scout.id : scoutTeamId}
-                  onChange={(e) => {
-                    const tid = e.target.value;
-                    setScoutTeamId(tid);
-                    const sel = myTeams.find(t => t.id === tid);
-                    if (sel) {
-                      setSportFilter(sel.sportType);
-                      const lbl = getRankData(sel.teamMmr ?? 1000).label;
-                      if (lbl.includes('Bronze')) setDivisionFilter('Bronze');
-                      else if (lbl.includes('Silver')) setDivisionFilter('Silver');
-                      else if (lbl.includes('Gold')) setDivisionFilter('Gold');
-                      else if (lbl.includes('Platinum')) setDivisionFilter('Platinum');
-                      else if (lbl.includes('Legend')) setDivisionFilter('Legend');
-                    }
-                  }}
-                >
-                  {myTeams.map(t => (
-                    <option key={t.id} value={t.id}>{t.name} ({sportEmoji(t.sportType)} {getRankData(t.teamMmr ?? 1000).label})</option>
-                  ))}
-                </select>
+                <ChevronDown size={14} className="text-neutral-500 shrink-0" />
               </div>
             );
           })()}
 
+          {/* Action Header with Post Challenge Trigger */}
+          {myTeams.length > 0 && (
+            <div className="mx-4 mt-1 flex items-center justify-between">
+              <span className="text-[11px] text-neutral-500 font-bold">Lobby & Recruiting</span>
+              <button 
+                onClick={() => setShowPostChallengeModal(true)}
+                className="px-3 py-1.5 rounded-lg bg-[#00ff41]/10 border border-[#00ff41]/25 text-[#00ff41] font-black text-[10px] uppercase tracking-wider hover:bg-[#00ff41]/20 transition active:scale-95"
+              >
+                + Post Open Challenge
+              </button>
+            </div>
+          )}
+
           {/* Search bar */}
-          <div className="px-4 pt-4 shrink-0">
+          <div className="px-4 pt-2 shrink-0">
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-500">🔍</span>
               <input
@@ -604,34 +908,47 @@ export default function MarketPage() {
             </div>
           </div>
 
-          {/* ── Native Dropdown Filters replaced with Trigger Buttons ── */}
-          <div className="px-4 pt-4 flex gap-3">
-             {/* Sport Filter Button */}
-             <div className="flex-1 relative">
-                <button 
-                  onClick={() => setShowSportMenu(true)}
-                  className="w-full bg-[#111] border border-white/10 text-[11px] font-black text-white rounded-xl px-3.5 py-3 flex items-center justify-between outline-none transition-colors hover:border-white/20 cursor-pointer"
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <span>{sportFilter === 'ALL' ? (trans('discover') === 'খুঁজুন' ? 'সব খেলা' : 'All Sports') : `${sportEmoji(sportFilter)} ${sportName(sportFilter)}`}</span>
-                  </div>
-                  <ChevronDown size={14} className="text-neutral-500 shrink-0" />
-                </button>
-             </div>
+          {/* ── Filter & Sort Trigger Buttons ── */}
+          <div className="px-4 pt-2 flex flex-wrap gap-2">
+             <button 
+               onClick={() => setShowSportMenu(true)}
+               className="bg-[#111] border border-white/10 text-[10px] font-black text-white rounded-xl px-3 py-2 cursor-pointer hover:border-white/20 flex items-center gap-1.5"
+             >
+               Sport: {sportFilter === 'ALL' ? 'All' : sportName(sportFilter)}
+               <ChevronDown size={10} className="text-neutral-500" />
+             </button>
 
-             {/* Division Filter Button */}
-             <div className="flex-1 relative">
-                <button 
-                  onClick={() => setShowRankMenu(true)}
-                  className="w-full bg-[#111] border border-white/10 text-[11px] font-black text-white rounded-xl px-3.5 py-3 flex items-center justify-between outline-none transition-colors hover:border-white/20 cursor-pointer"
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    {divisionFilter !== 'ALL' && <img src={`/ranks/${divisionFilter}.svg`} className="w-4 h-4 object-contain shrink-0" />}
-                    <span>{divisionFilter === 'ALL' ? trans('allDivisions') : divisionFilter}</span>
-                  </div>
-                  <ChevronDown size={14} className="text-neutral-500 shrink-0" />
-                </button>
-             </div>
+             <button 
+               onClick={() => setShowRankMenu(true)}
+               className="bg-[#111] border border-white/10 text-[10px] font-black text-white rounded-xl px-3 py-2 cursor-pointer hover:border-white/20 flex items-center gap-1.5"
+             >
+               Tier: {divisionFilter === 'ALL' ? 'All' : divisionFilter}
+               <ChevronDown size={10} className="text-neutral-500" />
+             </button>
+
+             <button 
+               onClick={() => setShowFormatMenu(true)}
+               className="bg-[#111] border border-white/10 text-[10px] font-black text-white rounded-xl px-3 py-2 cursor-pointer hover:border-white/20 flex items-center gap-1.5"
+             >
+               Format: {formatFilter === 'ALL' ? 'All' : formatFilter}
+               <ChevronDown size={10} className="text-neutral-500" />
+             </button>
+
+             <button 
+               onClick={() => setShowAreaMenu(true)}
+               className="bg-[#111] border border-white/10 text-[10px] font-black text-white rounded-xl px-3 py-2 cursor-pointer hover:border-white/20 flex items-center gap-1.5"
+             >
+               Area: {areaFilter === 'ALL' ? 'All' : areaFilter}
+               <ChevronDown size={10} className="text-neutral-500" />
+             </button>
+
+             <button 
+               onClick={() => setShowSortMenu(true)}
+               className="bg-[#111] border border-[#00ff41]/20 text-[10px] font-black text-[#00ff41] rounded-xl px-3 py-2 cursor-pointer hover:border-[#00ff41]/40 flex items-center gap-1.5"
+             >
+               Sort: {sortType === 'relevance' ? 'Relevance' : sortType === 'nearest' ? 'Nearest' : sortType === 'active' ? 'Most Active' : sortType === 'rank_desc' ? 'Rank (H→L)' : sortType === 'rank_asc' ? 'Rank (L→H)' : 'Newest'}
+               <ChevronDown size={10} className="text-[#00ff41]/60" />
+             </button>
           </div>
 
           {/* ── BOTTOM SHEET MENUS ── */}
@@ -648,11 +965,11 @@ export default function MarketPage() {
                   </button>
                 </div>
                 <div className="overflow-y-auto px-4 pb-8 flex flex-col gap-2">
-                  <button onClick={() => {setSportFilter('ALL'); setShowSportMenu(false)}} className={`w-full py-4 px-5 rounded-2xl text-left border cursor-pointer ${sportFilter === 'ALL' ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]' : 'border-white/5 bg-neutral-900 text-white'}`}>
+                  <button onClick={() => {changeSportFilter('ALL'); setShowSportMenu(false)}} className={`w-full py-4 px-5 rounded-2xl text-left border cursor-pointer ${sportFilter === 'ALL' ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]' : 'border-white/5 bg-neutral-900 text-white'}`}>
                     <span className="font-black text-sm">🌐 {trans('discover') === 'খুঁজুন' ? 'সব খেলা' : 'All Sports'}</span>
                   </button>
                   {[['FUTSAL', 'Futsal'], ['FOOTBALL', 'Football'], ['CRICKET', 'Cricket']].map(([val, label]) => (
-                    <button key={val} onClick={() => {setSportFilter(val); setShowSportMenu(false)}} className={`w-full py-4 px-5 rounded-2xl text-left border flex items-center gap-3 cursor-pointer ${sportFilter === val ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]' : 'border-white/5 bg-neutral-900 hover:bg-white/5 text-white'}`}>
+                    <button key={val} onClick={() => {changeSportFilter(val); setShowSportMenu(false)}} className={`w-full py-4 px-5 rounded-2xl text-left border flex items-center gap-3 cursor-pointer ${sportFilter === val ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]' : 'border-white/5 bg-neutral-900 hover:bg-white/5 text-white'}`}>
                       <span className="text-lg">{sportEmoji(val)}</span>
                       <span className="font-black text-sm">{label}</span>
                     </button>
@@ -668,17 +985,17 @@ export default function MarketPage() {
               <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
               <div className="relative bg-[#0d0d0d] border-t border-white/10 rounded-t-3xl overflow-hidden flex flex-col max-h-[75vh]" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-5 pt-5 pb-3">
-                  <h3 className="text-lg font-black text-white">{trans('discover') === 'খুঁজুন' ? 'ডিভিশন লক্ষ্য নির্বাচন করুন' : 'Select Division Target'}</h3>
+                  <h3 className="text-lg font-black text-white">Select Division Target</h3>
                   <button onClick={() => setShowRankMenu(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition cursor-pointer">
                     <X size={16} className="text-neutral-400" />
                   </button>
                 </div>
                 <div className="overflow-y-auto px-4 pb-8 flex flex-col gap-2">
-                  <button onClick={() => {setDivisionFilter('ALL'); setShowRankMenu(false)}} className={`w-full py-4 px-5 rounded-2xl text-left border cursor-pointer ${divisionFilter === 'ALL' ? 'bg-purple-500/10 border-purple-500/30 text-purple-400' : 'border-white/5 bg-neutral-900 text-white'}`}>
+                  <button onClick={() => {changeDivisionFilter('ALL'); setShowRankMenu(false)}} className={`w-full py-4 px-5 rounded-2xl text-left border cursor-pointer ${divisionFilter === 'ALL' ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]' : 'border-white/5 bg-neutral-900 text-white'}`}>
                     <span className="font-black text-sm">🌌 {trans('allDivisions')}</span>
                   </button>
                   {['Bronze', 'Silver', 'Gold', 'Platinum', 'Legend'].map(div => (
-                    <button key={div} onClick={() => {setDivisionFilter(div); setShowRankMenu(false)}} className={`w-full py-4 px-5 rounded-2xl flex items-center gap-3 border transition cursor-pointer ${divisionFilter === div ? 'bg-purple-500/10 border-purple-500/30 text-purple-400' : 'border-white/5 bg-neutral-900 hover:bg-white/5 text-white'}`}>
+                    <button key={div} onClick={() => {changeDivisionFilter(div); setShowRankMenu(false)}} className={`w-full py-4 px-5 rounded-2xl flex items-center gap-3 border transition cursor-pointer ${divisionFilter === div ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]' : 'border-white/5 bg-neutral-900 hover:bg-white/5 text-white'}`}>
                       <img src={`/ranks/${div}.svg`} className="w-8 h-8 object-contain scale-125 ml-1" />
                       <span className="font-black text-md">{div} Division</span>
                     </button>
@@ -688,18 +1005,182 @@ export default function MarketPage() {
             </div>
           )}
 
-          {/* ── Scouting report cards ── */}
+          {/* Format Menu Bottom Sheet */}
+          {showFormatMenu && (
+            <div className="fixed inset-0 z-[100] flex flex-col justify-end" onClick={() => setShowFormatMenu(false)}>
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+              <div className="relative bg-[#0d0d0d] border-t border-white/10 rounded-t-3xl overflow-hidden flex flex-col max-h-[75vh]" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-5 pt-5 pb-3">
+                  <h3 className="text-lg font-black text-white">Select Format</h3>
+                  <button onClick={() => setShowFormatMenu(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition cursor-pointer">
+                    <X size={16} className="text-neutral-400" />
+                  </button>
+                </div>
+                <div className="overflow-y-auto px-4 pb-8 flex flex-col gap-2">
+                  <button onClick={() => {changeFormatFilter('ALL'); setShowFormatMenu(false)}} className={`w-full py-4 px-5 rounded-2xl text-left border cursor-pointer ${formatFilter === 'ALL' ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]' : 'border-white/5 bg-neutral-900 text-white'}`}>
+                    <span className="font-black text-sm">🌌 All Formats</span>
+                  </button>
+                  {['5v5', '6v6', '7v7', '11v11'].map(fmt => (
+                    <button key={fmt} onClick={() => {changeFormatFilter(fmt); setShowFormatMenu(false)}} className={`w-full py-4 px-5 rounded-2xl text-left border transition cursor-pointer ${formatFilter === fmt ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]' : 'border-white/5 bg-neutral-900 hover:bg-white/5 text-white'}`}>
+                      <span className="font-black text-sm">{fmt} Match</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Area Menu Bottom Sheet */}
+          {showAreaMenu && (
+            <div className="fixed inset-0 z-[100] flex flex-col justify-end" onClick={() => setShowAreaMenu(false)}>
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+              <div className="relative bg-[#0d0d0d] border-t border-white/10 rounded-t-3xl overflow-hidden flex flex-col max-h-[75vh]" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-5 pt-5 pb-3">
+                  <h3 className="text-lg font-black text-white">Select Area</h3>
+                  <button onClick={() => setShowAreaMenu(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition cursor-pointer">
+                    <X size={16} className="text-neutral-400" />
+                  </button>
+                </div>
+                <div className="overflow-y-auto px-4 pb-8 flex flex-col gap-2">
+                  <button onClick={() => {changeAreaFilter('ALL'); setShowAreaMenu(false)}} className={`w-full py-4 px-5 rounded-2xl text-left border cursor-pointer ${areaFilter === 'ALL' ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]' : 'border-white/5 bg-neutral-900 text-white'}`}>
+                    <span className="font-black text-sm">🌌 All Areas</span>
+                  </button>
+                  {allAreas.map(ar => (
+                    <button key={ar} onClick={() => {changeAreaFilter(ar); setShowAreaMenu(false)}} className={`w-full py-4 px-5 rounded-2xl text-left border transition cursor-pointer ${areaFilter === ar ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]' : 'border-white/5 bg-neutral-900 hover:bg-white/5 text-white'}`}>
+                      <span className="font-black text-sm">{ar}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Sort Menu Bottom Sheet */}
+          {showSortMenu && (
+            <div className="fixed inset-0 z-[100] flex flex-col justify-end" onClick={() => setShowSortMenu(false)}>
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+              <div className="relative bg-[#0d0d0d] border-t border-white/10 rounded-t-3xl overflow-hidden flex flex-col max-h-[75vh]" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-5 pt-5 pb-3">
+                  <h3 className="text-lg font-black text-white">Sort Options</h3>
+                  <button onClick={() => setShowSortMenu(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition cursor-pointer">
+                    <X size={16} className="text-neutral-400" />
+                  </button>
+                </div>
+                <div className="overflow-y-auto px-4 pb-8 flex flex-col gap-2">
+                  {[
+                    ['relevance', 'Relevance (Default)'],
+                    ['nearest', 'Nearest Proximity'],
+                    ['active', 'Most Active Teams'],
+                    ['rank_desc', 'Rank: High to Low'],
+                    ['rank_asc', 'Rank: Low to High'],
+                    ['newest', 'Newest Registrations']
+                  ].map(([val, label]) => (
+                    <button key={val} onClick={() => {changeSortType(val); setShowSortMenu(false)}} className={`w-full py-4 px-5 rounded-2xl text-left border transition cursor-pointer ${sortType === val ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]' : 'border-white/5 bg-neutral-900 hover:bg-white/5 text-white'}`}>
+                      <span className="font-black text-sm">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Scouting / Discovery Feed ── */}
           {loading ? (
-            <div className="py-20 flex justify-center"><Loader2 size={32} className="animate-spin text-purple-500" /></div>
+            <div className="py-20 flex justify-center"><Loader2 size={32} className="animate-spin text-[#00ff41]" /></div>
           ) : (
             <div className="px-4 flex flex-col gap-3">
-              {filteredTeams.map(t => {
+              
+              {interleavedFeed.slice(0, visibleCount).map((item: any) => {
+                if (item.type === 'open_challenge') {
+                  const oc = item.data;
+                  const poster = oc.team;
+                  const recordW = poster?.history?.filter((h: any) => h.outcome === 'W').length ?? 0;
+                  const recordD = poster?.history?.filter((h: any) => h.outcome === 'D').length ?? 0;
+                  const recordL = poster?.history?.filter((h: any) => h.outcome === 'L').length ?? 0;
+                  const posterRank = getRankData(poster?.teamMmr ?? 1000);
+                  const isPosterProv = (poster?.completedCount ?? 0) < 3;
+                  
+                  // Calculate time remaining / elapsed formatting
+                  const startStr = new Date(oc.windowStart).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+                  const startTimeStr = new Date(oc.windowStart).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+                  const formatLabel = getFormatLabel(oc.format);
+
+                  return (
+                    <div key={oc.id} className="relative rounded-3xl bg-gradient-to-br from-[#121c14] to-[#0c0c0c] border border-[#00ff41]/25 p-5 shadow-[0_0_24px_rgba(0,255,65,0.04)] overflow-hidden flex flex-col gap-3.5">
+                      {/* Top shimmer accent line */}
+                      <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-[#00ff41] to-transparent animate-pulse" />
+                      
+                      <div className="flex justify-between items-start">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[10px] font-black text-[#00ff41] uppercase tracking-wider">LOBBY MATCH AD</span>
+                          <h4 className="text-[16px] font-black text-white leading-tight">
+                            {formatLabel} · {startStr} {startTimeStr}
+                          </h4>
+                          <p className="text-[11px] text-neutral-400 font-bold">📍 Preferring: {oc.area}</p>
+                        </div>
+                        <div className="px-2.5 py-1 rounded-full bg-[#00ff41]/10 border border-[#00ff41]/30 text-[9px] font-black text-[#00ff41] uppercase shrink-0">
+                          {oc.status.toUpperCase()}
+                        </div>
+                      </div>
+
+                      {/* Poster team card inside the open challenge */}
+                      <div className="flex items-center gap-3 p-3 bg-black/40 border border-white/5 rounded-2xl">
+                        <div className="w-9 h-9 rounded-xl bg-neutral-900 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                          {poster?.logoUrl ? <img src={poster.logoUrl} className="w-full h-full object-cover" /> : <Shield size={16} className="text-[#00ff41]" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-black text-white truncate">{poster?.name}</p>
+                          <p className="text-[10px] text-neutral-500 font-bold truncate">
+                            {isPosterProv ? 'NEW CHALLENGER' : posterRank.label} · {recordW}W-{recordL}L-{recordD}D · {poster?.members?.length ?? 0} players
+                          </p>
+                        </div>
+                      </div>
+
+                      {oc.note && (
+                        <p className="text-xs text-neutral-300 italic leading-relaxed bg-black/20 p-3 rounded-xl border border-white/5">
+                          "{oc.note}"
+                        </p>
+                      )}
+
+                      {/* Accept open challenge button */}
+                      <div className="flex items-center justify-between gap-3 pt-1">
+                        <span className="text-[10px] text-neutral-600 font-black">
+                          {oc.tierMin || oc.tierMax ? `Target: ${oc.tierMin || 'Any'} – ${oc.tierMax || 'Any'}` : 'Open to all tiers'}
+                        </span>
+                        <button
+                          onClick={() => setShowAcceptConfirmModal(oc)}
+                          className="px-6 py-2.5 rounded-xl bg-[#00ff41] hover:bg-[#00dd38] text-black font-black text-xs uppercase tracking-wider transition-all cursor-pointer active:scale-95 shadow-[0_0_12px_rgba(0,255,65,0.25)]"
+                        >
+                          Accept Challenge
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Regular team listing card
+                const t = item.data;
+                const isProv = (t.completedCount ?? 0) < 3;
                 const rank = getRankData(t.teamMmr ?? 1000);
                 const isChallenged = challengedTeamIds.has(t.id);
+                
+                const w = t.history?.filter((h: any) => h.outcome === 'W').length ?? 0;
+                const d = t.history?.filter((h: any) => h.outcome === 'D').length ?? 0;
+                const l = t.history?.filter((h: any) => h.outcome === 'L').length ?? 0;
+
+                // Format size check
+                const formatSize = getFormatSize(formatFilter === 'ALL' ? t.sportType : formatFilter);
+                const isFormatIneligible = (t.members?.length ?? 0) < formatSize;
+                const formatLabel = getFormatLabel(formatFilter === 'ALL' ? t.sportType : formatFilter);
+
+                // Activity indicator recency
+                const playedRecently = t.completedCount > 0; // simple mock calculation
+                const activityText = playedRecently ? 'Active this week' : 'New Debut';
+
                 return (
-                  <div key={t.id} className="bg-[#101010] border border-white/8 rounded-3xl overflow-hidden hover:border-white/14 transition-all">
+                  <div key={t.id} className={`bg-[#101010] border rounded-3xl overflow-hidden hover:border-white/14 transition-all ${isFormatIneligible ? 'opacity-70' : 'border-white/8'}`}>
                     {/* Rank-tinted accent line */}
-                    <div className="h-px w-full" style={{ background: `linear-gradient(90deg, transparent, ${rank.color}50, transparent)` }} />
+                    <div className="h-px w-full" style={{ background: isProv ? 'linear-gradient(90deg, transparent, rgba(0,255,65,0.2), transparent)' : `linear-gradient(90deg, transparent, ${rank.color}50, transparent)` }} />
                     <div className="p-4 flex flex-col gap-3">
 
                       {/* Header: logo + name/streak | rank block */}
@@ -709,63 +1190,103 @@ export default function MarketPage() {
                             {t.logoUrl ? <img src={t.logoUrl} className="w-full h-full object-cover" /> : <Shield size={20} className="text-[#00ff41]" />}
                           </div>
                           <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-black text-[16px] text-white leading-tight truncate">{t.name}</p>
-                              {t.winStreak >= 3 && (
-                                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-orange-500/15 border border-orange-500/25 shrink-0">
-                                  <Flame size={11} className="text-orange-400" />
-                                  <span className="text-[9px] font-black text-orange-300">{t.winStreak}W</span>
-                                </span>
-                              )}
+                            <div className="flex flex-col gap-0.5">
+                              <p className="font-black text-[16px] text-white leading-tight break-words pr-2 line-clamp-2 max-w-[200px]">{t.name}</p>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {t.isVerified && (
+                                  <ShieldCheck size={14} className="text-blue-400 shrink-0" fill="currentColor" />
+                                )}
+                                {/* Reliable chip */}
+                                {t.trustScore >= 90 && t.completedCount > 0 && (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-black text-emerald-400 tracking-wide uppercase shrink-0">
+                                    ⚡ Reliable
+                                  </span>
+                                )}
+                                {/* Active chip */}
+                                {t.completedCount >= 5 && (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-[#00ff41]/10 border border-[#00ff41]/20 text-[9px] font-black text-[#00ff41] tracking-wide uppercase shrink-0">
+                                    🔥 Active
+                                  </span>
+                                )}
+                                {/* Streak chip */}
+                                {t.winStreak >= 3 && (
+                                  <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-orange-500/15 border border-orange-500/25 shrink-0">
+                                    <Flame size={10} className="text-orange-400" />
+                                    <span className="text-[9px] font-black text-orange-300">W{t.winStreak}</span>
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <p className="text-[11px] text-neutral-500 mt-0.5 font-medium">{sportEmoji(t.sportType)} {sportName(t.sportType)} {t.teamCode && `· ${t.teamCode}`}</p>
                           </div>
                         </div>
-                        {/* Rank */}
+
+                        {/* Rank or Challenger treatment */}
                         <div className="flex flex-col items-center gap-0.5 shrink-0">
-                          <img src={rank.icon} className="w-10 h-10 object-contain" alt={rank.label} />
-                          <span className={`text-[9px] font-black ${rank.text} leading-none`}>{rank.label}</span>
-                          <span className="text-[9px] text-neutral-600 font-bold">{t.teamMmr ?? 1000} MMR</span>
+                          {isProv ? (
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#00ff41]/5 border border-[#00ff41]/20 rounded-full select-none shrink-0 relative overflow-hidden">
+                              {/* progress dash circle */}
+                              <svg className="w-3.5 h-3.5 shrink-0 transform -rotate-90">
+                                <circle cx="7" cy="7" r="5" stroke="#262626" strokeWidth="2" fill="transparent" />
+                                <circle cx="7" cy="7" r="5" stroke="#00ff41" strokeWidth="2" fill="transparent"
+                                  strokeDasharray={2 * Math.PI * 5}
+                                  strokeDashoffset={2 * Math.PI * 5 * (1 - (t.completedCount ?? 0) / 3)} />
+                              </svg>
+                              <span className="text-[8px] font-black text-[#00ff41] uppercase tracking-wider">NEW</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-0.5">
+                              <img src={rank.icon} className="w-9 h-9 object-contain" alt={rank.label} />
+                              <span className={`text-[9px] font-black leading-none ${rank.text}`}>
+                                {rank.label}
+                              </span>
+                            </div>
+                          )}
+                          <span className="text-[9px] text-neutral-600 font-bold mt-0.5">
+                            {isProv ? `Calibrating (${t.completedCount}/3)` : `${t.teamMmr ?? 1000} MMR`}
+                          </span>
                         </div>
                       </div>
 
-                      {/* Territory tags */}
-                      {((t.homeAreas?.length > 0) || (t.homeTurfs?.length > 0)) && (
-                        <div className="flex flex-col gap-1.5 bg-neutral-950/70 border border-white/5 rounded-2xl px-3 py-2.5">
-                          {t.homeAreas?.length > 0 && (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-[10px] text-neutral-600 font-black shrink-0">📍 Areas:</span>
-                              {t.homeAreas.slice(0, 3).map((a: any) => (
-                                <span key={a.id} className="text-[10px] bg-neutral-900 border border-white/8 px-2 py-0.5 rounded-full text-neutral-300 font-medium">{a.name}</span>
-                              ))}
-                              {t.homeAreas.length > 3 && <span className="text-[9px] text-neutral-600 italic">+{t.homeAreas.length - 3}</span>}
-                            </div>
-                          )}
-                          {t.homeTurfs?.length > 0 && (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-[10px] text-neutral-600 font-black shrink-0">🏟️ Home Turfs:</span>
-                              {t.homeTurfs.slice(0, 2).map((tu: any) => (
-                                <span key={tu.id} className="text-[10px] bg-neutral-900 border border-white/8 px-2 py-0.5 rounded-full text-neutral-300 font-medium">{tu.name}</span>
-                              ))}
-                              {t.homeTurfs.length > 2 && <span className="text-[9px] text-neutral-600 italic">+{t.homeTurfs.length - 2}</span>}
-                            </div>
-                          )}
+                      {/* Unified Scout Line */}
+                      <div className="px-3.5 py-2 rounded-xl bg-neutral-950/60 border border-white/5 text-[11px] font-bold text-neutral-300 leading-tight">
+                        {isProv ? 'New Challenger' : rank.label} · {w}W-{l}L-{d}D · {t.homeAreas?.[0]?.name ?? 'Anywhere'} · {t.members?.length ?? 0} players
+                      </div>
+
+                      {/* Recency week label & warning indicators */}
+                      <div className="flex items-center justify-between text-[10px] mt-0.5 px-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`w-1.5 h-1.5 rounded-full ${playedRecently ? 'bg-[#00ff41]' : 'bg-neutral-600'}`} />
+                          <span className={playedRecently ? 'text-[#00ff41] font-bold' : 'text-neutral-500 font-bold'}>
+                            {activityText}
+                          </span>
                         </div>
-                      )}
+                        
+                        {isFormatIneligible && (
+                          <span className="px-2 py-0.5 rounded bg-red-500/10 border border-red-500/25 text-red-400 font-black text-[9px] uppercase tracking-wide">
+                            Can't field {formatLabel}
+                          </span>
+                        )}
+                      </div>
 
                       {/* Action row */}
-                      <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                      <div className="flex items-center justify-between pt-2 border-t border-white/5">
                         <button onClick={() => { setTeamDetailModal(t); setDetailTab('roster'); }}
-                          className="flex items-center gap-1.5 text-[11px] text-neutral-500 hover:text-purple-300 font-black transition-colors cursor-pointer">
-                          <Users size={12} /> Roster & History <ChevronDown size={11} />
+                          className="flex items-center gap-1.5 text-[11px] text-neutral-500 hover:text-[#00ff41] font-black transition-colors cursor-pointer select-none">
+                          <Users size={12} /> Deep Scout & Roster <ChevronDown size={11} />
                         </button>
                         <button
-                          onClick={(e) => !isChallenged && handleChallengeAttempt(e, t)}
-                          disabled={isChallenged}
-                          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer active:scale-95 ${
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isFormatIneligible || isChallenged) return;
+                            handleChallengeAttempt(e, t);
+                          }}
+                          disabled={isFormatIneligible || isChallenged}
+                          className={`flex items-center gap-2 px-5 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer active:scale-95 ${
                             isChallenged
-                              ? 'bg-purple-900/40 border border-purple-600/40 text-purple-400 cursor-not-allowed'
-                              : 'bg-[#00ff41] text-black hover:bg-[#00dd38] shadow-[0_0_16px_rgba(0,255,65,0.3)] hover:shadow-[0_0_24px_rgba(0,255,65,0.45)]'
+                              ? 'bg-neutral-900 border border-white/5 text-neutral-600 cursor-not-allowed'
+                              : isFormatIneligible
+                              ? 'bg-neutral-900/40 border border-white/5 text-neutral-600 cursor-not-allowed'
+                              : 'bg-[#00ff41] text-black hover:bg-[#00dd38] shadow-[0_0_16px_rgba(0,255,65,0.2)]'
                           }`}>
                           <Swords size={13} strokeWidth={2.5} />
                           {isChallenged ? trans('challenged') : trans('challenge')}
@@ -794,7 +1315,7 @@ export default function MarketPage() {
       {masterTab === 'active' && (
         <div className="px-4 pt-4 flex flex-col gap-3">
           {challengesLoading && activeCards.length === 0 && (
-            <div className="py-20 flex justify-center"><Loader2 size={28} className="animate-spin text-purple-500" /></div>
+            <div className="py-20 flex justify-center"><Loader2 size={28} className="animate-spin text-[#00ff41]" /></div>
           )}
 
           {!challengesLoading && activeCards.length === 0 && (
@@ -805,7 +1326,7 @@ export default function MarketPage() {
               <p className="font-black text-neutral-400">{trans('noActiveChallenges')}</p>
               <p className="text-xs text-neutral-600 max-w-[200px]">{trans('activeInstructions')}</p>
               <button onClick={() => setMasterTab('discover')}
-                className="mt-2 px-5 py-2.5 bg-purple-600 text-white font-black rounded-xl text-sm hover:bg-purple-500 transition-colors cursor-pointer active:scale-95">
+                className="mt-2 px-5 py-2.5 bg-[#00ff41] text-black font-black rounded-xl text-sm hover:bg-[#00dd38] transition-colors cursor-pointer active:scale-95">
                 {trans('browseTeams')}
               </button>
             </div>
@@ -880,15 +1401,15 @@ export default function MarketPage() {
               const isLive = _cardType === 'live';
               return (
                 <div key={m.id}
-                  className="relative bg-[#120b1a] border border-purple-600/40 rounded-3xl overflow-hidden shadow-[0_0_20px_rgba(147,51,234,0.08)]">
-                  {/* Purple top accent */}
-                  <div className={`h-0.5 w-full ${isLive ? 'bg-red-500 animate-pulse' : 'bg-purple-600'}`} />
+                  className="relative bg-[#0c0c0c] border border-white/10 rounded-3xl overflow-hidden shadow-[0_0_20px_rgba(0,255,65,0.02)]">
+                  {/* Green top accent */}
+                  <div className={`h-0.5 w-full ${isLive ? 'bg-red-500 animate-pulse' : 'bg-[#00ff41]'}`} />
                   <div className="p-5">
                     <div className="flex items-center justify-between mb-4">
-                      <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 ${isLive ? 'bg-red-500/15 border border-red-500/30' : 'bg-purple-600/15 border border-purple-600/30'}`}>
+                      <div className={`flex items-center gap-2 rounded-full px-3 py-1.5 ${isLive ? 'bg-red-500/15 border border-red-500/30' : 'bg-[#00ff41]/10 border border-[#00ff41]/30'}`}>
                         {isLive
                           ? <><span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" /><span className="text-[10px] font-black text-red-300 tracking-wider">LIVE NOW</span></>
-                          : <><Lock size={10} className="text-purple-300" /><span className="text-[10px] font-black text-purple-300 tracking-wider">BOOKED</span></>
+                          : <><Lock size={10} className="text-[#00ff41]" /><span className="text-[10px] font-black text-[#00ff41] tracking-wider">BOOKED</span></>
                         }
                       </div>
                       {m.matchDate && (
@@ -899,16 +1420,16 @@ export default function MarketPage() {
                     </div>
 
                     <div className="flex items-center gap-3 mb-4">
-                      <TeamAvatar team={myTeamHere} accent="purple" />
+                      <TeamAvatar team={myTeamHere} accent="green" />
                       <div className="flex-1 text-center">
-                        <p className="text-xl font-black text-purple-400">vs</p>
+                        <p className="text-xl font-black text-neutral-600">vs</p>
                       </div>
-                      <TeamAvatar team={oppHere} accent="purple" flip />
+                      <TeamAvatar team={oppHere} accent="green" flip />
                     </div>
 
                     {m.bookingCode && (
-                      <div className="flex items-center gap-2 px-4 py-2.5 bg-purple-600/10 border border-purple-600/20 rounded-2xl mb-4">
-                        <span className="text-[9px] text-purple-400 font-black">CODE</span>
+                      <div className="flex items-center gap-2 px-4 py-2.5 bg-neutral-900 border border-white/5 rounded-2xl mb-4">
+                        <span className="text-[9px] text-neutral-500 font-black">CODE</span>
                         <span className="font-mono font-black tracking-widest text-white flex-1">{m.bookingCode}</span>
                       </div>
                     )}
@@ -946,20 +1467,20 @@ export default function MarketPage() {
             // ── Card 3: INTERACTION (board open) ──
             if (_cardType === 'interaction') {
               return (
-                <div key={m.id} className="bg-[#0f0f14] border border-purple-500/25 rounded-3xl p-5">
+                <div key={m.id} className="bg-[#0f0f0f] border border-[#00ff41]/20 rounded-3xl p-5 shadow-[0_0_15px_rgba(0,255,65,0.02)]">
                   <div className="flex items-center gap-2 mb-4">
-                    <div className="bg-fuchsia-600/15 border border-fuchsia-600/25 rounded-full px-3 py-1.5 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-fuchsia-400" />
-                      <span className="text-[10px] font-black text-fuchsia-300 tracking-wider">NEGOTIATING</span>
+                    <div className="bg-[#00ff41]/10 border border-[#00ff41]/30 rounded-full px-3 py-1.5 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#00ff41]" />
+                      <span className="text-[10px] font-black text-[#00ff41] tracking-wider">NEGOTIATING</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 mb-4">
-                    <TeamAvatar team={myTeamHere || m.teamB} accent="purple" />
-                    <div className="flex-1 text-center"><p className="font-black text-fuchsia-400">vs</p></div>
-                    <TeamAvatar team={oppHere || m.teamA} accent="purple" flip />
+                    <TeamAvatar team={myTeamHere || m.teamB} accent="green" />
+                    <div className="flex-1 text-center"><p className="font-black text-neutral-500">vs</p></div>
+                    <TeamAvatar team={oppHere || m.teamA} accent="green" flip />
                   </div>
                   <button onClick={() => router.push(`/${locale}/interact/match/${m.id}`)}
-                    className="w-full py-3 bg-fuchsia-600/20 hover:bg-fuchsia-600/30 border border-fuchsia-500/30 text-fuchsia-300 font-black text-sm rounded-2xl flex items-center justify-center gap-2 transition-all">
+                    className="w-full py-3 bg-[#00ff41]/10 hover:bg-[#00ff41]/20 border border-[#00ff41]/30 text-[#00ff41] font-black text-sm rounded-2xl flex items-center justify-center gap-2 transition-all">
                     <ExternalLink size={13} /> Open Interaction Board
                   </button>
                 </div>
@@ -1067,115 +1588,505 @@ export default function MarketPage() {
       )}
 
       {/* ═══ TEAM DETAIL MODAL ═══ */}
-      {teamDetailModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 backdrop-blur-sm" onClick={() => setTeamDetailModal(null)}>
-          <div className="bg-neutral-900 border border-white/10 rounded-t-3xl w-full max-w-md max-h-[75vh] flex flex-col overflow-hidden shadow-2xl mb-[60px]" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-3 p-5 border-b border-white/5 shrink-0">
-              <div className="w-12 h-12 rounded-xl bg-neutral-800 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
-                {teamDetailModal.logoUrl ? <img src={teamDetailModal.logoUrl} className="w-full h-full object-cover" /> : <Shield size={20} className="text-[#00ff41]" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="font-black text-lg truncate">{teamDetailModal.name}</p>
-                  {teamDetailModal.winStreak >= 3 && <Flame size={16} className="text-orange-400 shrink-0" />}
+      {teamDetailModal && (() => {
+        const isProv = (teamDetailModal.completedCount ?? 0) < 3;
+        const rank = getRankData(teamDetailModal.teamMmr ?? 1000);
+        const w = teamDetailModal.history?.filter((h: any) => h.outcome === 'W').length ?? 0;
+        const d = teamDetailModal.history?.filter((h: any) => h.outcome === 'D').length ?? 0;
+        const l = teamDetailModal.history?.filter((h: any) => h.outcome === 'L').length ?? 0;
+        const isChallenged = challengedTeamIds.has(teamDetailModal.id);
+
+        const scout = myTeams.find(team => team.id === scoutTeamId) ?? myTeams[0];
+        const h2h = getHeadToHead(teamDetailModal);
+        
+        return (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 backdrop-blur-sm" onClick={() => setTeamDetailModal(null)}>
+            <div className="bg-neutral-900 border border-white/10 rounded-t-3xl w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden shadow-2xl mb-[60px]" onClick={e => e.stopPropagation()}>
+              
+              {/* Header */}
+              <div className="flex items-center gap-3 p-5 border-b border-white/5 shrink-0">
+                <div className="w-12 h-12 rounded-xl bg-neutral-800 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                  {teamDetailModal.logoUrl ? <img src={teamDetailModal.logoUrl} className="w-full h-full object-cover" /> : <Shield size={20} className="text-[#00ff41]" />}
                 </div>
-                <p className="text-[11px] text-neutral-500">{sportEmoji(teamDetailModal.sportType)} {sportName(teamDetailModal.sportType)} · {teamDetailModal.teamMmr} MMR</p>
-              </div>
-              <button onClick={() => setTeamDetailModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors">
-                <X size={16} />
-              </button>
-            </div>
-            <div className="flex gap-2 p-3 shrink-0">
-              {(['roster', 'history'] as const).map(t => (
-                <button key={t} onClick={() => setDetailTab(t)}
-                  className={`flex-1 py-2 text-[11px] font-black rounded-xl transition-all ${detailTab === t ? 'bg-neutral-800 text-white' : 'text-neutral-500'}`}>
-                  {t === 'roster' ? <><Users size={12} className="inline mr-1" />Roster</> : <><Clock size={12} className="inline mr-1" />History</>}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-black text-lg truncate">{teamDetailModal.name}</p>
+                    {teamDetailModal.winStreak >= 3 && <Flame size={16} className="text-orange-400 shrink-0" />}
+                  </div>
+                  <p className="text-[11px] text-neutral-500">
+                    {sportEmoji(teamDetailModal.sportType)} {sportName(teamDetailModal.sportType)} · {isProv ? 'Calibrating' : `${teamDetailModal.teamMmr} MMR`}
+                  </p>
+                </div>
+                <button onClick={() => setTeamDetailModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors">
+                  <X size={16} />
                 </button>
-              ))}
+              </div>
+
+              {/* Roster / History tabs */}
+              <div className="flex gap-2 p-3 shrink-0">
+                {(['roster', 'history'] as const).map(t => (
+                  <button key={t} onClick={() => setDetailTab(t)}
+                    className={`flex-1 py-2.5 text-[11px] font-black rounded-xl transition-all ${detailTab === t ? 'bg-neutral-800 text-white border border-white/5' : 'text-neutral-500 bg-black/20'}`}>
+                    {t === 'roster' ? <><Users size={12} className="inline mr-1" />Roster</> : <><Clock size={12} className="inline mr-1" />History</>}
+                  </button>
+                ))}
+              </div>
+
+              {/* Scrollable contents */}
+              <div className="flex-1 overflow-y-auto px-4 pb-4 flex flex-col gap-4">
+                
+                {/* Scout statistics box */}
+                <div className="p-4 bg-black/40 border border-white/5 rounded-2xl flex flex-col gap-2.5">
+                  <span className="text-[9px] font-black text-neutral-500 uppercase tracking-wider">SCOUTING INSIGHTS</span>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="p-2.5 bg-neutral-900 border border-white/5 rounded-xl">
+                      <span className="text-xs text-neutral-500 block mb-0.5">Record</span>
+                      <span className="text-sm font-black text-white">{w}W-{l}L-{d}D</span>
+                    </div>
+                    <div className="p-2.5 bg-neutral-900 border border-white/5 rounded-xl">
+                      <span className="text-xs text-neutral-500 block mb-0.5">Trust Score</span>
+                      <span className="text-sm font-black text-emerald-400">{teamDetailModal.trustScore}%</span>
+                    </div>
+                    <div className="p-2.5 bg-neutral-900 border border-white/5 rounded-xl">
+                      <span className="text-xs text-neutral-500 block mb-0.5">Activity</span>
+                      <span className="text-sm font-black text-white">{teamDetailModal.completedCount} matches</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-white/5 px-1">
+                    <span className="text-neutral-500 font-bold">vs {scout?.name || 'You'}:</span>
+                    <span className="text-[#00ff41] font-black">{h2h}</span>
+                  </div>
+                </div>
+
+                {detailTab === 'roster' && (
+                  <div className="flex flex-col gap-2">
+                    {(teamDetailModal.members || []).length === 0 && <p className="text-center text-neutral-500 py-10 text-xs font-bold">No roster.</p>}
+                    {(teamDetailModal.members || []).map((m: any) => {
+                      const rank = getRankData(m.player?.mmr ?? 1000);
+                      return (
+                        <div key={m.playerId} className="flex items-center gap-3 p-3 bg-neutral-800/40 rounded-xl border border-white/5">
+                          <div className="w-9 h-9 rounded-full bg-neutral-700 flex items-center justify-center overflow-hidden shrink-0 border border-white/10">
+                            {m.player?.avatarUrl ? <img src={m.player.avatarUrl} className="w-full h-full object-cover" /> : <span className="text-xs font-black text-white/50">{m.player?.fullName?.[0] || '?'}</span>}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-sm truncate">{m.player?.fullName || 'Unknown'}</p>
+                            <p className="text-[10px] text-neutral-500 capitalize">{m.role}{m.sportRole ? ` · ${m.sportRole}` : ''}</p>
+                          </div>
+                          <div className="flex items-center gap-1.5" style={{ color: rank.color }}>
+                            <span className="text-[10px] font-black">{rank.label}</span>
+                            <img src={rank.icon} className="w-4 h-4 object-contain" />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                
+                {detailTab === 'history' && (
+                  <div className="flex flex-col gap-2">
+                    {(teamDetailModal.history || []).length === 0 && <p className="text-center text-neutral-500 py-10 text-xs font-bold italic">No match history.</p>}
+                    {(teamDetailModal.history || []).map((h: any, i: number) => {
+                      const wc = h.outcome === 'W' ? 'bg-[#00ff41]/5 border-[#00ff41]/20' : h.outcome === 'D' ? 'bg-amber-500/5 border-amber-500/20' : 'bg-red-500/5 border-red-500/20';
+                      const tc = h.outcome === 'W' ? 'text-[#00ff41]' : h.outcome === 'D' ? 'text-amber-500' : 'text-red-400';
+                      return (
+                        <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border ${wc}`}>
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs shrink-0 ${tc}`}>{h.outcome}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold truncate">vs {h.opponent?.name || 'Unknown'}</p>
+                            <p className="text-[10px] text-neutral-500">{h.scoreA} – {h.scoreB}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Challenge Button footer */}
+              <div className="p-4 border-t border-white/5 bg-black/20 shrink-0">
+                <button
+                  disabled={isChallenged}
+                  onClick={(e) => {
+                    setTeamDetailModal(null);
+                    handleChallengeAttempt(e, teamDetailModal);
+                  }}
+                  className={`w-full py-3.5 font-black text-xs uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2 ${
+                    isChallenged
+                      ? 'bg-neutral-900 border border-white/5 text-neutral-600 cursor-not-allowed'
+                      : 'bg-[#00ff41] hover:bg-[#00dd38] text-black shadow-[0_0_16px_rgba(0,255,65,0.25)]'
+                  }`}
+                >
+                  <Swords size={14} />
+                  {isChallenged ? 'Already Challenged' : 'Propose Match Challenge'}
+                </button>
+              </div>
+
             </div>
-            <div className="flex-1 overflow-y-auto px-4 pb-4">
-              {detailTab === 'roster' && (
-                <div className="flex flex-col gap-2">
-                  {(teamDetailModal.members || []).length === 0 && <p className="text-center text-neutral-500 py-10 text-sm">No roster.</p>}
-                  {(teamDetailModal.members || []).map((m: any) => {
-                    const rank = getRankData(m.player?.mmr ?? 1000);
-                    return (
-                      <div key={m.playerId} className="flex items-center gap-3 p-3 bg-neutral-800/50 rounded-xl border border-white/5">
-                        <div className="w-9 h-9 rounded-full bg-neutral-700 flex items-center justify-center overflow-hidden shrink-0 border border-white/10">
-                          {m.player?.avatarUrl ? <img src={m.player.avatarUrl} className="w-full h-full object-cover" /> : <span className="text-xs font-black text-white/50">{m.player?.fullName?.[0] || '?'}</span>}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-sm truncate">{m.player?.fullName || 'Unknown'}</p>
-                          <p className="text-[10px] text-neutral-500 capitalize">{m.role}{m.sportRole ? ` · ${m.sportRole}` : ''}</p>
-                        </div>
-                        <div className="flex items-center gap-1.5" style={{ color: rank.color }}>
-                          <span className="text-[10px] font-bold">{rank.label}</span>
-                          <img src={rank.icon} className="w-5 h-5 object-contain" />
-                        </div>
-                      </div>
-                    );
-                  })}
+          </div>
+        );
+      })()}
+
+      {/* ═══ CHALLENGE SEND / COMPOSE MODAL ═══ */}
+      {showChallengeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowChallengeModal(null)}>
+          <div className="bg-[#0f0f0f] border border-white/10 rounded-3xl p-6 w-full max-w-sm flex flex-col items-center text-center shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="w-14 h-14 rounded-2xl bg-neutral-800 border border-white/10 flex items-center justify-center overflow-hidden mb-3">
+              {showChallengeModal.logoUrl ? <img src={showChallengeModal.logoUrl} className="w-full h-full object-cover" /> : <Shield size={24} className="text-[#00ff41]" />}
+            </div>
+            <h3 className="font-black text-lg mb-1">Challenge <span className="text-[#00ff41]">{showChallengeModal.name}</span></h3>
+            <p className="text-[11px] text-neutral-500 mb-4 px-4 leading-normal">Compose your formal match challenge proposition.</p>
+
+            {eligibleTeams.length === 0 ? (
+              <div className="w-full bg-red-500/10 border border-red-500/20 rounded-2xl p-4 mb-4 text-left">
+                <p className="text-[10px] font-bold text-red-400 uppercase tracking-wider mb-2">Access Denied</p>
+                <p className="text-[11px] text-white/80 leading-relaxed">No regular team found in <b>{sportName(showChallengeModal.sportType)}</b>.</p>
+              </div>
+            ) : (() => {
+              const targetFamily = getSportFamily(showChallengeModal.sportType);
+              return (
+                <div className="w-full flex flex-col gap-3.5 mb-5 text-left max-h-[50vh] overflow-y-auto pr-1">
+                  <div className="bg-black/40 border border-white/5 rounded-2xl p-4 flex flex-col gap-1.5">
+                    <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Challenging as</p>
+                    <select value={selectedChallenger} onChange={e => { setSelectedChallenger(e.target.value); setChalMsg(''); }}
+                      className="w-full bg-neutral-800 text-xs text-white px-3 py-2 rounded-lg border border-white/10 outline-none focus:border-[#00ff41]/50 cursor-pointer font-bold">
+                      {eligibleTeams.map(et => <option key={et.id} value={et.id}>{et.name}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="bg-black/40 border border-white/5 rounded-2xl p-4 flex flex-col gap-1.5">
+                    <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Select Match Format</p>
+                    <select value={selectedFormat} onChange={e => { setSelectedFormat(e.target.value); setChalMsg(''); }}
+                      className="w-full bg-neutral-800 text-xs text-white px-3 py-2 rounded-lg border border-white/10 outline-none focus:border-[#00ff41]/50 cursor-pointer font-bold">
+                      {targetFamily === 'FUTSAL' && (
+                        <>
+                          <option value="FUTSAL_5">5v5 Futsal</option>
+                          <option value="FUTSAL_6">6v6 Futsal</option>
+                          <option value="FUTSAL_7">7v7 Futsal</option>
+                        </>
+                      )}
+                      {targetFamily === 'CRICKET' && (
+                        <>
+                          <option value="CRICKET_7">7v7 Cricket</option>
+                          <option value="CRICKET_FULL">11v11 Cricket</option>
+                        </>
+                      )}
+                      {targetFamily === 'FOOTBALL' && (
+                        <option value="FOOTBALL_FULL">11v11 Football</option>
+                      )}
+                    </select>
+                  </div>
+
+                  <div className="bg-black/40 border border-white/5 rounded-2xl p-4 flex flex-col gap-1.5">
+                    <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Propose Date & Time (Optional)</p>
+                    <input 
+                      type="datetime-local" 
+                      value={proposedDateInput} 
+                      onChange={e => setProposedDateInput(e.target.value)}
+                      className="w-full bg-neutral-800 text-xs text-white px-3 py-2 rounded-lg border border-white/10 outline-none focus:border-[#00ff41]/50 cursor-pointer font-bold"
+                    />
+                  </div>
+
+                  <div className="bg-black/40 border border-white/5 rounded-2xl p-4 flex flex-col gap-1.5">
+                    <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Message Note</p>
+                    <textarea 
+                      placeholder="e.g. Friday night, your area or ours?" 
+                      value={chalNote} 
+                      onChange={e => setChalNote(e.target.value)}
+                      rows={2}
+                      className="w-full bg-neutral-800 text-xs text-white px-3 py-2 rounded-lg border border-white/10 outline-none focus:border-[#00ff41]/50 cursor-pointer resize-none font-bold"
+                    />
+                  </div>
                 </div>
-              )}
-              {detailTab === 'history' && (
-                <div className="flex flex-col gap-2">
-                  {(teamDetailModal.history || []).length === 0 && <p className="text-center text-neutral-500 py-10 text-sm italic">No match history.</p>}
-                  {(teamDetailModal.history || []).map((h: any, i: number) => {
-                    const wc = h.outcome === 'W' ? 'bg-[#00ff41]/5 border-[#00ff41]/20' : h.outcome === 'D' ? 'bg-amber-500/5 border-amber-500/20' : 'bg-red-500/5 border-red-500/20';
-                    const tc = h.outcome === 'W' ? 'text-[#00ff41]' : h.outcome === 'D' ? 'text-amber-500' : 'text-red-400';
-                    return (
-                      <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border ${wc}`}>
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs shrink-0 ${tc}`}>{h.outcome}</div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold truncate">vs {h.opponent?.name || 'Unknown'}</p>
-                          <p className="text-[10px] text-neutral-500">{h.scoreA} – {h.scoreB}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+              );
+            })()}
+
+            {chalMsg && (
+              <div className="flex flex-col gap-2 w-full mb-4 px-2 shrink-0">
+                <p className={`text-xs font-bold text-center ${chalMsg.startsWith('✅') ? 'text-[#00ff41]' : 'text-red-400'}`}>
+                  {chalMsg}
+                </p>
+              </div>
+            )}
+
+            <div className="w-full flex gap-3 shrink-0">
+              <button onClick={() => setShowChallengeModal(null)} className="flex-1 py-3 bg-neutral-800 hover:bg-neutral-700 font-bold rounded-xl text-xs uppercase transition-colors">
+                {eligibleTeams.length === 0 ? 'Go Back' : 'Cancel'}
+              </button>
+              {eligibleTeams.length > 0 && (
+                <button onClick={issueChallenge} disabled={chalSending || !!(chalMsg && !chalMsg.startsWith('✅'))}
+                  className="flex-[2] py-3 bg-[#00ff41] hover:bg-[#00dd38] text-black font-black rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-50">
+                  {chalSending ? <Loader2 size={14} className="animate-spin" /> : <><Swords size={12} /> Send Proposal</>}
+                </button>
               )}
             </div>
           </div>
         </div>
       )}
 
-      {/* ═══ CHALLENGE SEND MODAL ═══ */}
-      {showChallengeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowChallengeModal(null)}>
-          <div className="bg-[#0f0f0f] border border-white/10 rounded-3xl p-6 w-full max-w-sm flex flex-col items-center text-center shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="w-16 h-16 rounded-full bg-neutral-800 border border-white/10 flex items-center justify-center overflow-hidden mb-4">
-              {showChallengeModal.logoUrl ? <img src={showChallengeModal.logoUrl} className="w-full h-full object-cover" /> : <Shield size={32} className="text-[#00ff41]" />}
-            </div>
-            <h3 className="font-black text-xl mb-1">Challenge <span className="text-[#00ff41]">{showChallengeModal.name}</span></h3>
-            <p className="text-xs text-neutral-500 mb-5 px-4">Formal match challenge via BMT Challenge Market</p>
-            {eligibleTeams.length === 0 ? (
-              <div className="w-full bg-red-500/10 border border-red-500/20 rounded-2xl p-4 mb-5 text-left">
-                <p className="text-[10px] font-bold text-red-400 uppercase tracking-wider mb-2">Access Denied</p>
-                <p className="text-[11px] text-white/80 leading-relaxed">No subscribed CM team in <b>{sportName(showChallengeModal.sportType)}</b>.</p>
-              </div>
-            ) : (() => {
-              return (
-                <div className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 mb-5 text-left">
-                  <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-2">Challenging as</p>
-                  <select value={selectedChallenger} onChange={e => setSelectedChallenger(e.target.value)}
-                    className="w-full bg-neutral-800 text-xs text-white px-3 py-2 rounded-lg border border-white/10 outline-none focus:border-[#00ff41]/50">
-                    {eligibleTeams.map(et => <option key={et.id} value={et.id}>{et.name}</option>)}
-                  </select>
+      {/* ═══ POST OPEN CHALLENGE MODAL ═══ */}
+      {showPostChallengeModal && (() => {
+        // filter user's captained/managed teams
+        const captainedTeams = myTeams.filter(t => ['owner', 'manager', 'captain', 'vice_captain'].includes(t.members.find((m: any) => m.playerId === getCookie('bmt_player_id'))?.role ?? (t.ownerId === getCookie('bmt_player_id') ? 'owner' : '')));
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm" onClick={() => setShowPostChallengeModal(false)}>
+            <div className="bg-[#0c0c0c] border border-white/10 rounded-3xl p-6 w-full max-w-sm flex flex-col shadow-2xl relative" onClick={e => e.stopPropagation()}>
+              <h3 className="font-black text-lg text-white mb-1">Post Open Challenge Match Ad</h3>
+              <p className="text-[11px] text-neutral-500 mb-4">Lobby match ads are visible to all teams in the market. Anyone within your tier specs can accept it.</p>
+
+              {captainedTeams.length === 0 ? (
+                <div className="py-6 text-center text-red-400 text-xs font-bold bg-red-500/10 border border-red-500/25 rounded-2xl mb-4">
+                  ❌ Only captains or managers can post open challenges.
                 </div>
-              );
-            })()}
-            {chalMsg && <p className={`text-xs font-bold mb-4 ${chalMsg.startsWith('✅') ? 'text-[#00ff41]' : 'text-red-400'}`}>{chalMsg}</p>}
-            <div className="w-full flex gap-3">
-              <button onClick={() => setShowChallengeModal(null)} className="flex-1 py-3 bg-neutral-800 hover:bg-neutral-700 font-bold rounded-xl text-sm transition-colors">
-                {eligibleTeams.length === 0 ? 'Go Back' : 'Cancel'}
-              </button>
-              {eligibleTeams.length > 0 && (
-                <button onClick={issueChallenge} disabled={chalSending}
-                  className="flex-[2] py-3 bg-[#00ff41] hover:bg-[#00dd38] text-black font-black rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-50">
-                  {chalSending ? <Loader2 size={16} className="animate-spin" /> : <><Swords size={14} /> Issue Challenge</>}
+              ) : (() => {
+                // local state inside a self-invoking function component works if wrapper has state
+                // but we can just declare global state or handle submission elegantly
+                return (
+                  <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    const form = e.target as HTMLFormElement;
+                    const teamId = (form.elements.namedItem('teamId') as HTMLSelectElement).value;
+                    const format = (form.elements.namedItem('format') as HTMLSelectElement).value;
+                    const area = (form.elements.namedItem('area') as HTMLInputElement).value;
+                    const windowStart = (form.elements.namedItem('windowStart') as HTMLInputElement).value;
+                    const windowEnd = (form.elements.namedItem('windowEnd') as HTMLInputElement).value;
+                    const tierMin = (form.elements.namedItem('tierMin') as HTMLSelectElement).value;
+                    const tierMax = (form.elements.namedItem('tierMax') as HTMLSelectElement).value;
+                    const note = (form.elements.namedItem('note') as HTMLTextAreaElement).value;
+
+                    if (!teamId || !format || !area || !windowStart || !windowEnd) {
+                      alert('Please fill all required fields');
+                      return;
+                    }
+
+                    try {
+                      const res = await fetch('/api/interact/open-challenge', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          teamId, format, area, windowStart, windowEnd,
+                          tierMin: tierMin === 'ALL' ? null : tierMin,
+                          tierMax: tierMax === 'ALL' ? null : tierMax,
+                          note
+                        })
+                      });
+                      const data = await res.json();
+                      if (res.ok) {
+                        alert('Open challenge posted successfully!');
+                        setShowPostChallengeModal(false);
+                        loadMarket();
+                      } else {
+                        alert(`Error: ${data.error}`);
+                      }
+                    } catch {
+                      alert('Network error.');
+                    }
+                  }} className="flex flex-col gap-3.5 max-h-[50vh] overflow-y-auto pr-1 text-left mb-4">
+                    
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] font-bold text-neutral-500 uppercase">Select Team *</span>
+                      <select name="teamId" className="w-full bg-neutral-900 border border-white/10 rounded-xl px-3 py-2 text-xs outline-none focus:border-[#00ff41]/50 text-white font-bold cursor-pointer">
+                        {captainedTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] font-bold text-neutral-500 uppercase">Match Format *</span>
+                      <select name="format" className="w-full bg-neutral-900 border border-white/10 rounded-xl px-3 py-2 text-xs outline-none focus:border-[#00ff41]/50 text-white font-bold cursor-pointer">
+                        <option value="FUTSAL_5">5v5 Futsal</option>
+                        <option value="FUTSAL_6">6v6 Futsal</option>
+                        <option value="FUTSAL_7">7v7 Futsal</option>
+                        <option value="CRICKET_7">7v7 Cricket</option>
+                        <option value="CRICKET_FULL">11v11 Cricket</option>
+                        <option value="FOOTBALL_FULL">11v11 Football</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] font-bold text-neutral-500 uppercase">Location Area *</span>
+                      <input name="area" placeholder="e.g. Uttara" type="text" required className="w-full bg-neutral-900 border border-white/10 rounded-xl px-3 py-2 text-xs outline-none focus:border-[#00ff41]/50 text-white font-bold" />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-neutral-500 uppercase">Start Time *</span>
+                        <input name="windowStart" type="datetime-local" required className="w-full bg-neutral-900 border border-white/10 rounded-xl px-2 py-2 text-xs outline-none focus:border-[#00ff41]/50 text-white font-bold cursor-pointer" />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-neutral-500 uppercase">End Time *</span>
+                        <input name="windowEnd" type="datetime-local" required className="w-full bg-neutral-900 border border-white/10 rounded-xl px-2 py-2 text-xs outline-none focus:border-[#00ff41]/50 text-white font-bold cursor-pointer" />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-neutral-500 uppercase">Min Tier (Optional)</span>
+                        <select name="tierMin" className="w-full bg-neutral-900 border border-white/10 rounded-xl px-3 py-2 text-xs outline-none focus:border-[#00ff41]/50 text-white font-bold cursor-pointer">
+                          <option value="ALL">Any</option>
+                          <option value="Bronze">Bronze</option>
+                          <option value="Silver">Silver</option>
+                          <option value="Gold">Gold</option>
+                          <option value="Platinum">Platinum</option>
+                          <option value="Legend">Legend</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-neutral-500 uppercase">Max Tier (Optional)</span>
+                        <select name="tierMax" className="w-full bg-neutral-900 border border-white/10 rounded-xl px-3 py-2 text-xs outline-none focus:border-[#00ff41]/50 text-white font-bold cursor-pointer">
+                          <option value="ALL">Any</option>
+                          <option value="Bronze">Bronze</option>
+                          <option value="Silver">Silver</option>
+                          <option value="Gold">Gold</option>
+                          <option value="Platinum">Platinum</option>
+                          <option value="Legend">Legend</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] font-bold text-neutral-500 uppercase">Notes (Optional)</span>
+                      <textarea name="note" placeholder="e.g. Friday night slot booked. split costs 50/50." rows={2} className="w-full bg-neutral-900 border border-white/10 rounded-xl px-3 py-2 text-xs outline-none focus:border-[#00ff41]/50 text-white font-bold resize-none" />
+                    </div>
+
+                    <div className="w-full flex gap-3 pt-2 shrink-0">
+                      <button type="button" onClick={() => setShowPostChallengeModal(false)} className="flex-1 py-3 bg-neutral-800 hover:bg-neutral-700 font-bold rounded-xl text-xs uppercase">
+                        Cancel
+                      </button>
+                      <button type="submit" className="flex-[2] py-3 bg-[#00ff41] hover:bg-[#00dd38] text-black font-black rounded-xl text-xs uppercase tracking-wider">
+                        Publish Ad
+                      </button>
+                    </div>
+                  </form>
+                );
+              })()}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ═══ ACCEPT OPEN CHALLENGE CONFIRMATION BOTTOM SHEET ═══ */}
+      {showAcceptConfirmModal && (() => {
+        const oc = showAcceptConfirmModal;
+        const targetFamily = getSportFamily(oc.format);
+        // Find user's eligible teams to accept this challenge
+        const eligibleToAccept = myTeams.filter(t => {
+          const isSameFamily = getSportFamily(t.sportType) === targetFamily;
+          return isSameFamily;
+        });
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/85 backdrop-blur-sm" onClick={() => setShowAcceptConfirmModal(null)}>
+            <div className="bg-neutral-900 border border-white/10 rounded-t-3xl w-full max-w-md p-5 flex flex-col gap-4 shadow-2xl mb-[60px]" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-start shrink-0">
+                <div>
+                  <h3 className="font-black text-lg text-white">Accept Open Challenge</h3>
+                  <p className="text-[11px] text-neutral-500">Choose which of your teams will accept this challenge match.</p>
+                </div>
+                <button onClick={() => setShowAcceptConfirmModal(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10">
+                  <X size={16} />
                 </button>
-              )}
+              </div>
+
+              {eligibleToAccept.length === 0 ? (
+                <div className="py-6 px-4 text-center bg-red-500/10 border border-red-500/25 rounded-2xl text-red-400 text-xs font-bold">
+                  ❌ You do not have any registered {sportName(oc.format)} teams to accept this challenge.
+                </div>
+              ) : (() => {
+                return (
+                  <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    const form = e.target as HTMLFormElement;
+                    const acceptingTeamId = (form.elements.namedItem('acceptingTeamId') as HTMLSelectElement).value;
+                    if (!acceptingTeamId) return;
+                    await acceptOpenChallenge(oc, acceptingTeamId);
+                  }} className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-1 text-left">
+                      <span className="text-[10px] font-black text-neutral-500 uppercase">Select Accepting Team</span>
+                      <select name="acceptingTeamId" className="w-full bg-neutral-800 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white font-bold cursor-pointer">
+                        {eligibleToAccept.map(t => {
+                          const hasRoster = t.members.length >= getFormatSize(oc.format);
+                          return (
+                            <option key={t.id} value={t.id} disabled={!hasRoster}>
+                              {t.name} ({t.members.length} players) {!hasRoster ? '— Insufficient roster' : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+
+                    <div className="p-3.5 bg-black/40 border border-white/5 rounded-2xl text-[11px] text-neutral-400 leading-relaxed text-left flex flex-col gap-1">
+                      <span className="font-black text-[9px] text-[#00ff41] uppercase tracking-wider">MATCH TERMS SUMMARY</span>
+                      <p>• Format: {getFormatLabel(oc.format)} {sportName(oc.format)}</p>
+                      <p>• Area: {oc.area}</p>
+                      <p>• Target Range: {oc.tierMin || 'Any'} – {oc.tierMax || 'Any'}</p>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button type="button" onClick={() => setShowAcceptConfirmModal(null)} className="flex-1 py-3 bg-neutral-800 hover:bg-neutral-700 font-bold rounded-xl text-xs uppercase">
+                        Cancel
+                      </button>
+                      <button type="submit" className="flex-[2] py-3 bg-[#00ff41] hover:bg-[#00dd38] text-black font-black rounded-xl text-xs uppercase tracking-wider shadow-lg">
+                        Accept Match Ad
+                      </button>
+                    </div>
+                  </form>
+                );
+              })()}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ═══ SCOUTING AS CONTEXT SWITCHER SHEET ═══ */}
+      {showScoutSwitcher && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/85 backdrop-blur-sm" onClick={() => setShowScoutSwitcher(false)}>
+          <div className="bg-neutral-900 border border-white/10 rounded-t-3xl w-full max-w-md p-5 flex flex-col gap-4 shadow-2xl mb-[60px]" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-start shrink-0">
+              <div>
+                <h3 className="font-black text-lg text-white">Switch Scouting Context</h3>
+                <p className="text-[11px] text-neutral-500">Select which of your teams you want to scout and challenge as.</p>
+              </div>
+              <button onClick={() => setShowScoutSwitcher(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-2 max-h-[40vh] overflow-y-auto pr-1">
+              {myTeams.map(t => {
+                const isTProv = (t.completedCount ?? 0) < 3;
+                const rLabel = isTProv ? (locale === 'bn' ? 'আনর‌্যাঙ্কড' : 'Unranked') : getRankData(t.teamMmr ?? 1000).label;
+                const isSelected = scoutTeamId === t.id || (scoutTeamId === 'ALL' && myTeams[0]?.id === t.id);
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => {
+                      setScoutTeamId(t.id);
+                      setSportFilter(t.sportType);
+                      const lbl = getRankData(t.teamMmr ?? 1000).label;
+                      if (lbl.includes('Bronze')) setDivisionFilter('Bronze');
+                      else if (lbl.includes('Silver')) setDivisionFilter('Silver');
+                      else if (lbl.includes('Gold')) setDivisionFilter('Gold');
+                      else if (lbl.includes('Platinum')) setDivisionFilter('Platinum');
+                      else if (lbl.includes('Legend')) setDivisionFilter('Legend');
+                      setShowScoutSwitcher(false);
+                    }}
+                    className={`w-full p-4 rounded-2xl text-left border flex items-center gap-3 transition ${
+                      isSelected
+                        ? 'bg-[#00ff41]/10 border-[#00ff41]/30 text-[#00ff41]'
+                        : 'border-white/5 bg-black/20 hover:bg-white/5 text-white'
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-neutral-800 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                      {t.logoUrl ? <img src={t.logoUrl} className="w-full h-full object-cover" /> : <Shield size={12} className={isSelected ? 'text-[#00ff41]' : 'text-neutral-500'} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-black truncate">{t.name}</p>
+                      <p className="text-[10px] text-neutral-500 font-bold">
+                        {sportEmoji(t.sportType)} {sportName(t.sportType)} · {rLabel} ({t.teamMmr ?? 1000} MMR)
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -1223,10 +2134,10 @@ export default function MarketPage() {
                           onClick={() => setSelectedBadge(isActive ? null : idx)}
                           className={`shrink-0 px-3.5 py-2.5 rounded-full border text-[9px] font-black transition-all ${
                             isActive
-                              ? 'bg-fuchsia-600 border-fuchsia-400 text-white shadow-[0_0_12px_rgba(168,85,247,0.4)] scale-105'
+                              ? 'bg-[#00ff41] border-[#00ff41] text-black shadow-[0_0_12px_rgba(0,255,65,0.4)] scale-105'
                               : 'bg-neutral-900 border-white/10 text-neutral-400 hover:border-white/20'
                           }`}>
-                          {b.emoji} {b.label} <span className="text-fuchsia-400">+{b.bonus}</span>
+                          {b.emoji} {b.label} <span className={isActive ? 'text-black/80' : 'text-[#00ff41]'}>+{b.bonus}</span>
                         </button>
                       );
                     })}
@@ -1268,8 +2179,8 @@ export default function MarketPage() {
                              }
                            }}
                            className={`relative w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all ${
-                             isAvatarTargeted ? 'bg-fuchsia-500/20 border border-fuchsia-500 border-dashed hover:bg-fuchsia-500/40 cursor-pointer animate-pulse' : 
-                             hasBadgeAssigned ? 'bg-purple-600 border border-purple-400 cursor-pointer shadow-[0_0_8px_rgba(168,85,247,0.4)]' :
+                             isAvatarTargeted ? 'bg-[#00ff41]/20 border border-[#00ff41] border-dashed hover:bg-[#00ff41]/40 cursor-pointer animate-pulse' : 
+                             hasBadgeAssigned ? 'bg-[#00ff41]/20 border border-[#00ff41]/40 cursor-pointer shadow-[0_0_8px_rgba(0,255,65,0.2)]' :
                              'bg-neutral-800 border border-white/10'
                            }`}>
                              {hasBadgeAssigned ? <span className="text-[10px]">💎</span> : mb.player?.avatarUrl ? <img src={mb.player.avatarUrl} className="w-full h-full object-cover rounded-full" /> : <span className="text-xs font-black text-white/50">{(mb.player?.fullName || 'P')[0]}</span>}
@@ -1277,7 +2188,7 @@ export default function MarketPage() {
                            </button>
                            <div className="flex flex-col min-w-0">
                              <span className="text-xs font-bold text-white truncate">{mb.player?.fullName || 'Unknown Player'}</span>
-                             {hasBadgeAssigned && <span className="text-[8px] font-black text-fuchsia-400 capitalize">{s.badge.replace('_', ' ')}</span>}
+                             {hasBadgeAssigned && <span className="text-[8px] font-black text-[#00ff41] capitalize">{s.badge.replace('_', ' ')}</span>}
                            </div>
                          </div>
                          
@@ -1375,7 +2286,7 @@ export default function MarketPage() {
                       <div className="flex flex-col gap-5 max-w-sm mx-auto">
                         <div className="flex gap-2">
                           {[1, 2, 4, 6].map(v => (
-                             <button key={v} onClick={() => applyVal(currentVal + v)} className="flex-1 py-3.5 rounded-xl bg-purple-600/10 border border-purple-500/20 text-purple-400 font-black text-lg active:scale-95 transition-all outline-none shadow-sm">
+                             <button key={v} onClick={() => applyVal(currentVal + v)} className="flex-1 py-3.5 rounded-xl bg-[#00ff41]/10 border border-[#00ff41]/20 text-[#00ff41] font-black text-lg active:scale-95 transition-all outline-none shadow-sm">
                                +{v}
                              </button>
                           ))}
@@ -1447,15 +2358,15 @@ export default function MarketPage() {
                       </div>
                     )}
                     <button onClick={submitScore} disabled={scoreSubmitting}
-                      className="w-full py-3.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-black text-sm rounded-xl flex items-center justify-center gap-2 transition-all">
-                      {scoreSubmitting ? <Loader2 size={16} className="animate-spin" /> : '✅ Submit Score'}
+                      className="w-full py-3.5 bg-[#00ff41] hover:bg-[#00dd38] disabled:opacity-50 text-black font-black text-sm rounded-xl flex items-center justify-center gap-2 transition-all">
+                      {scoreSubmitting ? <Loader2 size={16} className="animate-spin" /> : 'Refine & Submit Score'}
                     </button>
                   </>
                 )}
                 {mySubmitted && !oppSubmitted && (
                   <div className="py-8 text-center">
-                    <div className="w-16 h-16 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mx-auto mb-4">
-                      <Loader2 size={28} className="animate-spin text-purple-400" />
+                    <div className="w-16 h-16 rounded-full bg-[#00ff41]/10 border border-[#00ff41]/20 flex items-center justify-center mx-auto mb-4">
+                      <Loader2 size={28} className="animate-spin text-[#00ff41]" />
                     </div>
                     <p className="font-black text-sm">Score submitted!</p>
                     <p className="text-xs text-neutral-500 mt-1">Waiting for {oppH?.name} to submit their score…</p>
@@ -1470,9 +2381,9 @@ export default function MarketPage() {
                         <p className="text-4xl font-black">{scoreModalMatch.submittedScoreA ?? '?'}</p>
                       </div>
                       <div className="flex items-center"><span className="text-neutral-600 font-black text-lg">–</span></div>
-                      <div className="flex-1 px-4 py-4 bg-fuchsia-500/5 border border-fuchsia-500/15 rounded-2xl text-center">
-                        <p className="text-[9px] text-fuchsia-400 font-black mb-1 truncate">{scoreModalMatch.teamB?.name}</p>
-                        <p className="text-4xl font-black">{scoreModalMatch.submittedScoreB2 ?? '?'}</p>
+                      <div className="flex-1 px-4 py-4 bg-neutral-900 border border-white/5 rounded-2xl text-center">
+                        <p className="text-[9px] text-neutral-400 font-black mb-1 truncate">{scoreModalMatch.teamB?.name}</p>
+                        <p className="text-4xl font-black">{scoreModalMatch.submittedScoreB ?? '?'}</p>
                       </div>
                     </div>
                     <div className="flex gap-3">
@@ -1499,12 +2410,12 @@ export default function MarketPage() {
 
 
 // ── Small team avatar component ───────────────────────────────────────────────
-function TeamAvatar({ team, accent, flip }: { team: any; accent: 'green' | 'purple'; flip?: boolean }) {
+function TeamAvatar({ team, accent = 'green', flip }: { team: any; accent?: 'green' | 'purple'; flip?: boolean }) {
   const borderColor = accent === 'green' ? 'border-[#00ff41]/30' : 'border-purple-500/30';
   return (
     <div className={`flex items-center gap-2 flex-1 ${flip ? 'flex-row-reverse' : ''}`}>
       <div className={`w-10 h-10 rounded-xl bg-neutral-800 border ${borderColor} flex items-center justify-center overflow-hidden shrink-0`}>
-        {team?.logoUrl ? <img src={team.logoUrl} className="w-full h-full object-cover" /> : <Shield size={15} className={accent === 'green' ? 'text-[#00ff41]' : 'text-purple-400'} />}
+        {team?.logoUrl ? <img src={team.logoUrl} className="w-full h-full object-cover" /> : <Shield size={15} className={accent === 'green' ? 'text-[#00ff41]' : 'text-neutral-400'} />}
       </div>
       <div className={`min-w-0 flex-1 ${flip ? 'text-right' : ''}`}>
         <p className="font-black text-sm truncate leading-tight">{team?.name ?? 'Unknown'}</p>

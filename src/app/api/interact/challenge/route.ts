@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
       return null;
     }
 
-    const { challengerTeamId, opponentTeamId, sportType } = await req.json();
+    const { challengerTeamId, opponentTeamId, sportType, note, proposedDate } = await req.json();
     if (!challengerTeamId || !opponentTeamId) {
       return NextResponse.json({ error: 'Missing team IDs' }, { status: 400 });
     }
@@ -47,7 +47,10 @@ export async function POST(req: NextRequest) {
     // Validate opponent team
     const opponentTeam = await prisma.team.findUnique({
       where: { id: opponentTeamId },
-      include: { challengeSubscription: true },
+      include: { 
+        challengeSubscription: true,
+        members: { select: { id: true } }
+      },
     });
 
     if (!opponentTeam) return NextResponse.json({ error: 'Opponent team not found' }, { status: 404 });
@@ -71,6 +74,26 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Format eligibility checks
+    function getFormatSize(sport: string): number {
+      if (sport.includes('5')) return 5;
+      if (sport.includes('6')) return 6;
+      if (sport.includes('7')) return 7;
+      if (sport.includes('FULL') || sport === 'FOOTBALL' || sport === 'CRICKET') return 11;
+      return 5;
+    }
+
+    const N = getFormatSize(matchSportType);
+    const challengerRosterSize = challengerTeam.members.length;
+    const opponentRosterSize = opponentTeam.members.length;
+
+    if (challengerRosterSize < N) {
+      return NextResponse.json({ error: `You need ${N - challengerRosterSize} more player(s) for format size ${N}.` }, { status: 400 });
+    }
+    if (opponentRosterSize < N) {
+      return NextResponse.json({ error: `Opponent team needs ${N - opponentRosterSize} more player(s) for format size ${N}.` }, { status: 400 });
+    }
+
     // Prevent duplicate pending challenge between same pair
     const existing = await prisma.match.findFirst({
       where: {
@@ -85,17 +108,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'A pending challenge already exists between these teams' }, { status: 409 });
     }
 
-    const match = await prisma.match.create({
-      data: {
-        teamA_Id: challengerTeamId,
-        teamB_Id: opponentTeamId,
-        status: 'PENDING',
-        sportType: matchSportType,
-      },
-      include: {
-        teamA: { select: { id: true, name: true } },
-        teamB: { select: { id: true, name: true } },
-      },
+    const match = await prisma.$transaction(async (tx) => {
+      const m = await tx.match.create({
+        data: {
+          teamA_Id: challengerTeamId,
+          teamB_Id: opponentTeamId,
+          status: 'PENDING',
+          sportType: matchSportType,
+          matchDate: proposedDate || null,
+        },
+        include: {
+          teamA: { select: { id: true, name: true } },
+          teamB: { select: { id: true, name: true } },
+        },
+      });
+
+      if (note && note.trim()) {
+        await tx.matchChatMessage.create({
+          data: {
+            matchId: m.id,
+            playerId: playerId,
+            teamId: challengerTeamId,
+            message: note.trim(),
+          }
+        });
+      }
+
+      return m;
     });
 
     return NextResponse.json({ ok: true, match });
@@ -133,6 +172,19 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (action === 'accept') {
+      const formatSize = (() => {
+        const sport = match.sportType ?? '';
+        if (sport.includes('5')) return 5;
+        if (sport.includes('6')) return 6;
+        if (sport.includes('7')) return 7;
+        if (sport.includes('FULL') || sport === 'FOOTBALL' || sport === 'CRICKET') return 11;
+        return 5;
+      })();
+      const myRosterSize = teamB.members.length;
+      if (myRosterSize < formatSize) {
+        return NextResponse.json({ error: `You need ${formatSize - myRosterSize} more player(s) for format size ${formatSize}.` }, { status: 400 });
+      }
+
       const updated = await prisma.match.update({
         where: { id: matchId },
         data: { status: 'INTERACTION' },
@@ -161,6 +213,7 @@ export async function GET(req: NextRequest) {
     // Get all teams the user is OMC of
     const myTeams = await prisma.team.findMany({
       where: {
+        teamType: 'REGULAR',
         OR: [
           { ownerId: playerId },
           { members: { some: { playerId, role: { in: ['owner', 'manager', 'captain'] } } } },

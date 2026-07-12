@@ -210,6 +210,7 @@ function Sheet({
 function TeamCard({ team, rank, locale, t }: { team: any; rank: number; locale: string; t: any }) {
   const rd = getRankData(team.mmr);
   const top3 = rank <= 3;
+  const isProv = (team.played ?? 0) < 3;
   return (
     <div
       className="flex items-center gap-3 p-3 rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.06] transition-all relative overflow-hidden"
@@ -251,12 +252,16 @@ function TeamCard({ team, rank, locale, t }: { team: any; rank: number; locale: 
 
       <div className="shrink-0 flex flex-col items-end gap-1 relative z-20">
         <div className="flex items-center gap-1.5">
-          {rankIcon(rd.tier) && (
+          {!isProv && rankIcon(rd.tier) && (
             <img src={rankIcon(rd.tier)} className="w-5 h-5 object-contain" alt={rd.tier} />
           )}
-          <span className="text-xs font-black" style={{ color: rd.color }}>{translateRankLabel(rd.label, locale)}</span>
+          <span className="text-xs font-black" style={isProv ? { color: '#a3a3a3' } : { color: rd.color }}>
+            {isProv ? (locale === 'bn' ? 'আনর‌্যাঙ্কড' : 'Unranked') : translateRankLabel(rd.label, locale)}
+          </span>
         </div>
-        <span className="text-[10px] font-bold text-neutral-400">{formatNumber(team.mmr, locale)} MMR</span>
+        <span className="text-[10px] font-bold text-neutral-400">
+          {isProv ? (locale === 'bn' ? 'অস্থায়ী' : 'Provisional') : `${formatNumber(team.mmr, locale)} MMR`}
+        </span>
       </div>
     </div>
   );
@@ -269,6 +274,7 @@ function PlayerCard({ player, rank, locale, t }: { player: any; rank: number; lo
   const top3 = rank <= 3;
   const name     = player.fullName ?? player.name ?? '?';
   const initials = name.split(' ').map((w: string) => w[0] ?? '').join('').toUpperCase().slice(0, 2) || '?';
+  const isProv = (player.played ?? 0) < 3;
   return (
     <div
       className="flex items-center gap-3 p-3 rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.06] transition-all"
@@ -310,12 +316,16 @@ function PlayerCard({ player, rank, locale, t }: { player: any; rank: number; lo
 
       <div className="shrink-0 flex flex-col items-end gap-1">
         <div className="flex items-center gap-1.5">
-          {rankIcon(rd.tier) && (
+          {!isProv && rankIcon(rd.tier) && (
             <img src={rankIcon(rd.tier)} className="w-5 h-5 object-contain" alt={rd.tier} />
           )}
-          <span className="text-xs font-black" style={{ color: rd.color }}>{translateRankLabel(rd.label, locale)}</span>
+          <span className="text-xs font-black" style={isProv ? { color: '#a3a3a3' } : { color: rd.color }}>
+            {isProv ? (locale === 'bn' ? 'আনর‌্যাঙ্কড' : 'Unranked') : translateRankLabel(rd.label, locale)}
+          </span>
         </div>
-        <span className="text-[10px] font-bold text-neutral-400">{formatNumber(player.mmr, locale)} MMR</span>
+        <span className="text-[10px] font-bold text-neutral-400">
+          {isProv ? (locale === 'bn' ? 'অস্থায়ী' : 'Provisional') : `${formatNumber(player.mmr, locale)} MMR`}
+        </span>
       </div>
     </div>
   );

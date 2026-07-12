@@ -36,7 +36,29 @@ async function calcTeamStats(teamId: string) {
     else break;
   }
 
-  return { history, winStreak };
+  // Calculate completed and disputed matches to derive trustScore
+  const [completedCount, disputedCount] = await Promise.all([
+    prisma.match.count({
+      where: {
+        status: 'COMPLETED',
+        OR: [{ teamA_Id: teamId }, { teamB_Id: teamId }],
+      },
+    }),
+    prisma.match.count({
+      where: {
+        status: 'DISPUTED',
+        OR: [{ teamA_Id: teamId }, { teamB_Id: teamId }],
+      },
+    }),
+  ]);
+
+  const totalMatches = completedCount + disputedCount;
+  let trustScore = 100;
+  if (totalMatches > 0) {
+    trustScore = Math.round((completedCount / totalMatches) * 100);
+  }
+
+  return { history, winStreak, completedCount, disputedCount, trustScore };
 }
 
 export async function GET(req: NextRequest) {
@@ -53,9 +75,10 @@ export async function GET(req: NextRequest) {
 
     const teams = await prisma.team.findMany({
       where: isFree 
-        ? { isDisbanded: false }
+        ? { isDisbanded: false, teamType: 'REGULAR' }
         : {
             isDisbanded: false,
+            teamType: 'REGULAR',
             isSubscribed: true,
             challengeSubscription: { active: true },
           },
@@ -67,6 +90,7 @@ export async function GET(req: NextRequest) {
         teamMmr: true,
         ownerId: true,
         isSubscribed: true,
+        isVerified: true,
         teamCode: true,
         challengeSubscription: {
           select: { active: true, subscribedAt: true, gracePeriodEnd: true },

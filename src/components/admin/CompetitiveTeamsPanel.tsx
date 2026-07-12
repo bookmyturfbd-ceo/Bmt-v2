@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Loader2, Search, Trophy, ShieldHalf, LayoutGrid, Swords, Save } from 'lucide-react';
+import { Loader2, Search, Trophy, ShieldHalf, LayoutGrid, Swords, Save, ShieldCheck } from 'lucide-react';
 
 export default function CompetitiveTeamsPanel() {
   const [teams, setTeams] = useState<any[]>([]);
@@ -36,6 +36,21 @@ export default function CompetitiveTeamsPanel() {
       body: JSON.stringify({ monthlyFee: Number(fee) })
     });
     setSavingFee(false);
+  };
+
+  const toggleVerification = async (teamId: string, currentVal: boolean) => {
+    try {
+      const res = await fetch('/api/admin/teams', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: teamId, isVerified: !currentVal })
+      });
+      if (res.ok) {
+        setTeams(prev => prev.map(t => t.id === teamId ? { ...t, isVerified: !currentVal } : t));
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const filtered = teams.filter(t => t.name.toLowerCase().includes(search.toLowerCase()));
@@ -96,10 +111,11 @@ export default function CompetitiveTeamsPanel() {
                 <tr className="border-b border-[var(--panel-border)] text-xs text-[var(--muted)] uppercase tracking-wider">
                   <th className="pb-3 px-4 font-black">Team</th>
                   <th className="pb-3 px-4 font-black">Sport</th>
+                  <th className="pb-3 px-4 font-black text-center">Verification</th>
                   <th className="pb-3 px-4 font-black text-center">Tinkering</th>
                   <th className="pb-3 px-4 font-black">Progression</th>
                   <th className="pb-3 px-4 font-black">Owner</th>
-                  <th className="pb-3 px-4 font-black">Matches</th>
+                  <th className="pb-3 px-4 font-black">Trust Rating</th>
                 </tr>
               </thead>
               <tbody>
@@ -109,10 +125,28 @@ export default function CompetitiveTeamsPanel() {
                       <div className="w-10 h-10 rounded-lg bg-neutral-900 border border-white/5 overflow-hidden flex items-center justify-center shrink-0">
                         {team.logoUrl ? <img src={team.logoUrl} className="w-full h-full object-cover" /> : <ShieldHalf size={16} />}
                       </div>
-                      <span className="font-bold text-sm tracking-tight truncate">{team.name}</span>
+                      <div className="flex flex-col leading-tight min-w-0">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-bold text-sm tracking-tight truncate">{team.name}</span>
+                          {team.isVerified && <ShieldCheck size={14} className="text-blue-400 shrink-0" fill="currentColor" />}
+                        </div>
+                        <span className="text-[9px] font-bold text-[var(--muted)]">{team.teamCode}</span>
+                      </div>
                     </td>
                     <td className="py-4 px-4">
                       <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded bg-[var(--panel-bg)] border border-[var(--panel-border)]">{team.sportType.replace('_', ' ')}</span>
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <button
+                        onClick={() => toggleVerification(team.id, !!team.isVerified)}
+                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                          team.isVerified
+                            ? 'bg-blue-500/20 border-blue-500/40 text-blue-400'
+                            : 'bg-neutral-800 border-white/5 text-[var(--muted)] hover:text-white'
+                        }`}
+                      >
+                        {team.isVerified ? '✓ Verified' : 'Verify'}
+                      </button>
                     </td>
                     <td className="py-4 px-4 text-center">
                       <span className="text-xs font-black">{team._count?.members || 0}</span> <span className="text-[10px] text-[var(--muted)] uppercase">Roster</span>
@@ -130,7 +164,21 @@ export default function CompetitiveTeamsPanel() {
                       </div>
                     </td>
                     <td className="py-4 px-4">
-                      <span className="text-xs font-bold">{(team._count?.matchesAsTeamA || 0) + (team._count?.matchesAsTeamB || 0)}</span> <span className="text-[10px] text-[var(--muted)]">Total</span>
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1">
+                          <span className={`w-2 h-2 rounded-full ${
+                            (team.completedCount === 0 && team.disputedCount === 0) ? 'bg-zinc-400' :
+                            team.trustScore >= 90 ? 'bg-emerald-400' :
+                            team.trustScore >= 70 ? 'bg-amber-400' : 'bg-red-400'
+                          }`} />
+                          <span className="text-xs font-black">
+                            {(team.completedCount === 0 && team.disputedCount === 0) ? 'New Team' : `${team.trustScore}%`}
+                          </span>
+                        </div>
+                        <span className="text-[9px] text-[var(--muted)] font-bold">
+                          {team.completedCount || 0} OK · {team.disputedCount || 0} Disputed
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 ))}

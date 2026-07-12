@@ -1,6 +1,6 @@
 'use client';
-import { useState, useMemo, useCallback } from 'react';
-import { Settings2, Plus, UserCircle2, X, Search, Loader2, UserPlus, Crown, ChevronRight, Trophy, Swords, Medal, History, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { Settings2, Plus, UserCircle2, X, Search, Loader2, UserPlus, Crown, ChevronRight, Trophy, Swords, Medal } from 'lucide-react';
 import { getRankData } from '@/lib/rankUtils';
 import { useParams } from 'next/navigation';
 
@@ -11,8 +11,9 @@ interface SquadManagerProps {
   tournamentMatches?: any[];
 }
 
-const FUTSAL_ROLES  = ['Forward', 'Midfielder', 'Defender', 'Goalkeeper'];
-const CRICKET_ROLES = ['Batsman', 'Bowler', 'Wicket Keeper', 'Allrounder', 'WK Batsman'];
+const FUTSAL_POSITIONS = ['Goleiro', 'Fixo', 'Ala', 'Pivô'];
+const CRICKET_ROLES     = ['Batsman', 'Bowler', 'Wicket Keeper', 'Allrounder'];
+const GENERIC_POSITIONS  = ['GK', 'DEF', 'MID', 'FWD'];
 
 const TEAM_RANKS = [
   { key: 'manager',      label: 'Make Manager',     color: 'text-amber-400',  bg: 'hover:bg-amber-500/10 border-amber-500/20' },
@@ -29,30 +30,252 @@ const ROLE_WEIGHT: Record<string, number> = {
   'member': 1,
 };
 
-const FORMATIONS: Record<string, { label: string; coords: { x: number; y: number }[] }> = {
-  // 5v5 / 6v6 Futsal
-  '1-2-1': { label: 'Diamond (1-2-1)', coords: [{ x: 50, y: 85 }, { x: 25, y: 50 }, { x: 75, y: 50 }, { x: 50, y: 20 }, { x: 50, y: 95 }] },
-  '2-2':   { label: 'Box (2-2)',       coords: [{ x: 30, y: 70 }, { x: 70, y: 70 }, { x: 30, y: 30 }, { x: 70, y: 30 }, { x: 50, y: 95 }] },
-  '1-3':   { label: 'Y-Shape (1-3)',   coords: [{ x: 50, y: 75 }, { x: 20, y: 35 }, { x: 50, y: 20 }, { x: 80, y: 35 }, { x: 50, y: 95 }] },
-  '3-1':   { label: 'Pyramid (3-1)',   coords: [{ x: 20, y: 65 }, { x: 50, y: 75 }, { x: 80, y: 65 }, { x: 50, y: 25 }, { x: 50, y: 95 }] },
-  '2-2-1': { label: '2-2-1',          coords: [{ x: 30, y: 75 }, { x: 70, y: 75 }, { x: 30, y: 45 }, { x: 70, y: 45 }, { x: 50, y: 20 }, { x: 50, y: 95 }] },
-  '2-1-2': { label: '2-1-2',          coords: [{ x: 30, y: 75 }, { x: 70, y: 75 }, { x: 50, y: 50 }, { x: 30, y: 25 }, { x: 70, y: 25 }, { x: 50, y: 95 }] },
-  '3-2':   { label: '3-2',            coords: [{ x: 20, y: 70 }, { x: 50, y: 75 }, { x: 80, y: 70 }, { x: 35, y: 30 }, { x: 65, y: 30 }, { x: 50, y: 95 }] },
-  '3-1-1': { label: '3-1-1',          coords: [{ x: 20, y: 75 }, { x: 50, y: 75 }, { x: 80, y: 75 }, { x: 50, y: 45 }, { x: 50, y: 20 }, { x: 50, y: 95 }] },
-  '1-3-1': { label: '1-3-1',          coords: [{ x: 50, y: 75 }, { x: 20, y: 45 }, { x: 50, y: 45 }, { x: 80, y: 45 }, { x: 50, y: 20 }, { x: 50, y: 95 }] },
-  '1-2-2': { label: '1-2-2',          coords: [{ x: 50, y: 75 }, { x: 30, y: 50 }, { x: 70, y: 50 }, { x: 30, y: 25 }, { x: 70, y: 25 }, { x: 50, y: 95 }] },
-  // Football 11v11
-  '4-4-2': { label: '4-4-2', coords: [{ x: 50, y: 95 }, { x: 20, y: 75 }, { x: 40, y: 75 }, { x: 60, y: 75 }, { x: 80, y: 75 }, { x: 20, y: 45 }, { x: 40, y: 45 }, { x: 60, y: 45 }, { x: 80, y: 45 }, { x: 35, y: 15 }, { x: 65, y: 15 }] },
-  '4-3-3': { label: '4-3-3', coords: [{ x: 50, y: 95 }, { x: 20, y: 75 }, { x: 40, y: 75 }, { x: 60, y: 75 }, { x: 80, y: 75 }, { x: 25, y: 45 }, { x: 50, y: 45 }, { x: 75, y: 45 }, { x: 20, y: 15 }, { x: 50, y: 15 }, { x: 80, y: 15 }] },
-  '4-2-3-1': { label: '4-2-3-1', coords: [{ x: 50, y: 95 }, { x: 20, y: 75 }, { x: 40, y: 75 }, { x: 60, y: 75 }, { x: 80, y: 75 }, { x: 35, y: 55 }, { x: 65, y: 55 }, { x: 20, y: 35 }, { x: 50, y: 35 }, { x: 80, y: 35 }, { x: 50, y: 15 }] },
-  '3-5-2': { label: '3-5-2', coords: [{ x: 50, y: 95 }, { x: 25, y: 75 }, { x: 50, y: 75 }, { x: 75, y: 75 }, { x: 15, y: 45 }, { x: 35, y: 45 }, { x: 50, y: 45 }, { x: 65, y: 45 }, { x: 85, y: 45 }, { x: 35, y: 15 }, { x: 65, y: 15 }] },
-  '5-3-2': { label: '5-3-2', coords: [{ x: 50, y: 95 }, { x: 15, y: 75 }, { x: 35, y: 75 }, { x: 50, y: 75 }, { x: 65, y: 75 }, { x: 85, y: 75 }, { x: 25, y: 45 }, { x: 50, y: 45 }, { x: 75, y: 45 }, { x: 35, y: 15 }, { x: 65, y: 15 }] },
-  // Cricket Standard & Full
-  'oval-7':{ label: 'Standard Field (7v7)', coords: [{ x: 50, y: 70 }, { x: 50, y: 30 }, { x: 50, y: 85 }, { x: 80, y: 60 }, { x: 20, y: 60 }, { x: 75, y: 25 }, { x: 25, y: 25 }] },
-  'oval-11':{ label: 'Full Field (11v11)', coords: [{ x: 50, y: 85 }, { x: 50, y: 15 }, { x: 20, y: 50 }, { x: 80, y: 50 }, { x: 30, y: 70 }, { x: 70, y: 70 }, { x: 30, y: 30 }, { x: 70, y: 30 }, { x: 15, y: 30 }, { x: 85, y: 30 }, { x: 50, y: 50 }] },
+// Configurable Formations coordinates as % of pitch width/height
+const FORMATIONS_CONFIG: Record<string, Record<string, { label: string; slots: { role: string; x: number; y: number }[] }>> = {
+  '5v5': {
+    '1-2-1': {
+      label: '1-2-1 Diamond (default)',
+      slots: [
+        { role: 'GK', x: 50, y: 90 },
+        { role: 'DEF', x: 50, y: 68 },
+        { role: 'MID', x: 20, y: 44 }, // Ala L
+        { role: 'MID', x: 80, y: 44 }, // Ala R
+        { role: 'FWD', x: 50, y: 18 }  // Pivô
+      ]
+    },
+    '2-2': {
+      label: '2-2 Square',
+      slots: [
+        { role: 'GK', x: 50, y: 90 },
+        { role: 'DEF', x: 28, y: 68 },
+        { role: 'DEF', x: 72, y: 68 },
+        { role: 'FWD', x: 28, y: 24 },
+        { role: 'FWD', x: 72, y: 24 }
+      ]
+    },
+    '2-1-1': {
+      label: '2-1-1',
+      slots: [
+        { role: 'GK', x: 50, y: 90 },
+        { role: 'DEF', x: 28, y: 72 },
+        { role: 'DEF', x: 72, y: 72 },
+        { role: 'MID', x: 50, y: 46 },
+        { role: 'FWD', x: 50, y: 18 }
+      ]
+    },
+    '1-1-2': {
+      label: '1-1-2',
+      slots: [
+        { role: 'GK', x: 50, y: 90 },
+        { role: 'DEF', x: 50, y: 72 },
+        { role: 'MID', x: 50, y: 46 },
+        { role: 'FWD', x: 28, y: 20 },
+        { role: 'FWD', x: 72, y: 20 }
+      ]
+    },
+    '1-2-1-y': {
+      label: '1-2-1 Y',
+      slots: [
+        { role: 'GK', x: 50, y: 90 },
+        { role: 'DEF', x: 50, y: 74 },
+        { role: 'MID', x: 28, y: 36 },
+        { role: 'MID', x: 72, y: 36 },
+        { role: 'FWD', x: 50, y: 16 }
+      ]
+    }
+  },
+  '6v6': {
+    '2-2-1': {
+      label: '2-2-1 (default)',
+      slots: [
+        { role: 'GK', x: 50, y: 90 },
+        { role: 'DEF', x: 28, y: 72 },
+        { role: 'DEF', x: 72, y: 72 },
+        { role: 'MID', x: 28, y: 42 },
+        { role: 'MID', x: 72, y: 42 },
+        { role: 'FWD', x: 50, y: 18 }
+      ]
+    },
+    '1-2-2': {
+      label: '1-2-2',
+      slots: [
+        { role: 'GK', x: 50, y: 90 },
+        { role: 'DEF', x: 50, y: 72 },
+        { role: 'MID', x: 28, y: 44 },
+        { role: 'MID', x: 72, y: 44 },
+        { role: 'FWD', x: 28, y: 20 },
+        { role: 'FWD', x: 72, y: 20 }
+      ]
+    },
+    '2-1-2': {
+      label: '2-1-2',
+      slots: [
+        { role: 'GK', x: 50, y: 90 },
+        { role: 'DEF', x: 28, y: 72 },
+        { role: 'DEF', x: 72, y: 72 },
+        { role: 'MID', x: 50, y: 44 },
+        { role: 'FWD', x: 28, y: 20 },
+        { role: 'FWD', x: 72, y: 20 }
+      ]
+    },
+    '3-1-1': {
+      label: '3-1-1',
+      slots: [
+        { role: 'GK', x: 50, y: 90 },
+        { role: 'DEF', x: 20, y: 72 },
+        { role: 'DEF', x: 50, y: 74 },
+        { role: 'DEF', x: 80, y: 72 },
+        { role: 'MID', x: 50, y: 44 },
+        { role: 'FWD', x: 50, y: 18 }
+      ]
+    }
+  },
+  '7v7': {
+    '2-3-1': {
+      label: '2-3-1 (default)',
+      slots: [
+        { role: 'GK', x: 50, y: 90 },
+        { role: 'DEF', x: 28, y: 74 },
+        { role: 'DEF', x: 72, y: 74 },
+        { role: 'MID', x: 18, y: 44 },
+        { role: 'MID', x: 50, y: 44 },
+        { role: 'MID', x: 82, y: 44 },
+        { role: 'FWD', x: 50, y: 18 }
+      ]
+    },
+    '3-2-1': {
+      label: '3-2-1',
+      slots: [
+        { role: 'GK', x: 50, y: 90 },
+        { role: 'DEF', x: 20, y: 74 },
+        { role: 'DEF', x: 50, y: 76 },
+        { role: 'DEF', x: 80, y: 74 },
+        { role: 'MID', x: 32, y: 42 },
+        { role: 'MID', x: 68, y: 42 },
+        { role: 'FWD', x: 50, y: 18 }
+      ]
+    },
+    '2-1-2-1': {
+      label: '2-1-2-1',
+      slots: [
+        { role: 'GK', x: 50, y: 90 },
+        { role: 'DEF', x: 28, y: 74 },
+        { role: 'DEF', x: 72, y: 74 },
+        { role: 'MID', x: 50, y: 54 },
+        { role: 'MID', x: 28, y: 34 },
+        { role: 'MID', x: 72, y: 34 },
+        { role: 'FWD', x: 50, y: 14 }
+      ]
+    },
+    '1-3-2': {
+      label: '1-3-2',
+      slots: [
+        { role: 'GK', x: 50, y: 90 },
+        { role: 'DEF', x: 50, y: 74 },
+        { role: 'MID', x: 18, y: 44 },
+        { role: 'MID', x: 50, y: 44 },
+        { role: 'MID', x: 82, y: 44 },
+        { role: 'FWD', x: 28, y: 20 },
+        { role: 'FWD', x: 72, y: 20 }
+      ]
+    },
+    '3-1-2': {
+      label: '3-1-2',
+      slots: [
+        { role: 'GK', x: 50, y: 90 },
+        { role: 'DEF', x: 20, y: 74 },
+        { role: 'DEF', x: 50, y: 76 },
+        { role: 'DEF', x: 80, y: 74 },
+        { role: 'MID', x: 50, y: 44 },
+        { role: 'FWD', x: 28, y: 20 },
+        { role: 'FWD', x: 72, y: 20 }
+      ]
+    }
+  },
+  '11v11': {
+    '4-3-3': {
+      label: '4-3-3 (default)',
+      slots: [
+        { role: 'GK', x: 50, y: 90 },
+        { role: 'DEF', x: 15, y: 72 },
+        { role: 'DEF', x: 38, y: 74 },
+        { role: 'DEF', x: 62, y: 74 },
+        { role: 'DEF', x: 85, y: 72 },
+        { role: 'MID', x: 25, y: 44 },
+        { role: 'MID', x: 50, y: 46 },
+        { role: 'MID', x: 75, y: 44 },
+        { role: 'FWD', x: 20, y: 18 },
+        { role: 'FWD', x: 50, y: 16 },
+        { role: 'FWD', x: 80, y: 18 }
+      ]
+    },
+    '4-4-2': {
+      label: '4-4-2',
+      slots: [
+        { role: 'GK', x: 50, y: 90 },
+        { role: 'DEF', x: 15, y: 72 },
+        { role: 'DEF', x: 38, y: 74 },
+        { role: 'DEF', x: 62, y: 74 },
+        { role: 'DEF', x: 85, y: 72 },
+        { role: 'MID', x: 15, y: 44 },
+        { role: 'MID', x: 38, y: 46 },
+        { role: 'MID', x: 62, y: 46 },
+        { role: 'MID', x: 85, y: 44 },
+        { role: 'FWD', x: 35, y: 18 },
+        { role: 'FWD', x: 65, y: 18 }
+      ]
+    },
+    '4-2-3-1': {
+      label: '4-2-3-1',
+      slots: [
+        { role: 'GK', x: 50, y: 90 },
+        { role: 'DEF', x: 15, y: 72 },
+        { role: 'DEF', x: 38, y: 74 },
+        { role: 'DEF', x: 62, y: 74 },
+        { role: 'DEF', x: 85, y: 72 },
+        { role: 'MID', x: 35, y: 54 },
+        { role: 'MID', x: 65, y: 54 },
+        { role: 'MID', x: 15, y: 32 },
+        { role: 'MID', x: 50, y: 30 },
+        { role: 'MID', x: 85, y: 32 },
+        { role: 'FWD', x: 50, y: 14 }
+      ]
+    },
+    '3-5-2': {
+      label: '3-5-2',
+      slots: [
+        { role: 'GK', x: 50, y: 90 },
+        { role: 'DEF', x: 25, y: 74 },
+        { role: 'DEF', x: 50, y: 75 },
+        { role: 'DEF', x: 75, y: 74 },
+        { role: 'MID', x: 12, y: 44 },
+        { role: 'MID', x: 34, y: 46 },
+        { role: 'MID', x: 50, y: 48 },
+        { role: 'MID', x: 66, y: 46 },
+        { role: 'MID', x: 88, y: 44 },
+        { role: 'FWD', x: 35, y: 18 },
+        { role: 'FWD', x: 65, y: 18 }
+      ]
+    },
+    '4-5-1': {
+      label: '4-5-1',
+      slots: [
+        { role: 'GK', x: 50, y: 90 },
+        { role: 'DEF', x: 15, y: 72 },
+        { role: 'DEF', x: 38, y: 74 },
+        { role: 'DEF', x: 62, y: 74 },
+        { role: 'DEF', x: 85, y: 72 },
+        { role: 'MID', x: 15, y: 44 },
+        { role: 'MID', x: 34, y: 46 },
+        { role: 'MID', x: 50, y: 48 },
+        { role: 'MID', x: 66, y: 46 },
+        { role: 'MID', x: 88, y: 44 },
+        { role: 'FWD', x: 50, y: 18 }
+      ]
+    }
+  }
 };
 
-// ── Role Badge ─────────────────────────────────────────────────────────────
 function RoleBadge({ role }: { role: string }) {
   if (role === 'owner')        return <Crown size={11} className="text-amber-400 shrink-0" />;
   if (role === 'manager')      return <span className="text-[8px] font-black bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded-md border border-amber-500/30 shrink-0">M</span>;
@@ -61,10 +284,16 @@ function RoleBadge({ role }: { role: string }) {
   return null;
 }
 
-// ── Rank Badge ──────────────────────────────────────────────────────────────
+function CaptainBadge() {
+  return (
+    <div className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 rounded-full bg-amber-500 border border-black flex items-center justify-center shadow-md z-30" title="Captain">
+      <Crown size={9} className="text-black" />
+    </div>
+  );
+}
+
 function RankBadge({ mmr, inline = false }: { mmr: number, inline?: boolean }) {
   const d = getRankData(mmr);
-  const border = `border-[${d.color}]/40`;
   if (inline) return <span className="inline-flex items-center gap-1.5"><img src={d.icon} className="h-6 w-auto object-contain drop-shadow-md" alt="Rank" /><span className={`font-black text-xs`} style={{ color: d.color }}>{d.label}</span></span>;
   return (
     <div className={`flex flex-col items-center justify-center px-4 py-2.5 rounded-xl bg-neutral-900/50 border border-white/10 shadow-lg shadow-black/50 overflow-hidden relative`}>
@@ -75,7 +304,6 @@ function RankBadge({ mmr, inline = false }: { mmr: number, inline?: boolean }) {
   );
 }
 
-// ── Match Donut Chart ──────────────────────────────────────────────────────
 function StatDonut({ w, l, d, size = 64 }: { w: number, l: number, d: number, size?: number }) {
   const total = w + l + d;
   if (total === 0) return <div className="rounded-full border-4 border-neutral-800 flex items-center justify-center" style={{ width: size, height: size }}><span className="text-[10px] text-[var(--muted)]">0/0</span></div>;
@@ -92,7 +320,6 @@ function StatDonut({ w, l, d, size = 64 }: { w: number, l: number, d: number, si
   );
 }
 
-// ── Player Card ────────────────────────────────────────────────────────────
 function PlayerCard({ m, isOMC, isPitch, onClick, isCricket }: { m: any; isOMC: boolean; isPitch: boolean; onClick: () => void; isCricket: boolean }) {
   const pMmr = isCricket ? (m.player.cricketMmr ?? 1000) : (m.player.footballMmr ?? m.player.mmr ?? 1000);
   return (
@@ -100,16 +327,16 @@ function PlayerCard({ m, isOMC, isPitch, onClick, isCricket }: { m: any; isOMC: 
       className="relative flex items-center gap-3 px-3 py-2.5 rounded-xl border border-white/5 bg-neutral-800/50 hover:bg-neutral-800 transition-all cursor-pointer group"
       onClick={onClick}
     >
-      {/* PITCH badge — top-right corner */}
       {isPitch && (
         <span className="absolute top-1.5 right-2 text-[7px] font-black uppercase tracking-widest text-accent bg-accent/10 border border-accent/30 px-1.5 py-0.5 rounded-full">Pitch</span>
       )}
 
       {/* Avatar */}
-      <div className="w-9 h-9 rounded-full overflow-hidden bg-neutral-900 border border-white/10 shrink-0 flex items-center justify-center">
+      <div className="w-9 h-9 rounded-full overflow-hidden bg-neutral-900 border border-white/10 shrink-0 flex items-center justify-center relative">
         {m.player.avatarUrl
           ? <img src={m.player.avatarUrl} className="w-full h-full object-cover" />
           : <UserCircle2 size={18} className="text-[var(--muted)]" />}
+        {m.role === 'captain' && <CaptainBadge />}
       </div>
 
       {/* Info */}
@@ -121,7 +348,7 @@ function PlayerCard({ m, isOMC, isPitch, onClick, isCricket }: { m: any; isOMC: 
         <div className="flex items-center gap-2 mt-0.5">
           {m.sportRole
             ? <span className="text-[9px] font-black text-accent uppercase tracking-wider">{m.sportRole}</span>
-            : <span className="text-[9px] text-white/30 italic">No position</span>}
+            : <span className="text-[9px] text-white/30 italic">No preferred position</span>}
         </div>
         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
           <span className="text-[10px] font-black bg-neutral-800 px-2 py-0.5 rounded-md border border-white/10 text-white/70">{pMmr} <span className="text-[#00ff41]">MMR</span></span>
@@ -129,39 +356,57 @@ function PlayerCard({ m, isOMC, isPitch, onClick, isCricket }: { m: any; isOMC: 
         </div>
       </div>
 
-      {/* Arrow */}
       {isOMC && <ChevronRight size={14} className="text-white/20 group-hover:text-white/50 transition-colors shrink-0" />}
     </div>
   );
 }
 
-// ── Main Component ─────────────────────────────────────────────────────────
 export default function SquadManager({ team, setTeam, myRole, tournamentMatches = [] }: SquadManagerProps) {
   const params = useParams();
   const locale = params?.locale || 'en';
-  const isCricket  = team.sportType?.includes('CRICKET') || team.sportType === 'CRICKET';
-  const isFull     = team.sportType?.includes('FULL') || team.sportType === 'FOOTBALL';
-  const roleOptions = isCricket ? CRICKET_ROLES : FUTSAL_ROLES;
+
+  const isFutsal   = team.sportType?.startsWith('FUTSAL') || team.sportType === 'FUTSAL';
+  const isCricket  = team.sportType?.startsWith('CRICKET') || team.sportType === 'CRICKET';
+  const isFootball = team.sportType?.startsWith('FOOTBALL') || team.sportType === 'FOOTBALL';
+
+  const roleOptions = isFutsal 
+    ? FUTSAL_POSITIONS 
+    : (isCricket ? CRICKET_ROLES : GENERIC_POSITIONS);
+
   const isOMC = ['owner', 'manager', 'captain'].includes(myRole);
   const isOM  = ['owner', 'manager'].includes(myRole);
-
-  let maxPlayers = 5;
-  if (team.sportType === 'FUTSAL_6') maxPlayers = 6;
-  if (team.sportType === 'FUTSAL_7' || team.sportType === 'CRICKET_7' || team.sportType === 'CRICKET') maxPlayers = 7;
-  if (isFull) maxPlayers = 11;
 
   const rankedMmr = isCricket ? (team.cricketMmr ?? 1000) : (team.footballMmr ?? 1000);
   const tournamentMmr = isCricket ? (team.tournamentCricketMmr ?? 1000) : (team.tournamentFootballMmr ?? 1000);
 
-  const activeFormation = (team.formation && FORMATIONS[team.formation])
-    ? team.formation
-    : (isCricket ? (isFull ? 'oval-11' : 'oval-7') : (isFull ? '4-3-3' : maxPlayers === 6 ? '2-2-1' : '1-2-1'));
+  // Available match formats based on team's sport family
+  const formatsList = useMemo(() => {
+    if (isFutsal) return ['5v5', '6v6', '7v7'];
+    if (isCricket) return ['7v7', '11v11'];
+    return ['11v11']; // Football has no toggle, always 11
+  }, [isFutsal, isCricket]);
 
-  const coords = FORMATIONS[activeFormation]?.coords || [];
+  // Initial format defaults
+  const [activeFormat, setActiveFormat] = useState<string>(() => {
+    if (isFutsal) return '5v5';
+    if (isCricket) return '7v7';
+    return '11v11';
+  });
 
-  // ── State ─────────────────────────────────────────────────────────────────
+  // DB templates states
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [activeFormation, setActiveFormation] = useState<string>('1-2-1');
+  const [activePositions, setActivePositions] = useState<Record<number, string | null>>({});
+
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const pendingSaveRef = useRef<{ format: string; formation: string; positionsMap: Record<number, string | null> } | null>(null);
+  const prevFormatRef = useRef<string | null>(null);
+
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const [activeSlot,   setActiveSlot]   = useState<number | null>(null);
-  const [playerModal,  setPlayerModal]  = useState<any | null>(null); // selected member
+  const [playerModal,  setPlayerModal]  = useState<any | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchQ,      setSearchQ]      = useState('');
   const [searchResults,setSearchResults]= useState<any[]>([]);
@@ -170,42 +415,104 @@ export default function SquadManager({ team, setTeam, myRole, tournamentMatches 
   const [removing,     setRemoving]     = useState(false);
   const [sentRequests, setSentRequests] = useState<string[]>([]);
   const [loadingRole,  setLoadingRole]  = useState(false);
-  const [cmFee,        setCmFee]        = useState<number | null>(null);
-  const [showSubConfirm, setShowSubConfirm] = useState(false);
-  const [subscribing,  setSubscribing]  = useState(false);
-  const [historyTab,   setHistoryTab]   = useState<'RANKED' | 'TOURNAMENT'>('RANKED');
 
-  // Fetch CM fee for the subscribe button
-  useMemo(() => {
-    fetch('/api/admin/challenge-market')
+  const templatesRef = useRef<any[]>([]);
+  useEffect(() => { templatesRef.current = templates; }, [templates]);
+
+  // Load lineup templates from database on mount
+  useEffect(() => {
+    fetch(`/api/teams/${team.id}/lineup-templates`)
       .then(r => r.json())
-      .then(d => { if (d.cmFee != null) setCmFee(d.cmFee); })
+      .then(data => {
+        if (data.success && data.templates) {
+          setTemplates(data.templates);
+          setInitialLoadDone(true);
+        }
+      })
       .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [team.id]);
 
-  // ── Derived ───────────────────────────────────────────────────────────────
+  // Sync from DB template ONLY when:
+  //   (a) initial load just completed (prevFormatRef is still null), OR
+  //   (b) the active format tab actually changes
+  // Local state edits (setActivePositions) are always authoritative between these events.
+  useEffect(() => {
+    if (!initialLoadDone) return;
+
+    const prevFmt = prevFormatRef.current;
+    const isFirstLoad = prevFmt === null;
+    const formatChanged = !isFirstLoad && prevFmt !== activeFormat;
+
+    // Only proceed on first load or actual format tab switch
+    if (!isFirstLoad && !formatChanged) return;
+
+    prevFormatRef.current = activeFormat;
+
+    const formatMap: Record<string, string> = {
+      '5v5': 'F_5v5',
+      '6v6': 'F_6v6',
+      '7v7': 'F_7v7',
+      '11v11': 'F_11v11',
+    };
+    const dbFormat = formatMap[activeFormat] || activeFormat;
+    // Use ref so templates changes never re-trigger this effect
+    const t = templatesRef.current.find(item => item.format === dbFormat);
+    if (t) {
+      setActiveFormation(t.formation);
+      const posMap: Record<number, string | null> = {};
+      const list = t.positions as any[];
+      if (Array.isArray(list)) {
+        list.forEach(p => { posMap[p.slotIndex] = p.playerId; });
+      }
+      setActivePositions(posMap);
+    } else {
+      const defaultFormations: Record<string, string> = {
+        '5v5': '1-2-1',
+        '6v6': '2-2-1',
+        '7v7': '2-3-1',
+        '11v11': '4-3-3',
+      };
+      setActiveFormation(defaultFormations[activeFormat] || '4-3-3');
+      setActivePositions({});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFormat, initialLoadDone]);
+
+
+  // Formations list for active format
+  const availableFormations = useMemo(() => {
+    return FORMATIONS_CONFIG[activeFormat] || {};
+  }, [activeFormat]);
+
+  const activeCoordConfig = useMemo(() => {
+    return availableFormations[activeFormation]?.slots || [];
+  }, [availableFormations, activeFormation]);
+
+  // Graphical Pitch starters mapping
   const starters = useMemo(() => {
-    const arr: (any | null)[] = new Array(maxPlayers).fill(null);
-    team.members.forEach((m: any) => {
-      if (m.isStarter && m.pitchPosition !== null && m.pitchPosition < maxPlayers)
-        arr[m.pitchPosition] = m;
+    const arr: (any | null)[] = new Array(activeCoordConfig.length).fill(null);
+    activeCoordConfig.forEach((_, i) => {
+      const pid = activePositions[i];
+      if (pid) {
+        const found = team.members.find((m: any) => m.playerId === pid);
+        if (found) arr[i] = found;
+      }
     });
     return arr;
-  }, [team.members, maxPlayers]);
+  }, [activeCoordConfig, activePositions, team.members]);
 
-  const mainRoster = useMemo(() =>
-    team.members
-      .filter((m: any) => m.isStarter && m.pitchPosition !== null && m.pitchPosition < maxPlayers)
-      .sort((a: any, b: any) => (ROLE_WEIGHT[b.role] || 0) - (ROLE_WEIGHT[a.role] || 0)),
-    [team.members, maxPlayers]);
+  // Bench strip: rostered players not in a starter slot
+  const benchPlayers = useMemo(() => {
+    const activeStarterIds = Object.values(activePositions).filter(Boolean);
+    return team.members.filter((m: any) => !activeStarterIds.includes(m.playerId));
+  }, [team.members, activePositions]);
 
-  const subsRoster = useMemo(() =>
-    team.members
-      .filter((m: any) => !m.isStarter || m.pitchPosition === null || m.pitchPosition >= maxPlayers)
-      .sort((a: any, b: any) => (ROLE_WEIGHT[b.role] || 0) - (ROLE_WEIGHT[a.role] || 0)),
-    [team.members, maxPlayers]);
+  // Full roster list
+  const fullRoster = useMemo(() => {
+    return [...team.members].sort((a: any, b: any) => (ROLE_WEIGHT[b.role] || 0) - (ROLE_WEIGHT[a.role] || 0));
+  }, [team.members]);
 
+  // Match statistics calculations
   const rankedMatches = useMemo(() => {
     const all = [...(team.matchesAsTeamA || []), ...(team.matchesAsTeamB || [])];
     return all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -277,38 +584,96 @@ export default function SquadManager({ team, setTeam, myRole, tournamentMatches 
     }
   }, [team.id]);
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
-  const patch = (body: object) =>
-    fetch(`/api/teams/${team.id}`, { method: 'PATCH', body: JSON.stringify(body) });
+  // Debounced auto-saving to DB
+  const executeSave = async () => {
+    if (!pendingSaveRef.current) return;
+    const { format, formation, positionsMap } = pendingSaveRef.current;
+    pendingSaveRef.current = null;
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
 
-  const handleSetFormation = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const f = e.target.value;
-    const res = await patch({ action: 'set_formation', payload: { formation: f } });
-    if (res.ok) setTeam({ ...team, formation: f });
+    const positionsList = Object.keys(positionsMap).map(k => ({
+      slotIndex: Number(k),
+      playerId: positionsMap[Number(k)]
+    }));
+
+    try {
+      const res = await fetch(`/api/teams/${team.id}/lineup-templates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ format, formation, positions: positionsList })
+      });
+      if (res.ok) {
+        setSaveStatus('saved');
+        const data = await res.json();
+        setTemplates(prev => {
+          const filtered = prev.filter(t => t.format !== data.template.format);
+          return [...filtered, data.template];
+        });
+        setTimeout(() => setSaveStatus('idle'), 2000);
+      } else {
+        setSaveStatus('idle');
+      }
+    } catch (e) {
+      console.error(e);
+      setSaveStatus('idle');
+    }
   };
 
-  const handleAssignSlot = async (memberId: string, positionIndex: number) => {
-    const current = starters[positionIndex];
-    const newMembers = team.members
-      .map((m: any) => current && m.id === current.id ? { ...m, isStarter: false, pitchPosition: null } : m)
-      .map((m: any) => m.id === memberId ? { ...m, isStarter: true, pitchPosition: positionIndex } : m);
-    setTeam({ ...team, members: newMembers });
+  const triggerSave = (format: string, formation: string, positionsMap: Record<number, string | null>) => {
+    setSaveStatus('saving');
+    pendingSaveRef.current = { format, formation, positionsMap };
+
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      await executeSave();
+    }, 800);
+  };
+
+  const handleSetFormation = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const f = e.target.value;
+    setActiveFormation(f);
+    triggerSave(activeFormat, f, activePositions);
+  };
+
+  const handleFormatChange = async (fmt: string) => {
+    if (pendingSaveRef.current) {
+      await executeSave();
+    }
+    setActiveFormat(fmt);
     setActiveSlot(null);
-    await patch({
-      action: 'set_lineup',
-      payload: {
-        lineupUpdates: [
-          { memberId, isStarter: true, pitchPosition: positionIndex },
-          ...(current ? [{ memberId: current.id, isStarter: false, pitchPosition: null }] : [])
-        ]
+  };
+
+  const handleAssignSlot = (memberId: string, positionIndex: number) => {
+    const member = team.members.find((m: any) => m.id === memberId);
+    if (!member) return;
+
+    const newPositions = { ...activePositions };
+    // If player already in another slot, clear that slot
+    Object.keys(newPositions).forEach(key => {
+      const k = Number(key);
+      if (newPositions[k] === member.playerId) {
+        newPositions[k] = null;
       }
     });
+
+    newPositions[positionIndex] = member.playerId;
+    setActivePositions(newPositions);
+    setActiveSlot(null);
+    triggerSave(activeFormat, activeFormation, newPositions);
   };
 
-  const handleRemoveFromSlot = async (memberId: string) => {
-    setTeam({ ...team, members: team.members.map((m: any) => m.id === memberId ? { ...m, isStarter: false, pitchPosition: null } : m) });
-    await patch({ action: 'set_lineup', payload: { lineupUpdates: [{ memberId, isStarter: false, pitchPosition: null }] } });
+  const handleRemoveFromSlot = (positionIndex: number) => {
+    const newPositions = { ...activePositions };
+    newPositions[positionIndex] = null;
+    setActivePositions(newPositions);
+    triggerSave(activeFormat, activeFormation, newPositions);
   };
+
+  const patch = (body: object) =>
+    fetch(`/api/teams/${team.id}`, { method: 'PATCH', body: JSON.stringify(body) });
 
   const handleSetRole = async (memberId: string, sportRole: string) => {
     setLoadingRole(true);
@@ -373,34 +738,85 @@ export default function SquadManager({ team, setTeam, myRole, tournamentMatches 
     }
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  const getSlotLabel = (format: string, slotIndex: number, role: string): string => {
+    if (format === '5v5') {
+      if (slotIndex === 0) return 'Goleiro (GK)';
+      if (slotIndex === 1) return 'Fixo (DEF)';
+      if (slotIndex === 2 || slotIndex === 3) return 'Ala';
+      if (slotIndex === 4) return 'Pivô (FWD)';
+    }
+    return role;
+  };
+
   return (
     <div className="w-full flex flex-col gap-5">
 
-      {/* Formation Bar */}
-      {isOMC && !isCricket && (
-        <div className="glass-panel px-4 py-2.5 rounded-xl border border-[var(--panel-border)] flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Settings2 size={14} className="text-accent" />
-            <span className="text-[11px] font-black uppercase tracking-widest">Formation</span>
-          </div>
-          <select
-            value={activeFormation}
-            onChange={handleSetFormation}
-            className="bg-neutral-900 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] font-bold focus:outline-none focus:border-accent"
-          >
-            {Object.keys(FORMATIONS)
-              .filter(k => {
-                if (isCricket) return false;
-                const sum = k.split('-').reduce((a, b) => a + Number(b), 0);
-                if (maxPlayers === 11) return sum === 10; // 10 fielders (excl GK which is assumed) -> sum=10. e.g. 4-4-2 = 10, 4-3-3 = 10
-                if (maxPlayers === 7) return sum === 6;   // e.g. if we had 7v7 formations (assume sum=6). Actually we don't have 7v7 yet, but just in case.
-                return maxPlayers === 5 ? sum === 4 : sum === 5;
-              })
-              .map(k => <option key={k} value={k}>{FORMATIONS[k].label}</option>)}
-          </select>
-        </div>
+      {/* ── Add Player button — FIRST, full-width, primary green ── */}
+      {isOM && (
+        <button
+          onClick={() => { setShowAddModal(true); setSearchQ(''); setSearchResults([]); }}
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-black text-sm transition-all"
+          style={{ background: 'var(--accent)', color: '#000', boxShadow: '0 0 20px rgba(0,255,65,0.25)' }}
+        >
+          <UserPlus size={16} />
+          + Add Player
+        </button>
       )}
+
+      {/* Format Toggle & Formation Selector Bar */}
+      <div className="glass-panel px-4 py-3 rounded-xl border border-[var(--panel-border)] flex flex-col sm:flex-row items-center justify-between gap-3">
+        {/* Toggle (shows only if formats > 1) */}
+        {formatsList.length > 1 ? (
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-black uppercase tracking-widest text-[#a1a1aa] mr-1">Format:</span>
+            <div className="flex bg-neutral-800/80 p-0.5 rounded-lg border border-white/5">
+              {formatsList.map(fmt => (
+                <button
+                  key={fmt}
+                  onClick={() => handleFormatChange(fmt)}
+                  className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-md transition-colors ${
+                    activeFormat === fmt
+                      ? 'bg-accent text-black font-black'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  {fmt}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-black uppercase tracking-widest text-accent">{activeFormat} Template</span>
+          </div>
+        )}
+
+        {/* Formation dropdown & save status */}
+        <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+          <div className="flex items-center gap-2">
+            <Settings2 size={13} className="text-accent" />
+            <select
+              value={activeFormation}
+              onChange={handleSetFormation}
+              disabled={!isOMC}
+              className="bg-neutral-900 border border-white/10 rounded-lg px-3 py-1.5 text-[11px] font-bold focus:outline-none focus:border-accent cursor-pointer"
+            >
+              {Object.keys(availableFormations).map(k => (
+                <option key={k} value={k}>{availableFormations[k].label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Saved Status Indicator */}
+          {saveStatus !== 'idle' && (
+            <span className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 ${
+              saveStatus === 'saved' ? 'text-green-400' : 'text-accent animate-pulse'
+            }`}>
+              {saveStatus === 'saved' ? '✓ Saved' : 'Saving...'}
+            </span>
+          )}
+        </div>
+      </div>
 
       {/* Graphical Pitch */}
       <div className="relative w-full aspect-[2/3] md:aspect-[3/4] max-w-md mx-auto rounded-[2rem] border-4 border-white/10 shadow-2xl bg-gradient-to-b from-green-900/40 to-black">
@@ -426,47 +842,177 @@ export default function SquadManager({ team, setTeam, myRole, tournamentMatches 
           )}
         </div>
 
-        {/* Slots */}
-        {coords.map((pos, i) => {
+        {/* Pitch Slots */}
+        {activeCoordConfig.map((pos, i) => {
           const occupant = starters[i];
+          const label = getSlotLabel(activeFormat, i, pos.role);
           return (
             <div
               key={i}
               className="absolute z-20 flex flex-col items-center -translate-x-1/2 -translate-y-1/2"
               style={{ top: `${pos.y}%`, left: `${pos.x}%` }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                if (!isOMC) return;
+                const playerId = e.dataTransfer.getData('text/plain');
+                const sourceType = e.dataTransfer.getData('sourceType');
+                const sourceSlotStr = e.dataTransfer.getData('sourceSlotIndex');
+
+                if (sourceType === 'pitch' && sourceSlotStr) {
+                  const srcIdx = Number(sourceSlotStr);
+                  const newPositions = { ...activePositions };
+                  const targetOccupantId = newPositions[i];
+                  newPositions[i] = newPositions[srcIdx];
+                  newPositions[srcIdx] = targetOccupantId || null;
+                  setActivePositions(newPositions);
+                  triggerSave(activeFormat, activeFormation, newPositions);
+                } else if (sourceType === 'bench') {
+                  const member = team.members.find((m: any) => m.playerId === playerId);
+                  if (member) handleAssignSlot(member.id, i);
+                }
+              }}
             >
               {occupant ? (
-                <>
+                <div
+                  draggable={isOMC}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', occupant.playerId);
+                    e.dataTransfer.setData('sourceType', 'pitch');
+                    e.dataTransfer.setData('sourceSlotIndex', String(i));
+                  }}
+                  className="flex flex-col items-center cursor-pointer group"
+                >
                   <div
-                    onClick={() => isOMC && handleRemoveFromSlot(occupant.id)}
-                    className={`${isFull ? 'w-8 h-8 focus:scale-105' : 'w-10 h-10'} rounded-full border-2 border-accent bg-neutral-900 shadow-xl overflow-hidden flex items-center justify-center relative cursor-pointer group`}
+                    onClick={() => isOMC && handleRemoveFromSlot(i)}
+                    className="w-10 h-10 rounded-full border-2 border-accent bg-neutral-900 shadow-xl overflow-hidden flex items-center justify-center relative"
                   >
-                    {occupant.player.avatarUrl
-                      ? <img src={occupant.player.avatarUrl} className="w-full h-full object-cover" />
-                      : <UserCircle2 size={isFull ? 18 : 22} className="text-[var(--muted)]" />}
+                    {occupant.player.avatarUrl ? (
+                      <img src={occupant.player.avatarUrl} className="w-full h-full object-cover" />
+                    ) : (
+                      <UserCircle2 size={20} className="text-[var(--muted)]" />
+                    )}
+                    {occupant.role === 'captain' && <CaptainBadge />}
                     {isOMC && (
                       <div className="absolute inset-0 bg-red-500/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
                         <X size={14} className="text-white" />
                       </div>
                     )}
                   </div>
-                  <div className="bg-black/80 backdrop-blur-md px-1.5 py-0.5 mt-1 rounded text-center shadow-lg" style={{ minWidth: isFull ? 42 : 52, maxWidth: isFull ? 56 : 68 }}>
-                    <p className={`${isFull ? 'text-[7px]' : 'text-[9px]'} font-bold truncate text-white`}>{occupant.player.fullName.split(' ')[0]}</p>
-                    {occupant.sportRole && <p className={`text-[6px] font-black uppercase text-accent tracking-widest leading-tight`}>{occupant.sportRole}</p>}
+                  <div className="bg-black/80 backdrop-blur-md px-1.5 py-0.5 mt-1 rounded text-center shadow-lg min-w-[50px] max-w-[70px]">
+                    <p className="text-[8px] font-bold truncate text-white leading-tight">
+                      {occupant.player.fullName.split(' ')[0]}
+                    </p>
+                    <p className="text-[6px] font-black uppercase text-accent tracking-widest leading-none mt-0.5">
+                      {label}
+                    </p>
                   </div>
-                </>
+                </div>
               ) : (
-                <button
-                  onClick={() => isOMC && setActiveSlot(activeSlot === i ? null : i)}
-                  className={`w-10 h-10 rounded-full border border-dashed flex items-center justify-center transition-all bg-black/40
-                    ${activeSlot === i ? 'border-accent text-accent scale-110 shadow-[0_0_15px_rgba(0,255,65,0.4)]' : 'border-white/30 text-white/30 hover:border-white/60 hover:text-white/60'}`}
-                >
-                  <Plus size={18} />
-                </button>
+                <div className="flex flex-col items-center">
+                  <button
+                    onClick={() => isOMC && setActiveSlot(activeSlot === i ? null : i)}
+                    className={`w-9 h-9 rounded-full border border-dashed flex items-center justify-center transition-all bg-black/40
+                      ${activeSlot === i ? 'border-accent text-accent scale-110 shadow-[0_0_15px_rgba(0,255,65,0.4)]' : 'border-white/30 text-white/30 hover:border-white/60 hover:text-white/60'}`}
+                  >
+                    <Plus size={16} />
+                  </button>
+                  <p className="text-[7px] text-white/40 uppercase tracking-wider font-bold mt-1 bg-black/50 px-1 rounded">
+                    {label}
+                  </p>
+                </div>
               )}
             </div>
           );
         })}
+      </div>
+
+      {/* Bench Strip Dropzone/Horizontal Row */}
+      <div 
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          if (!isOMC) return;
+          const sourceType = e.dataTransfer.getData('sourceType');
+          const sourceSlotStr = e.dataTransfer.getData('sourceSlotIndex');
+          if (sourceType === 'pitch' && sourceSlotStr) {
+            handleRemoveFromSlot(Number(sourceSlotStr));
+          }
+        }}
+        className="w-full max-w-md mx-auto"
+      >
+        <p className="text-[9px] font-black uppercase tracking-widest text-[#a1a1aa] mb-2 px-1">
+          Bench ({benchPlayers.length} Players)
+        </p>
+        <div className="flex overflow-x-auto gap-3 py-3 px-3 bg-neutral-950/40 rounded-2xl border border-white/5 scrollbar-none snap-x snap-mandatory min-h-[68px]">
+          {benchPlayers.length === 0 ? (
+            <p className="text-[10px] text-white/30 italic m-auto py-1">No players on the bench</p>
+          ) : (
+            benchPlayers.map((sub: any) => {
+              const pMmr = isCricket ? (sub.player.cricketMmr ?? 1000) : (sub.player.footballMmr ?? sub.player.mmr ?? 1000);
+              return (
+                <div
+                  key={sub.id}
+                  draggable={isOMC}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', sub.id);
+                    e.dataTransfer.setData('sourceType', 'bench');
+                  }}
+                  onClick={() => isOMC && setPlayerModal(sub)}
+                  className="snap-start shrink-0 flex items-center gap-2.5 px-3 py-2 bg-neutral-900 border border-white/5 hover:border-white/10 rounded-xl cursor-pointer transition-all select-none relative group"
+                >
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-neutral-950 border border-white/10 flex items-center justify-center shrink-0 relative">
+                    {sub.player.avatarUrl ? (
+                      <img src={sub.player.avatarUrl} className="w-full h-full object-cover" />
+                    ) : (
+                      <UserCircle2 size={16} className="text-white/40" />
+                    )}
+                    {sub.role === 'captain' && <CaptainBadge />}
+                  </div>
+                  <div className="flex flex-col text-left">
+                    <span className="text-[10px] font-bold text-white truncate max-w-[64px] leading-tight">
+                      {sub.player.fullName.split(' ')[0]}
+                    </span>
+                    <span className="text-[8px] font-black uppercase tracking-wider text-accent leading-none mt-0.5">
+                      {sub.sportRole || 'No Pos'}
+                    </span>
+                  </div>
+                  <div className="shrink-0 text-[8px] font-black text-white/50 bg-black/40 border border-white/5 px-1.5 py-0.5 rounded flex items-center gap-1">
+                    <span>{pMmr}</span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+
+      {/* Full Roster Renders */}
+      <div className="glass-panel rounded-2xl border border-[var(--panel-border)] overflow-hidden">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
+          <span className="w-2 h-2 rounded-full bg-accent shrink-0 animate-pulse" />
+          <h3 className="font-black text-[11px] uppercase tracking-widest">Full Roster ({fullRoster.length}/15)</h3>
+        </div>
+        <div className="p-2 flex flex-col gap-1.5">
+          {fullRoster.length === 0 ? (
+            <div className="p-6 text-center">
+              <p className="text-xs text-white/30 italic">No rostered players yet. Recruit players to your squad!</p>
+            </div>
+          ) : (
+            fullRoster.map((m: any) => {
+              const isStarter = Object.values(activePositions).includes(m.playerId);
+              return (
+                <PlayerCard
+                  key={m.id}
+                  m={m}
+                  isOMC={isOMC}
+                  isPitch={isStarter}
+                  onClick={() => isOMC && setPlayerModal(m)}
+                  isCricket={isCricket}
+                />
+              );
+            })
+          )}
+        </div>
       </div>
 
       {/* ── Slot (Subs Picker) Modal ── */}
@@ -474,21 +1020,22 @@ export default function SquadManager({ team, setTeam, myRole, tournamentMatches 
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-5" onClick={() => setActiveSlot(null)}>
           <div className="w-full max-w-xs bg-neutral-900 border border-[var(--panel-border)] rounded-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
-              <p className="text-sm font-black">Assign to Slot {(activeSlot ?? 0) + 1}</p>
+              <p className="text-sm font-black">Assign Starter Player</p>
               <button onClick={() => setActiveSlot(null)} className="p-1 rounded-lg hover:bg-white/10"><X size={16} /></button>
             </div>
             <div className="max-h-72 overflow-y-auto p-2 flex flex-col gap-1.5">
-              {subsRoster.length === 0 ? (
-                <p className="text-xs text-center text-white/40 py-6">No substitutes available.</p>
+              {benchPlayers.length === 0 ? (
+                <p className="text-xs text-center text-white/40 py-6">No players available on the bench.</p>
               ) : (
-                subsRoster.map((sub: any) => (
+                benchPlayers.map((sub: any) => (
                   <button
                     key={sub.id}
                     onClick={() => handleAssignSlot(sub.id, activeSlot!)}
                     className="flex items-center gap-3 p-2.5 hover:bg-neutral-800 rounded-xl text-left transition-colors w-full border border-white/5 hover:border-accent/30"
                   >
-                    <div className="w-8 h-8 rounded-full bg-neutral-800 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-full bg-neutral-800 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center relative">
                       {sub.player.avatarUrl ? <img src={sub.player.avatarUrl} className="w-full h-full object-cover" /> : <UserCircle2 size={16} className="text-[var(--muted)]" />}
+                      {sub.role === 'captain' && <CaptainBadge />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold truncate">{sub.player.fullName}</p>
@@ -502,261 +1049,6 @@ export default function SquadManager({ team, setTeam, myRole, tournamentMatches 
         </div>
       )}
 
-      {/* ── Add Player Button ── */}
-      {isOM && (
-        <button
-          onClick={() => { setShowAddModal(true); setSearchQ(''); setSearchResults([]); }}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-dashed border-accent/40 text-accent hover:bg-accent/10 hover:border-accent font-bold text-sm transition-all"
-        >
-          <UserPlus size={16} />
-          Add Player to Roster
-        </button>
-      )}
-
-      {/* ── Coaching Staff (Placeholder) ── */}
-      <div className="glass-panel rounded-2xl border border-[var(--panel-border)] overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
-          <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-          <h3 className="font-black text-[11px] uppercase tracking-widest text-[#a1a1aa]">Coaching Staff</h3>
-        </div>
-        <div className="p-4 text-center">
-          <p className="text-xs text-white/40 italic">No coaching staff assigned yet</p>
-        </div>
-      </div>
-
-      {/* ── Main Roster ── */}
-      <div className="glass-panel rounded-2xl border border-[var(--panel-border)] overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
-          <span className="w-2 h-2 rounded-full bg-accent shrink-0" />
-          <h3 className="font-black text-[11px] uppercase tracking-widest">Starting {mainRoster.length}/{maxPlayers}</h3>
-        </div>
-        <div className="p-2 flex flex-col gap-1.5">
-          {mainRoster.length === 0 ? (
-            <p className="text-xs text-center text-white/30 py-4 italic">No starters assigned — tap + on the pitch</p>
-          ) : mainRoster.map((m: any) => (
-            <PlayerCard key={m.id} m={m} isOMC={isOMC} isPitch={true} onClick={() => isOMC && setPlayerModal(m)} isCricket={isCricket} />
-          ))}
-        </div>
-      </div>
-
-      {/* ── Substitutes Roster ── */}
-      <div className="glass-panel rounded-2xl border border-[var(--panel-border)] overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
-          <span className="w-2 h-2 rounded-full bg-white/30 shrink-0" />
-          <h3 className="font-black text-[11px] uppercase tracking-widest text-[var(--muted)]">Substitutes {subsRoster.length}</h3>
-        </div>
-        <div className="p-2 flex flex-col gap-1.5">
-          {subsRoster.length === 0 ? (
-            <p className="text-xs text-center text-white/30 py-4 italic">All players are in the starting lineup</p>
-          ) : subsRoster.map((m: any) => (
-            <PlayerCard key={m.id} m={m} isOMC={isOMC} isPitch={false} onClick={() => isOMC && setPlayerModal(m)} isCricket={isCricket} />
-          ))}
-        </div>
-      </div>
-
-      {/* ── Match Stats & History ── */}
-      <div className="glass-panel rounded-2xl border border-[var(--panel-border)] overflow-hidden relative">
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
-          <History size={14} className="text-accent" />
-          <h3 className="font-black text-[11px] uppercase tracking-widest">Match History</h3>
-          <div className="ml-auto flex bg-neutral-800/80 p-0.5 rounded-lg border border-white/5">
-            <button
-              onClick={() => setHistoryTab('RANKED')}
-              className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-md transition-colors ${
-                historyTab === 'RANKED'
-                  ? 'bg-accent text-black'
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              Ranked
-            </button>
-            <button
-              onClick={() => setHistoryTab('TOURNAMENT')}
-              className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-md transition-colors ${
-                historyTab === 'TOURNAMENT'
-                  ? 'bg-[#d4af37] text-black'
-                  : 'text-white/60 hover:text-white'
-              }`}
-            >
-              Tourney
-            </button>
-          </div>
-        </div>
-        <div className="p-4">
-          <div className="flex items-center justify-between gap-4 mb-5 p-3 rounded-xl bg-neutral-800/30 border border-white/5">
-            <div className="flex items-center gap-4">
-              {(() => {
-                const activeStats = historyTab === 'RANKED' ? rankedStats : tournamentStats;
-                return (
-                  <>
-                    <StatDonut w={activeStats.w} l={activeStats.l} d={activeStats.d} size={60} />
-                    <div className="flex flex-col">
-                      <span className="text-xs font-black text-white">{activeStats.played} <span className="text-[10px] text-[var(--muted)] uppercase tracking-wider font-bold">Played</span></span>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <div className="flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-[#00ff41] shrink-0"></span><span className="text-[10px] font-bold text-white">{activeStats.w} W</span></div>
-                        <div className="flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span><span className="text-[10px] font-bold text-white">{activeStats.l} L</span></div>
-                        <div className="flex items-center gap-1 whitespace-nowrap"><span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span><span className="text-[10px] font-bold text-white">{activeStats.d} D</span></div>
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-            <div className="shrink-0 flex flex-col items-center">
-              <RankBadge mmr={historyTab === 'RANKED' ? rankedMmr : tournamentMmr} />
-            </div>
-          </div>
-
-          <h4 className="text-[10px] uppercase font-black tracking-widest text-[var(--muted)] mb-3">Recent Matches</h4>
-          {(() => {
-            const activeMatches = historyTab === 'RANKED' ? rankedMatches : tMatches;
-            if (activeMatches.length === 0) {
-              return (
-                <p className="text-xs text-white/30 italic text-center py-4 bg-neutral-800/30 rounded-xl border border-white/5">No matches played yet.</p>
-              );
-            }
-            return (
-              <div className="flex overflow-x-auto snap-x snap-mandatory gap-3 pb-2 scrollbar-none">
-                {activeMatches.slice(0, 10).map((match: any) => {
-                  const isTeamA = match.teamA_Id === team.id || match.teamAId === team.id;
-                  
-                  let oppName = 'Unknown';
-                  let oppLogo = null;
-                  let myScore: any = '-';
-                  let oppScore: any = '-';
-                  let mmrChg = 0;
-                  
-                  if (historyTab === 'RANKED') {
-                    const opp = isTeamA ? match.teamB : match.teamA;
-                    oppName = opp?.name || 'Unknown';
-                    oppLogo = opp?.logoUrl;
-                    oppScore = isTeamA ? match.scoreB : match.scoreA;
-                    myScore = isTeamA ? match.scoreA : match.scoreB;
-                    mmrChg = isTeamA ? match.mmrChangeA : match.mmrChangeB;
-                  } else {
-                    const opp = match.opponent;
-                    oppName = opp?.name || 'Unknown';
-                    oppLogo = opp?.logoUrl;
-                    const scores = getTournamentMatchScore(match);
-                    myScore = scores.myScore;
-                    oppScore = scores.oppScore;
-                    mmrChg = getTournamentMmrChange(match);
-                  }
-                  
-                  let resClass = 'bg-neutral-800/50 border-white/5 text-[var(--muted)]';
-                  let IconCode = Minus;
-                  if (match.status === 'COMPLETED') {
-                    if (match.winnerId === team.id) { resClass = 'bg-accent/10 border-accent/20 text-accent'; IconCode = TrendingUp; }
-                    else if (match.winnerId === null) { resClass = 'bg-blue-500/10 border-blue-500/20 text-blue-400'; IconCode = Minus; }
-                    else { resClass = 'bg-red-500/10 border-red-500/20 text-red-500'; IconCode = TrendingDown; }
-                  }
-
-                  const tournamentName = match.tournament?.name;
-
-                  return (
-                    <div key={match.id} className="snap-start shrink-0 w-[200px] p-3 rounded-xl border bg-neutral-800/80 border-white/10 flex flex-col justify-between">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center border ${resClass}`}>
-                          <IconCode size={14} />
-                        </div>
-                        <div className="text-right">
-                          <span className="text-xs font-black block">{myScore} - {oppScore}</span>
-                          {match.status === 'COMPLETED' && (
-                            <span className={`text-[10px] font-bold ${mmrChg > 0 ? 'text-[#00ff41]' : mmrChg < 0 ? 'text-red-500' : 'text-zinc-400'}`}>
-                              {mmrChg > 0 ? '+' : ''}{mmrChg} MMR
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <div className="flex items-center gap-2">
-                          {oppLogo ? <img src={oppLogo} className="w-5 h-5 rounded-full object-cover" /> : <div className="w-5 h-5 rounded-full bg-neutral-700" />}
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[10px] font-bold truncate">vs {oppName}</p>
-                            <p className="text-[8px] text-[var(--muted)]">{new Date(match.createdAt).toLocaleDateString()}</p>
-                          </div>
-                        </div>
-                        {tournamentName && (
-                          <p className="text-[8px] text-amber-500/80 font-black uppercase tracking-wider truncate border-t border-white/5 pt-1 mt-0.5">
-                            🏆 {tournamentName}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
-        </div>
-      </div>
-
-      {/* ── Trophy Cabinet ── */}
-      <div className="glass-panel rounded-2xl border border-[var(--panel-border)] overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
-          <Trophy size={14} className="text-amber-400" />
-          <h3 className="font-black text-[11px] uppercase tracking-widest text-[#a1a1aa]">Trophy Cabinet</h3>
-        </div>
-        <div className="p-6 text-center">
-          <Trophy size={32} className="mx-auto text-amber-400/20 mb-2" />
-          <p className="text-xs text-white/40 italic">Win Official Tournaments to earn trophies</p>
-        </div>
-      </div>
-
-      {/* ── Hall of Fame ── */}
-      <div className="glass-panel rounded-2xl border border-[var(--panel-border)] overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
-          <Medal size={14} className="text-purple-400" />
-          <h3 className="font-black text-[11px] uppercase tracking-widest text-[#a1a1aa]">Hall of Fame</h3>
-        </div>
-        <div className="p-6 text-center">
-          <p className="text-xs text-white/40 italic">Top 3 highest ranked players will be showcased here</p>
-        </div>
-      </div>
-
-      {/* ── Matchmaking & Tournament Actions ── */}
-      <div className="flex flex-col gap-3 mt-2">
-        {/* Look for Tournament Button */}
-        <a href={`/${locale}/arena?tab=tournaments`} className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 transition-all shadow-[0_0_20px_rgba(245,158,11,0.2)] border border-white/20 font-black text-sm uppercase tracking-widest text-white group relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-3 opacity-20 transform translate-x-1/4 -translate-y-1/4 group-hover:scale-110 transition-transform">
-            <Trophy size={64} />
-          </div>
-          <Trophy size={18} className="relative z-10" />
-          <span className="relative z-10">Look for Tournament</span>
-        </a>
-
-        {/* Challenge Market Subscribe Button */}
-        {team.isSubscribed || team.challengeSubscription?.active ? (
-          <div className="w-full flex items-center justify-center gap-3 p-4 rounded-2xl bg-gradient-to-r from-fuchsia-900/60 to-purple-900/60 border border-fuchsia-500/30">
-            <Swords size={18} className="text-fuchsia-400" />
-            <div className="text-left">
-              <p className="font-black text-sm text-fuchsia-300">Challenge Market Active</p>
-              <p className="text-[10px] text-fuchsia-400/70 uppercase tracking-widest">Your team is listed in the CM</p>
-            </div>
-            <div className="ml-auto w-2 h-2 rounded-full bg-fuchsia-400 animate-pulse" />
-          </div>
-        ) : (
-          <button 
-            onClick={() => setShowSubConfirm(true)}
-            className="w-full flex flex-col items-center justify-center p-4 rounded-2xl bg-gradient-to-r from-red-600 to-fuchsia-600 hover:from-red-500 hover:to-fuchsia-500 transition-all shadow-[0_0_20px_rgba(255,0,100,0.2)] border border-white/20 group relative overflow-hidden"
-          >
-            <div className="absolute top-0 right-0 p-3 opacity-20 transform translate-x-1/4 -translate-y-1/4 group-hover:scale-110 transition-transform">
-              <Swords size={64} />
-            </div>
-            <div className="flex items-center gap-2 mb-1 relative z-10">
-              <Swords size={20} className="text-white" />
-              <span className="font-black text-lg text-white capitalize">Enter Challenge Market</span>
-            </div>
-            <div className="flex items-center gap-2 relative z-10">
-              <span className="text-[11px] font-bold text-white/80 uppercase tracking-widest">Monthly Subscription</span>
-              {cmFee != null && (
-                <span className="text-[11px] font-black text-white bg-white/15 px-2 py-0.5 rounded-full border border-white/20">৳{cmFee}</span>
-              )}
-            </div>
-          </button>
-        )}
-      </div>
-
       {/* ── Player Action Modal (centered popup) ── */}
       {playerModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-black/70 backdrop-blur-sm" onClick={() => setPlayerModal(null)}>
@@ -764,8 +1056,9 @@ export default function SquadManager({ team, setTeam, myRole, tournamentMatches 
 
             {/* Header */}
             <div className="flex items-center gap-3 px-4 py-4 border-b border-white/5 bg-neutral-800/60">
-              <div className="w-10 h-10 rounded-full bg-neutral-900 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-full bg-neutral-900 border border-white/10 overflow-hidden flex items-center justify-center shrink-0 relative">
                 {playerModal.player.avatarUrl ? <img src={playerModal.player.avatarUrl} className="w-full h-full object-cover" /> : <UserCircle2 size={20} />}
+                {playerModal.role === 'captain' && <CaptainBadge />}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
@@ -783,22 +1076,21 @@ export default function SquadManager({ team, setTeam, myRole, tournamentMatches 
             {/* Scrollable body */}
             <div className="overflow-y-auto" style={{ maxHeight: '60vh' }}>
 
-              {/* Sport Position */}
+              {/* Sport Position Preference */}
               <div className="px-4 pt-4">
-                <p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)] mb-2">Sport Position</p>
+                <p className="text-[9px] font-black uppercase tracking-widest text-[var(--muted)] mb-2">Preferred Position</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {roleOptions.map(role => (
+                  {roleOptions.map(posLabel => (
                     <button
-                      key={role}
-                      onClick={() => handleSetRole(playerModal.id, role)}
+                      key={posLabel}
+                      onClick={() => handleSetRole(playerModal.id, posLabel)}
                       disabled={loadingRole}
                       className={`py-2.5 px-3 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all border flex items-center justify-center gap-1.5
-                        ${playerModal.sportRole === role
+                        ${playerModal.sportRole === posLabel
                           ? 'bg-accent/20 border-accent text-accent'
                           : 'bg-neutral-800 border-white/5 hover:border-accent/40 hover:bg-neutral-700 text-white/80'}`}
                     >
-                      {loadingRole && playerModal.sportRole !== role ? null : null}
-                      {role}
+                      {posLabel}
                     </button>
                   ))}
                 </div>
@@ -888,7 +1180,7 @@ export default function SquadManager({ team, setTeam, myRole, tournamentMatches 
                   const requestSent = sentRequests.includes(player.id);
                   return (
                     <div key={player.id} className="flex items-center gap-3 p-3 rounded-xl bg-neutral-800/60 border border-white/5 hover:border-white/10">
-                      <div className="w-10 h-10 rounded-full bg-neutral-900 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-full bg-neutral-900 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center relative">
                         {player.avatarUrl ? <img src={player.avatarUrl} className="w-full h-full object-cover" /> : <UserCircle2 size={20} className="text-[var(--muted)]" />}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -919,65 +1211,6 @@ export default function SquadManager({ team, setTeam, myRole, tournamentMatches 
                   );
                 })
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Challenge Market Sub Modal ── */}
-      {showSubConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowSubConfirm(false)}>
-          <div className="bg-neutral-900 border border-fuchsia-500/30 rounded-3xl p-6 w-full max-w-sm flex flex-col items-center text-center shadow-[0_0_50px_rgba(200,0,255,0.15)] relative overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="absolute top-0 right-0 p-3 opacity-5 pointer-events-none transform translate-x-1/4 -translate-y-1/4">
-              <Swords size={120} />
-            </div>
-            
-            <div className="w-16 h-16 rounded-full bg-fuchsia-900/30 text-fuchsia-400 flex items-center justify-center mb-4">
-              <Swords size={32} />
-            </div>
-            
-            <h3 className="font-black text-xl mb-2 text-white">Activate Challenge Market</h3>
-            <p className="text-[13px] text-fuchsia-200/80 mb-6 font-medium px-2 inline-block">
-              Unlock global ranked matchmaking and climb the BMT Ladder!
-            </p>
-
-            <div className="w-full bg-black/40 border border-fuchsia-500/20 rounded-2xl p-4 mb-6">
-               <div className="flex justify-between items-center mb-2">
-                 <span className="text-xs text-[var(--muted)] font-bold uppercase">Monthly Fee</span>
-                 <span className="font-black text-white bg-white/10 px-2 py-0.5 rounded-md">৳{cmFee ?? '...'}</span>
-               </div>
-               <p className="text-[10px] text-[var(--muted)] text-left leading-relaxed">
-                 This amount will be deducted from your team owner's wallet automatically. 
-                 If the balance falls below zero, a <strong>3-day grace period</strong> is given before suspension.
-               </p>
-            </div>
-
-            <div className="w-full flex gap-3">
-              <button 
-                onClick={() => setShowSubConfirm(false)}
-                disabled={subscribing}
-                className="flex-[1] py-3 bg-neutral-800 hover:bg-neutral-700 text-white font-bold rounded-xl transition-colors text-sm disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button 
-                disabled={subscribing}
-                onClick={async () => {
-                  setSubscribing(true);
-                  const res = await patch({ action: 'subscribe_challenge' });
-                  setSubscribing(false);
-                  if (res.ok) {
-                    setTeam({ ...team, isSubscribed: true });
-                    setShowSubConfirm(false);
-                  } else {
-                    const data = await res.json().catch(() => ({}));
-                    alert(data.error || 'Failed to subscribe.');
-                  }
-                }}
-                className="flex-[2] py-3 bg-gradient-to-r from-red-600 to-fuchsia-600 hover:from-red-500 hover:to-fuchsia-500 text-white font-black uppercase tracking-wider rounded-xl transition-all shadow-[0_0_20px_rgba(255,0,100,0.3)] text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {subscribing ? <Loader2 size={16} className="animate-spin" /> : 'Confirm Payment'}
-              </button>
             </div>
           </div>
         </div>

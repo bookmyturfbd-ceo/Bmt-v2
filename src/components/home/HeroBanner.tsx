@@ -30,6 +30,8 @@ export default function HeroBanner({
 
   const [current, setCurrent] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const touchStartX = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
 
   const next = useCallback(() =>
     setCurrent(c => (c + 1) % slides.length), [slides.length]);
@@ -41,13 +43,38 @@ export default function HeroBanner({
     if (!initialSettings.autoSlide || slides.length <= 1) return;
     timerRef.current = setInterval(next, initialSettings.intervalMs);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [initialSettings.autoSlide, initialSettings.intervalMs, next, slides.length]);
+  }, [initialSettings.autoSlide, initialSettings.intervalMs, next, slides.length, current]);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStartX.current === null || touchEndX.current === null) return;
+    const diff = touchStartX.current - touchEndX.current;
+    if (diff > 50) {
+      next();
+    } else if (diff < -50) {
+      prev();
+    }
+    touchStartX.current = null;
+    touchEndX.current = null;
+  };
 
   const slide = slides[current];
 
   return (
     <section className="px-4 py-2">
-      <div className="w-full h-64 rounded-3xl relative overflow-hidden group">
+      <div 
+        className="w-full h-64 rounded-3xl relative overflow-hidden group select-none touch-pan-y"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
 
         {/* Background image with smooth transition */}
         {slides.map((s, i) => (

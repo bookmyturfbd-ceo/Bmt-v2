@@ -1,8 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
-import { Eye, EyeOff, UserPlus, Phone, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, UserPlus, Phone, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
 import AuthInput from '@/components/auth/AuthInput';
 
 export default function RegisterPage() {
@@ -10,6 +10,7 @@ export default function RegisterPage() {
   const val = useTranslations('Auth.validation');
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [role, setRole] = useState<'player' | 'professional' | 'organizer'>('player');
   const [showPw, setShowPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   
@@ -25,6 +26,27 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [serverErr, setServerErr]   = useState('');
+
+  // Dynamic Professions
+  const [availableProfessions, setAvailableProfessions] = useState<string[]>([]);
+  const [selectedProfessions, setSelectedProfessions] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch('/api/admin/turf-service-setting')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data.professionTypes)) {
+          setAvailableProfessions(data.professionTypes);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const toggleProfession = (prof: string) => {
+    setSelectedProfessions(prev =>
+      prev.includes(prof) ? prev.filter(p => p !== prof) : [...prev, prof]
+    );
+  };
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm(f => ({ ...f, [field]: e.target.value }));
@@ -115,31 +137,27 @@ export default function RegisterPage() {
     setSubmitting(true);
     setServerErr('');
     try {
-      const res = await fetch('/api/bmt/players', {
+      const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          role,
           fullName: form.fullName,
           email:    form.email,
           phone:    cleanPhone,
           password: form.password,
           otp:      form.otp,
-          joinedAt: new Date().toISOString().split('T')[0],
+          professions: selectedProfessions,
         }),
       });
       const data = await res.json();
       if (!res.ok) { setServerErr(data.error || 'Registration failed.'); setSubmitting(false); return; }
-      document.cookie = `bmt_auth=1; path=/; max-age=86400; SameSite=Lax`;
-      document.cookie = `bmt_role=player; path=/; max-age=86400; SameSite=Lax`;
-      document.cookie = `bmt_player_id=${data.id}; path=/; max-age=86400; SameSite=Lax`;
-      document.cookie = `bmt_name=${encodeURIComponent(form.fullName)}; path=/; max-age=86400; SameSite=Lax`;
-      window.location.href = window.location.origin + '/en';
+      window.location.href = window.location.origin + data.redirect;
     } catch {
       setServerErr('Network error. Please try again.');
       setSubmitting(false);
     }
   };
-
 
   return (
     <div className="relative flex-1 flex flex-col items-center justify-center min-h-screen bg-background overflow-hidden py-10">
@@ -160,6 +178,27 @@ export default function RegisterPage() {
         <div className="glass-panel rounded-3xl p-6 shadow-[0_20px_60px_rgba(0,0,0,0.6)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.6)]">
           {step === 1 && (
             <form onSubmit={handleSendOtp} className="flex flex-col gap-4">
+              {/* Account Type Selector */}
+              <div className="flex flex-col gap-1.5 mb-1">
+                <label className="text-xs font-bold uppercase tracking-widest text-neutral-400">Account Type</label>
+                <div className="grid grid-cols-3 gap-1 bg-neutral-900 p-1 rounded-xl border border-white/5">
+                  {(['player', 'professional', 'organizer'] as const).map(r => (
+                    <button
+                      type="button"
+                      key={r}
+                      onClick={() => setRole(r)}
+                      className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${
+                        role === r
+                          ? 'bg-accent text-black font-black shadow-sm'
+                          : 'text-neutral-400 hover:text-white'
+                      }`}
+                    >
+                      {r === 'player' ? 'Player' : r === 'professional' ? 'Pro' : 'Organizer'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <AuthInput
                 label={t('phoneLabel')}
                 type="tel"
@@ -232,6 +271,35 @@ export default function RegisterPage() {
                 error={errors.email}
                 autoComplete="email"
               />
+
+              {/* Dynamic professions multi-select (Only for Professional role) */}
+              {role === 'professional' && availableProfessions.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-neutral-400">
+                    Select Your Profession(s) <span className="text-[10px] text-accent font-normal">(Multi-select)</span>
+                  </label>
+                  <div className="flex flex-wrap gap-1.5 p-3 bg-neutral-950/60 rounded-xl border border-white/5 max-h-36 overflow-y-auto">
+                    {availableProfessions.map(prof => {
+                      const isSelected = selectedProfessions.includes(prof);
+                      return (
+                        <button
+                          type="button"
+                          key={prof}
+                          onClick={() => toggleProfession(prof)}
+                          className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-all active:scale-95 ${
+                            isSelected
+                              ? 'bg-accent/20 border-accent/60 text-accent font-black'
+                              : 'bg-neutral-900 border-white/5 text-neutral-400 hover:text-white'
+                          }`}
+                        >
+                          {isSelected ? '✓ ' : '+ '}{prof}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent my-1" />
               <AuthInput
                 label={t('passwordLabel')}
@@ -268,7 +336,7 @@ export default function RegisterPage() {
                 disabled={submitting}
                 className="mt-2 w-full bg-accent text-black font-black py-3.5 rounded-xl hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(0,255,0,0.2)] text-sm tracking-wide disabled:opacity-60"
               >
-                <UserPlus size={16} className="stroke-[2.5]" />
+                {submitting ? <Loader2 size={16} className="animate-spin text-black" /> : <UserPlus size={16} className="stroke-[2.5]" />}
                 {submitting ? 'Creating account…' : t('submit')}
               </button>
             </form>
@@ -293,4 +361,3 @@ export default function RegisterPage() {
     </div>
   );
 }
-

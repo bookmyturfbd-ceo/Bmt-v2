@@ -43,14 +43,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       matchesAsTeamA: {
         orderBy: { createdAt: 'desc' },
         include: { 
-          teamB: { select: { id: true, name: true, logoUrl: true } }
+          teamB: { select: { id: true, name: true, logoUrl: true } },
+          playerStats: {
+            include: { player: { select: { id: true, fullName: true, avatarUrl: true } } }
+          }
         }
       },
       matchesAsTeamB: {
         orderBy: { createdAt: 'desc' },
         include: { 
-          teamA: { select: { id: true, name: true, logoUrl: true } }
+          teamA: { select: { id: true, name: true, logoUrl: true } },
+          playerStats: {
+            include: { player: { select: { id: true, fullName: true, avatarUrl: true } } }
+          }
         }
+      },
+      playerStats: {
+        include: { player: { select: { id: true, fullName: true, avatarUrl: true } } },
+        orderBy: { createdAt: 'desc' }
       }
     }
   });
@@ -141,18 +151,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     if (action === 'change_sport_type') {
-      if (!isOM) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-      const { sportType } = payload || {};
-      if (!sportType) return NextResponse.json({ error: 'Sport type is required' }, { status: 400 });
-      const validSports = ['FUTSAL_5', 'FUTSAL_6', 'FUTSAL_7', 'CRICKET_7', 'FOOTBALL_FULL', 'CRICKET_FULL', 'FUTSAL', 'FOOTBALL', 'CRICKET'];
-      if (!validSports.includes(sportType)) {
-        return NextResponse.json({ error: 'Invalid sport type' }, { status: 400 });
-      }
-      const updatedTeam = await prisma.team.update({
-        where: { id },
-        data: { sportType: sportType as any }
-      });
-      return NextResponse.json({ ok: true, sportType: updatedTeam.sportType });
+      return NextResponse.json({ error: 'Sport type cannot be changed after selection.' }, { status: 400 });
     }
 
     if (action === 'add_member') {
@@ -385,6 +384,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ]);
 
       return NextResponse.json({ ok: true, walletBalance: ownerRec.walletBalance });
+    }
+
+    if (action === 'leave_challenge_market') {
+      if (!isOM) return NextResponse.json({ error: 'Only Owner or Manager can manage Challenge Market' }, { status: 403 });
+      await prisma.$transaction([
+        prisma.team.update({ where: { id }, data: { isSubscribed: false } }),
+        prisma.challengeSubscription.updateMany({ where: { teamId: id }, data: { active: false } })
+      ]);
+      return NextResponse.json({ ok: true });
     }
 
     if (action === 'leave_team') {
