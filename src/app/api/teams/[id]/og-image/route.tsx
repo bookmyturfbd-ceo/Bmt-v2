@@ -2,7 +2,7 @@ import { ImageResponse } from 'next/og';
 import prisma from '@/lib/prisma';
 import { getRankData } from '@/lib/rankUtils';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 export async function GET(
   req: Request,
