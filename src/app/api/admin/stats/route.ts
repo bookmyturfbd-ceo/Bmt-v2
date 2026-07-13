@@ -44,13 +44,21 @@ export async function GET(req: NextRequest) {
       const monthlyFeesTotalCount = await prisma.monthlyFee.count();
       const monthlyFeesPaidCount = await prisma.monthlyFee.count({ where: { paid: true } });
 
+      const thresholdDate = new Date('2026-07-11T00:00:00.000Z');
+
       // Shop Orders
       const shopOrdersAgg = await prisma.shopOrder.aggregate({
         _sum: { total: true },
-        where: { status: { notIn: ['canceled', 'cancelled', 'no_answer'] } }
+        where: { 
+          status: { notIn: ['canceled', 'cancelled', 'no_answer'] },
+          createdAt: { gte: thresholdDate }
+        }
       });
       const shopOrdersCount = await prisma.shopOrder.count({
-        where: { status: { notIn: ['canceled', 'cancelled', 'no_answer'] } }
+        where: { 
+          status: { notIn: ['canceled', 'cancelled', 'no_answer'] },
+          createdAt: { gte: thresholdDate }
+        }
       });
 
       // Challenge Market

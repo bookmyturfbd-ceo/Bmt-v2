@@ -470,8 +470,14 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const playerId = searchParams.get('playerId');
 
+    const thresholdDate = new Date('2026-07-11T00:00:00.000Z');
     const orders = await prisma.shopOrder.findMany({
-      where: playerId ? { playerId } : undefined,
+      where: {
+        ...(playerId ? { playerId } : {}),
+        createdAt: {
+          gte: thresholdDate,
+        },
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         items: {
