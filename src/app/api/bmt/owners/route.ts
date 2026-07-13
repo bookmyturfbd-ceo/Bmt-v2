@@ -13,10 +13,11 @@ export async function GET() {
       phone:          true,
       contactPerson:  true,
       joinedAt:       true,
+      isCoach:        true,
       walletBalance:  true,
       pendingBmtCut:  true,
       turfs: {
-        select: { id: true, name: true, status: true },
+        select: { id: true, name: true, status: true, isCoachProfile: true },
       },
     },
   });

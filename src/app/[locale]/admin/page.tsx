@@ -41,7 +41,7 @@ const PAGE_TITLES: Record<AdminPage, string> = {
   shopIncome:       'Shop Income',
   tournaments:      'Tournament Engine',
   bmtTournaments:   'BMT Tournaments',
-  organizers:       'Organizers',
+  organizers:       'Tournament Organizers',
   orgRecharge:      'Org Wallet Recharges',
   orgPayouts:       'Organizer Payouts',
   interested:       'Interested Parties',

@@ -59,7 +59,7 @@ const NAV_GROUPS: NavGroup[] = [
     icon: Trophy,
     children: [
       { key: 'bmtTournaments', icon: Trophy,      label: 'BMT Tournaments'    },
-      { key: 'organizers',     icon: UserCircle2, label: 'Organizers'         },
+      { key: 'organizers',     icon: UserCircle2, label: 'Tournament Organizers'         },
       { key: 'orgRecharge',   icon: Wallet,      label: 'Org Wallet Recharges' },
       { key: 'orgPayouts',    icon: Banknote,    label: 'Organizer Payouts'  },
     ],

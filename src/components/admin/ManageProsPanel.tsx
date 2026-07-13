@@ -75,9 +75,21 @@ function ApproveModal({ turf, onClose, onDone }: {
         <div className="p-6 flex flex-col gap-5">
           <div>
             <h2 className="text-lg font-black">Review Professional Profile</h2>
-            <p className="text-sm text-[var(--muted)] mt-0.5">
-              <span className="font-bold text-foreground">{turf.name}</span> — {turf.coachType}
-            </p>
+            <div className="text-sm text-[var(--muted)] mt-0.5 flex flex-wrap items-center gap-1.5">
+              <span className="font-bold text-foreground">{turf.name}</span>
+              <span>—</span>
+              {Array.isArray(turf.professions) && turf.professions.length > 0 ? (
+                turf.professions.map(p => (
+                  <span key={p} className="text-[9px] font-black px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/25 text-blue-400 uppercase tracking-wider">
+                    {p}
+                  </span>
+                ))
+              ) : (
+                <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/25 text-blue-400 uppercase tracking-wider">
+                  {turf.coachType || 'Professional'}
+                </span>
+              )}
+            </div>
           </div>
           
           <div className="bg-[var(--panel-bg)] rounded-xl p-4 border border-[var(--panel-border)] flex items-center gap-4">
@@ -86,8 +98,20 @@ function ApproveModal({ turf, onClose, onDone }: {
             </div>
             <div>
               <p className="text-sm font-black">{turf.name}</p>
-              <p className="text-xs text-blue-400 font-bold uppercase tracking-widest">{turf.coachType}</p>
-              <p className="text-xs text-[var(--muted)] mt-1 flex items-center gap-1"><MapPin size={10} /> {turf.area || 'Unknown Area'}</p>
+              <div className="flex flex-wrap items-center gap-1 mt-1">
+                {Array.isArray(turf.professions) && turf.professions.length > 0 ? (
+                  turf.professions.map(p => (
+                    <span key={p} className="text-[8px] font-black px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 uppercase tracking-wider">
+                      {p}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20 text-blue-400 uppercase tracking-wider">
+                    {turf.coachType || 'Professional'}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-[var(--muted)] mt-1.5 flex items-center gap-1"><MapPin size={10} /> {turf.area || 'Unknown Area'}</p>
             </div>
           </div>
 
@@ -295,9 +319,19 @@ function ProCard({ owner, turfs, cities, bookings, slots, onReload }: {
                               'bg-red-500/10 border-red-500/30 text-red-400'
                             }`}>{turf.status}</span>
                           </div>
-                          <p className="text-[11px] font-bold text-blue-400 mt-0.5 tracking-widest uppercase">
-                            {turf.coachType}
-                          </p>
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            {Array.isArray(turf.professions) && turf.professions.length > 0 ? (
+                              turf.professions.map(p => (
+                                <span key={p} className="text-[9px] font-black px-2 py-0.5 rounded-lg bg-blue-500/10 border border-blue-500/25 text-blue-400 uppercase tracking-wider">
+                                  {p}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[9px] font-black px-2 py-0.5 rounded-lg bg-blue-500/10 border border-blue-500/25 text-blue-400 uppercase tracking-wider">
+                                {turf.coachType || 'Professional'}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[11px] text-[var(--muted)] mt-0.5 truncate flex items-center gap-1">
                             <MapPin size={10} /> {cityName(turf.cityId)}{turf.area ? ` · ${turf.area}` : ''}
                           </p>
@@ -601,27 +635,55 @@ export default function ManageProsPanel() {
       {subTab === 'pros' && (
         <div className="flex flex-col gap-4">
           {/* Search and Sport/Profession Filters */}
-          <div className="flex flex-col md:flex-row gap-3 bg-[var(--panel-bg)] p-4 rounded-2xl border border-[var(--panel-border)]">
+          <div className="flex flex-col gap-4 bg-[var(--panel-bg)] p-5 rounded-3xl border border-[var(--panel-border)] shadow-md">
             <div className="relative flex-1">
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
               <input
                 type="text"
                 placeholder="Search by Name, Phone, Email..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full bg-neutral-950 border border-[var(--panel-border)] rounded-xl pl-10 pr-4 py-2.5 text-sm font-bold outline-none focus:border-blue-500/50 text-white placeholder:text-[var(--muted)]"
+                className="w-full bg-neutral-950 border border-[var(--panel-border)] rounded-2xl pl-11 pr-4 py-3 text-sm font-bold outline-none focus:border-blue-500/50 text-white placeholder:text-[var(--muted)]"
               />
             </div>
-            <select
-              value={selectedProfession}
-              onChange={e => setSelectedProfession(e.target.value)}
-              className="bg-neutral-950 border border-[var(--panel-border)] rounded-xl px-4 py-2.5 text-sm font-bold outline-none focus:border-blue-500/50 text-white"
-            >
-              <option value="ALL">All Professions / Sports</option>
-              {professions.map(p => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
+            
+            <div className="flex flex-col gap-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Filter by Profession / Role</span>
+              <div className="flex gap-2 overflow-x-auto pb-1.5 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
+                <button
+                  onClick={() => setSelectedProfession('ALL')}
+                  className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition-all shrink-0 active:scale-[0.98] ${
+                    selectedProfession === 'ALL'
+                      ? 'bg-blue-500 text-white border-blue-400 font-black shadow-[0_4px_15px_rgba(59,130,246,0.3)]'
+                      : 'bg-black/40 border-[var(--panel-border)] text-[var(--muted)] hover:text-white hover:border-white/15'
+                  }`}
+                >
+                  All ({owners.length})
+                </button>
+                {professions.map(p => {
+                  const count = owners.filter(o => 
+                    turfs.items.some(t => t.ownerId === o.id && t.isCoachProfile && (
+                      t.coachType?.toLowerCase() === p.toLowerCase() ||
+                      (Array.isArray(t.professions) && t.professions.some(prof => prof.toLowerCase() === p.toLowerCase()))
+                    ))
+                  ).length;
+                  
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => setSelectedProfession(p)}
+                      className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider border transition-all shrink-0 active:scale-[0.98] ${
+                        selectedProfession === p
+                          ? 'bg-blue-500 text-white border-blue-400 font-black shadow-[0_4px_15px_rgba(59,130,246,0.3)]'
+                          : 'bg-black/40 border-[var(--panel-border)] text-[var(--muted)] hover:text-white hover:border-white/15'
+                      }`}
+                    >
+                      {p} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {loading ? (
