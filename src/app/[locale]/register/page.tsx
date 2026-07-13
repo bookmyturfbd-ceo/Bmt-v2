@@ -178,26 +178,6 @@ export default function RegisterPage() {
         <div className="glass-panel rounded-3xl p-6 shadow-[0_20px_60px_rgba(0,0,0,0.6)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.6)]">
           {step === 1 && (
             <form onSubmit={handleSendOtp} className="flex flex-col gap-4">
-              {/* Account Type Selector */}
-              <div className="flex flex-col gap-1.5 mb-1">
-                <label className="text-xs font-bold uppercase tracking-widest text-neutral-400">Account Type</label>
-                <div className="grid grid-cols-3 gap-1 bg-neutral-900 p-1 rounded-xl border border-white/5">
-                  {(['player', 'professional', 'organizer'] as const).map(r => (
-                    <button
-                      type="button"
-                      key={r}
-                      onClick={() => setRole(r)}
-                      className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${
-                        role === r
-                          ? 'bg-accent text-black font-black shadow-sm'
-                          : 'text-neutral-400 hover:text-white'
-                      }`}
-                    >
-                      {r === 'player' ? 'Player' : r === 'professional' ? 'Pro' : 'Organizer'}
-                    </button>
-                  ))}
-                </div>
-              </div>
 
               <AuthInput
                 label={t('phoneLabel')}
@@ -253,6 +233,27 @@ export default function RegisterPage() {
 
           {step === 3 && (
             <form onSubmit={handleFinalSubmit} className="flex flex-col gap-4">
+              {/* Account Type Selector */}
+              <div className="flex flex-col gap-1.5 mb-1">
+                <label className="text-xs font-bold uppercase tracking-widest text-neutral-400">Account Type</label>
+                <div className="grid grid-cols-3 gap-1 bg-neutral-900 p-1 rounded-xl border border-white/5">
+                  {(['player', 'professional', 'organizer'] as const).map(r => (
+                    <button
+                      type="button"
+                      key={r}
+                      onClick={() => setRole(r)}
+                      className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${
+                        role === r
+                          ? 'bg-accent text-black font-black shadow-sm'
+                          : 'text-neutral-400 hover:text-white'
+                      }`}
+                    >
+                      {r === 'player' ? 'Player' : r === 'professional' ? 'Pro' : 'Organizer'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <AuthInput
                 label={t('fullNameLabel')}
                 type="text"

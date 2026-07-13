@@ -53,8 +53,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Generate a 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate a 6-digit OTP (use static 123456 for dummy test numbers)
+    const isDummyPhone = phone === '8801000000000' || phone === '8801700000000' || phone.startsWith('8801000');
+    const otp = isDummyPhone ? '123456' : Math.floor(100000 + Math.random() * 900000).toString();
 
     // Expire in 5 minutes
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -63,6 +64,10 @@ export async function POST(req: NextRequest) {
     await prisma.otpVerification.create({
       data: { phone, otp, purpose, expiresAt },
     });
+
+    if (isDummyPhone) {
+      return NextResponse.json({ ok: true, message: 'OTP sent (mocked for test number).' });
+    }
 
     // Send SMS via Onecodesoft API (they want 880XXXXXXXXXX — already canonical)
     const apiKey = process.env.ONECODESOFT_API_KEY || 'zpYc0MHb5vo7Sxm8m7ewLcCiRKC5K80d58VT6YN0';
