@@ -172,14 +172,15 @@ function CourierAndFraudCheckPanel({
     return `${itemSummary}${order.notes ? ` (${order.notes})` : ''}`;
   });
 
-  // Re-sync states when order changes
+  // Re-sync states when order changes, but skip if the user is actively editing inside the modal
   useEffect(() => {
+    if (showEditModal) return;
     setRecipientName(order.customerName || '');
     setRecipientPhone(order.customerPhone || '');
     setRecipientAddress(`${order.address || ''}, ${order.district || ''}`);
     setCodAmount(order.paymentMethod === 'wallet' ? 0 : (order.total || 0));
     setNote(`${itemSummary}${order.notes ? ` (${order.notes})` : ''}`);
-  }, [order, itemSummary]);
+  }, [order.id, itemSummary, showEditModal]);
 
   useEffect(() => {
     if (!order.customerPhone) return;
