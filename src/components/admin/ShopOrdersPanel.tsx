@@ -666,6 +666,20 @@ export default function ShopOrdersPanel() {
     });
   };
 
+  const startCreatingNewOrder = () => {
+    setEditingOrderId('new_order');
+    setEditForm({
+      customerName: '',
+      customerPhone: '',
+      customerEmail: '',
+      address: '',
+      district: BD_DISTRICTS[0] || 'Dhaka (Metropolitan)',
+      paymentMethod: 'cod',
+      notes: '',
+      items: []
+    });
+  };
+
   const saveOrderEdits = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingOrderId || !editForm) return;
@@ -677,21 +691,40 @@ export default function ShopOrdersPanel() {
 
     setUpdatingId(editingOrderId);
     try {
-      const res = await fetch('/api/shop/orders', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: editingOrderId,
-          customerName: editForm.customerName,
-          customerPhone: editForm.customerPhone,
-          customerEmail: editForm.customerEmail || null,
-          address: editForm.address,
-          district: editForm.district,
-          paymentMethod: editForm.paymentMethod,
-          notes: editForm.notes || null,
-          items: editForm.items
-        })
-      });
+      let res;
+      if (editingOrderId === 'new_order') {
+        res = await fetch('/api/shop/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: editForm.customerName,
+            phone: editForm.customerPhone,
+            email: editForm.customerEmail || null,
+            address: editForm.address,
+            districtId: editForm.district,
+            paymentMethod: editForm.paymentMethod,
+            notes: editForm.notes || null,
+            items: editForm.items,
+            adminPlaced: true
+          })
+        });
+      } else {
+        res = await fetch('/api/shop/orders', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editingOrderId,
+            customerName: editForm.customerName,
+            customerPhone: editForm.customerPhone,
+            customerEmail: editForm.customerEmail || null,
+            address: editForm.address,
+            district: editForm.district,
+            paymentMethod: editForm.paymentMethod,
+            notes: editForm.notes || null,
+            items: editForm.items
+          })
+        });
+      }
 
       if (!res.ok) {
         const errorData = await res.json();
@@ -1553,6 +1586,12 @@ export default function ShopOrdersPanel() {
                     <h2 className="font-black">
                       {TAB_TITLES[selectedStatus] ?? 'Orders'} ({finalOrdersList.length})
                     </h2>
+                    <button
+                      onClick={startCreatingNewOrder}
+                      className="text-xs bg-accent hover:brightness-110 text-black font-black px-3.5 py-1.5 rounded-xl transition-all shadow-md shadow-accent/10 flex items-center gap-1 shrink-0"
+                    >
+                      Place Order ➕
+                    </button>
                   </div>
                   <button onClick={() => load()} className="text-xs text-[var(--muted)] hover:text-foreground transition-colors font-bold">Refresh</button>
                 </div>
@@ -2979,6 +3018,316 @@ export default function ShopOrdersPanel() {
                 Okay, Done
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Place Order Modal ── */}
+      {editingOrderId === 'new_order' && editForm && (
+        <div className="fixed inset-0 z-[40] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-neutral-900 border border-white/10 rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-black/25">
+              <h3 className="font-black text-sm text-white flex items-center gap-2">
+                <ShoppingBag size={16} className="text-accent" />
+                Place New Order ➕
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingOrderId(null);
+                  setEditForm(null);
+                }}
+                className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-colors text-white"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Form Content */}
+            <form onSubmit={saveOrderEdits} className="flex-1 overflow-y-auto p-6 flex flex-col gap-5 bg-black/5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Left Column: Customer details */}
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-[var(--muted)] border-b border-white/10 pb-1.5">Customer Details</h3>
+                  
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Customer Name</label>
+                    <input
+                      required
+                      type="text"
+                      value={editForm.customerName}
+                      onChange={e => setEditForm({ ...editForm, customerName: e.target.value })}
+                      className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-3 py-2 outline-none focus:border-accent text-sm text-white"
+                      placeholder="e.g. Istiak Rahman"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Customer Phone</label>
+                    <input
+                      required
+                      type="tel"
+                      value={editForm.customerPhone}
+                      onChange={e => setEditForm({ ...editForm, customerPhone: e.target.value })}
+                      className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-3 py-2 outline-none focus:border-accent text-sm text-white"
+                      placeholder="e.g. 01712345678"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Customer Email (Optional)</label>
+                    <input
+                      type="email"
+                      value={editForm.customerEmail}
+                      onChange={e => setEditForm({ ...editForm, customerEmail: e.target.value })}
+                      className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-3 py-2 outline-none focus:border-accent text-sm text-white"
+                      placeholder="e.g. customer@domain.com"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">District</label>
+                      <select
+                        value={editForm.district}
+                        onChange={e => setEditForm({ ...editForm, district: e.target.value })}
+                        className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-3 py-2 outline-none focus:border-accent text-sm text-white [color-scheme:dark]"
+                      >
+                        {BD_DISTRICTS.map(d => (
+                          <option key={d} value={d} className="bg-neutral-950 text-white">{d}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Payment Method</label>
+                      <select
+                        value={editForm.paymentMethod}
+                        onChange={e => setEditForm({ ...editForm, paymentMethod: e.target.value })}
+                        className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-3 py-2 outline-none focus:border-accent text-sm text-white [color-scheme:dark]"
+                      >
+                        <option value="cod" className="bg-neutral-950 text-white">COD</option>
+                        <option value="wallet" className="bg-neutral-950 text-white">Wallet</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Delivery Address</label>
+                    <textarea
+                      required
+                      rows={2}
+                      value={editForm.address}
+                      onChange={e => setEditForm({ ...editForm, address: e.target.value })}
+                      className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-3 py-2 outline-none focus:border-accent text-sm text-white resize-none"
+                      placeholder="Full delivery address..."
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[var(--muted)]">Order Note (Sticks to Order) 📝</label>
+                    <textarea
+                      rows={2}
+                      value={editForm.notes}
+                      onChange={e => setEditForm({ ...editForm, notes: e.target.value })}
+                      className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-xl px-3 py-2 outline-none focus:border-accent text-sm text-white resize-none placeholder:text-[var(--muted)]"
+                      placeholder="Add internal details, delivery schedules, sizing notes..."
+                    />
+                  </div>
+                </div>
+
+                {/* Right Column: Order Items */}
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-[var(--muted)]">Order Items</h3>
+                    <button
+                      type="button"
+                      onClick={handleAddItem}
+                      className="text-[10px] bg-accent/10 border border-accent/20 hover:bg-accent/20 text-accent font-black px-2.5 py-1 rounded-lg transition-all flex items-center gap-1"
+                    >
+                      Add Item ➕
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col gap-3 max-h-[220px] overflow-y-auto pr-1 hide-scrollbar">
+                    {editForm.items.map((item: any, idx: number) => {
+                      const selectedProd = allProducts.find(p => p.id === item.productId);
+                      const rawSizes = selectedProd?.sizes || [];
+                      const sizes = sortSizes(rawSizes, (s: any) => s.label);
+                      
+                      return (
+                        <div key={idx} className="flex gap-2 items-start bg-white/2 border border-white/5 rounded-xl p-3 relative animate-in fade-in duration-200">
+                          {/* Product selector trigger button */}
+                          <div className="flex-1 flex flex-col gap-2 min-w-0">
+                            <div className="flex flex-col gap-1">
+                              <label className="text-[9px] text-[var(--muted)] font-black uppercase tracking-wider">Product</label>
+                              <button
+                                type="button"
+                                onClick={() => openSelectorFlow(idx)}
+                                className="flex items-center gap-2.5 text-left bg-[var(--panel-bg)] hover:bg-[var(--panel-bg-hover)] border border-[var(--panel-border)] rounded-lg px-2.5 py-1.5 outline-none text-xs text-white transition-all w-full select-none"
+                              >
+                                {selectedProd?.mainImage ? (
+                                  <img src={selectedProd.mainImage} className="w-8 h-10 object-cover rounded bg-neutral-900 border border-white/5 shrink-0" />
+                                ) : (
+                                  <div className="w-8 h-10 bg-neutral-900 border border-white/5 rounded shrink-0 flex items-center justify-center">
+                                    <Package size={14} className="text-zinc-500" />
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold truncate text-white">{selectedProd?.name || 'Select Product...'}</p>
+                                  <p className="text-[9px] text-accent font-bold">Tap to change product 🔄</p>
+                                </div>
+                                <ChevronDown size={14} className="text-[var(--muted)] shrink-0" />
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              {/* Size selector */}
+                              <div className="flex flex-col gap-0.5">
+                                <label className="text-[9px] text-[var(--muted)] font-bold">Size</label>
+                                <select
+                                  value={item.sizeLabel}
+                                  onChange={e => handleItemSizeChange(idx, e.target.value)}
+                                  className="bg-[var(--panel-bg)] border border-[var(--panel-border)] rounded-lg px-2 py-1 outline-none focus:border-accent text-xs text-white [color-scheme:dark]"
+                                >
+                                  {sizes.map((s: any) => (
+                                    <option key={s.label} value={s.label} className="bg-neutral-950 text-white">
+                                      {s.label} (Stock: {s.quantity})
+                                    </option>
+                                  ))}
+                                  {sizes.length === 0 && (
+                                    <option value="" className="bg-neutral-950 text-white">No sizes</option>
+                                  )}
+                                </select>
+                              </div>
+
+                              {/* Quantity selector */}
+                              <div className="flex flex-col gap-0.5">
+                                <label className="text-[9px] text-[var(--muted)] font-bold">Qty</label>
+                                <div className="flex items-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleItemQuantityChange(idx, item.quantity - 1)}
+                                    className="w-7 h-7 flex items-center justify-center bg-white/5 border border-white/10 border-r-0 rounded-l-lg hover:bg-white/10 text-xs font-bold"
+                                  >
+                                    -
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={item.quantity}
+                                    onChange={e => handleItemQuantityChange(idx, parseInt(e.target.value) || 1)}
+                                    className="w-10 h-7 bg-transparent border-t border-b border-white/10 text-center text-xs text-white outline-none font-bold"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleItemQuantityChange(idx, item.quantity + 1)}
+                                    className="w-7 h-7 flex items-center justify-center bg-white/5 border border-white/10 border-l-0 rounded-r-lg hover:bg-white/10 text-xs font-bold"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Remove button */}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(idx)}
+                            className="w-7 h-7 flex items-center justify-center bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-lg shrink-0 transition-colors mt-5"
+                            title="Remove Item"
+                          >
+                            ❌
+                          </button>
+                        </div>
+                      );
+                    })}
+
+                    {editForm.items.length === 0 && (
+                      <p className="text-xs text-[var(--muted)] italic text-center py-6">
+                        No items in order. Click "Add Item" to add products.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Live pricing & discount calculation breakdown */}
+                  {evaluatedEditCart && (
+                    <div className="mt-4 p-4 bg-white/2 border border-white/5 rounded-2xl flex flex-col gap-2 text-xs text-[var(--muted)] text-left">
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-white border-b border-white/5 pb-1.5 mb-1">
+                        Live Calculation Breakdown 🧮
+                      </h4>
+                      
+                      <div className="flex justify-between">
+                        <span>Original Subtotal:</span>
+                        <span className="font-mono text-white">৳{evaluatedEditCart.subtotalBeforeDiscount.toLocaleString()}</span>
+                      </div>
+                      
+                      {evaluatedEditCart.savings > 0 && (
+                        <div className="flex justify-between text-emerald-400 font-bold">
+                          <span>Discount Applied:</span>
+                          <span>-৳{evaluatedEditCart.savings.toLocaleString()} ({Math.round((evaluatedEditCart.savings / evaluatedEditCart.subtotalBeforeDiscount) * 100)}% off)</span>
+                        </div>
+                      )}
+
+                      {evaluatedEditCart.appliedDiscountNames?.length > 0 && (
+                        <div className="flex flex-col gap-1 border-t border-white/5 pt-1.5 mt-0.5 pb-1.5 mb-0.5 animate-in slide-in-from-top-1 duration-255">
+                          <span className="text-[9px] font-black uppercase text-[var(--muted)]">Active Campaigns:</span>
+                          <div className="flex flex-wrap gap-1">
+                            {evaluatedEditCart.appliedDiscountNames.map((name: string) => (
+                              <span key={name} className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-black">
+                                🔥 {name}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="flex justify-between">
+                        <span>Delivery Charge ({editForm.district}):</span>
+                        <span className={evaluatedEditCart.deliveryCharge === 0 ? "text-emerald-400 font-bold" : "text-white"}>
+                          {evaluatedEditCart.deliveryCharge === 0 ? "Free Delivery" : `৳${evaluatedEditCart.deliveryCharge.toLocaleString()}`}
+                        </span>
+                      </div>
+                      
+                      <div className="flex justify-between border-t border-white/10 pt-2 mt-1 font-black text-accent text-sm">
+                        <span>Grand Total:</span>
+                        <span>৳{evaluatedEditCart.total.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  )}
+                  {evaluatingEditCart && (
+                    <div className="flex items-center justify-center gap-2 py-4 text-xs text-[var(--muted)]">
+                      <Loader2 size={12} className="animate-spin text-accent" />
+                      <span>Recalculating discounts...</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="p-4 border-t border-white/10 flex justify-end gap-2.5 bg-black/25 -mx-6 -mb-6 mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingOrderId(null);
+                    setEditForm(null);
+                  }}
+                  className="px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-xs rounded-xl transition-all"
+                >
+                  Cancel ❌
+                </button>
+                <button
+                  type="submit"
+                  disabled={updatingId === 'new_order'}
+                  className="px-6 py-2.5 bg-accent hover:brightness-110 text-black font-black text-xs rounded-xl transition-all shadow-md shadow-accent/15 flex items-center gap-1.5"
+                >
+                  {updatingId === 'new_order' ? <Loader2 size={12} className="animate-spin" /> : null}
+                  Create Order 🚀
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

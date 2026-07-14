@@ -26,9 +26,9 @@ function serializeOrder(order: any) {
 export async function POST(req: NextRequest) {
   try {
     const data = await req.json();
-    const { name, phone, email, address, districtId, paymentMethod, items, playerId, firstTouchSource, lastTouchSource, notes } = data;
+    const { name, phone, email, address, districtId, paymentMethod, items, playerId, firstTouchSource, lastTouchSource, notes, adminPlaced } = data;
 
-    // Check for an existing order with status 'new' or 'pending' that matches name, phone, or email
+    // Check for an existing order with status 'new' or 'pending' that matches name, phone, or email (unless admin-placed)
     const conditions: any[] = [
       { customerPhone: phone },
       { customerName: { equals: name, mode: 'insensitive' } }
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
       conditions.push({ customerEmail: { equals: email.trim().toLowerCase(), mode: 'insensitive' } });
     }
 
-    const existingOrder = await prisma.shopOrder.findFirst({
+    const existingOrder = adminPlaced ? null : await prisma.shopOrder.findFirst({
       where: {
         status: { in: ['new', 'pending'] },
         OR: conditions
