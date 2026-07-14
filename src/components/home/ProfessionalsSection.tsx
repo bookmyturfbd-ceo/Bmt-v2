@@ -108,21 +108,21 @@ export default function ProfessionalsSection({ initialProfessionals }: Professio
           <p className="text-xs font-semibold text-neutral-500">No professionals available for this type</p>
         </div>
       ) : (
-        <div className="flex gap-3.5 overflow-x-auto no-scrollbar pb-1.5 snap-x snap-mandatory">
+        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1.5 snap-x snap-mandatory">
           {filteredProfessionals.map((pro: any) => {
             const img = pro.imageUrls?.[0] || pro.logoUrl;
             return (
               <a
                 key={pro.id}
                 href={`/${locale}/turf/${pro.id}`}
-                className="shrink-0 w-[42vw] max-w-[170px] snap-start block active:scale-[0.98] transition-all duration-300 hover:-translate-y-0.5 group"
+                className="shrink-0 w-[35vw] max-w-[140px] snap-start block active:scale-[0.98] transition-all duration-300 hover:-translate-y-0.5 group"
               >
-                <div className="relative glass-panel border border-white/5 rounded-3xl overflow-hidden flex flex-col shadow-lg group-hover:border-blue-500/30 transition-all duration-300">
+                <div className="relative glass-panel border border-white/5 rounded-2xl overflow-hidden flex flex-col shadow-md group-hover:border-blue-500/30 transition-all duration-300">
                   {/* Ambient card background glow */}
                   <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 via-blue-500/0 to-blue-500/5 group-hover:to-blue-500/10 transition-all duration-300" />
                   
                   {/* Photo Container */}
-                  <div className="relative h-32 w-full bg-neutral-950 shrink-0 flex items-center justify-center overflow-hidden">
+                  <div className="relative h-24 w-full bg-neutral-950 shrink-0 flex items-center justify-center overflow-hidden">
                     {img ? (
                       <>
                         <img
@@ -134,33 +134,28 @@ export default function ProfessionalsSection({ initialProfessionals }: Professio
                       </>
                     ) : (
                       <div className="w-full h-full bg-gradient-to-br from-blue-600/10 to-blue-900/10 flex items-center justify-center border-b border-white/5">
-                        <span className="text-2xl font-black text-blue-400">
+                        <span className="text-xl font-black text-blue-400">
                           {getInitials(pro.name)}
                         </span>
                       </div>
                     )}
                     
                     {/* Overlay Role Badge */}
-                    <div className="absolute top-2 left-2">
-                      <span className="inline-block text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-blue-500/80 text-white backdrop-blur-sm border border-blue-400/20 shadow-sm">
+                    <div className="absolute top-1.5 left-1.5">
+                      <span className="inline-block text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-blue-500/80 text-white backdrop-blur-sm border border-blue-400/20 shadow-sm">
                         {pro.coachType || 'PRO'}
                       </span>
                     </div>
                   </div>
 
                   {/* Details */}
-                  <div className="p-3 flex flex-col gap-0.5 relative z-10">
-                    <h4 className="text-xs font-black truncate text-white group-hover:text-blue-400 transition-colors leading-snug">
+                  <div className="p-2.5 flex flex-col gap-0.5 relative z-10">
+                    <h4 className="text-[11px] font-black truncate text-white group-hover:text-blue-400 transition-colors leading-snug">
                       {pro.name}
                     </h4>
-                    <div className="flex items-center gap-1 text-[9px] text-[var(--muted)] font-semibold truncate mt-0.5">
-                      <MapPin size={9} className="text-blue-400 shrink-0" />
+                    <div className="flex items-center gap-1 text-[8px] text-[var(--muted)] font-semibold truncate">
+                      <MapPin size={8} className="text-blue-400 shrink-0" />
                       <span>{pro.area || 'BD'}</span>
-                    </div>
-                    <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between">
-                      <span className="text-[9.5px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-0.5 group-hover:brightness-110 transition-all">
-                        {t('bookSession')} <ChevronRight size={10} className="transition-transform group-hover:translate-x-0.5" />
-                      </span>
                     </div>
                   </div>
                 </div>
