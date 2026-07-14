@@ -4,6 +4,7 @@ import SearchBar from '@/components/home/SearchBar';
 import SportsTurfSection from '@/components/home/SportsTurfSection';
 import SponsorsBar from '@/components/home/SponsorsBar';
 import JoinUsBentoSection from '@/components/home/JoinUsBentoSection';
+import ProfessionalsSection from '@/components/home/ProfessionalsSection';
 import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import { Trophy, Shield, User, ChevronRight, Star, MapPin, Sparkles } from 'lucide-react';
@@ -239,81 +240,8 @@ export default async function RootPage({ params }: { params: Promise<{ locale: s
           </>
         )}
 
-        {/* 5. Professionals Carousel (Mid-size) */}
-        {professionals.length > 0 && (
-          <section className="px-4 flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Sparkles size={16} className="text-blue-400" />
-                <h3 className="text-base font-black tracking-tight text-white">{t('hireProfessionals')}</h3>
-              </div>
-              <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest bg-blue-500/10 border border-blue-500/20 px-2.5 py-0.5 rounded-full">
-                {professionals.length} {t('active')}
-              </span>
-            </div>
-
-            <div className="flex gap-3.5 overflow-x-auto no-scrollbar pb-1.5 snap-x snap-mandatory">
-              {professionals.map((pro: any) => {
-                const img = pro.imageUrls?.[0] || pro.logoUrl;
-                return (
-                  <a
-                    key={pro.id}
-                    href={`/${locale}/turf/${pro.id}`}
-                    className="shrink-0 w-[42vw] max-w-[170px] snap-start block active:scale-[0.98] transition-all duration-300 hover:-translate-y-0.5 group"
-                  >
-                    <div className="relative glass-panel border border-white/5 rounded-3xl overflow-hidden flex flex-col shadow-lg group-hover:border-blue-500/30 transition-all duration-300">
-                      {/* Ambient card background glow */}
-                      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 via-blue-500/0 to-blue-500/5 group-hover:to-blue-500/10 transition-all duration-300" />
-                      
-                      {/* Photo Container */}
-                      <div className="relative h-32 w-full bg-neutral-950 shrink-0 flex items-center justify-center overflow-hidden">
-                        {img ? (
-                          <>
-                            <img
-                              src={img}
-                              alt={pro.name}
-                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-[#080808] via-transparent to-transparent" />
-                          </>
-                        ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-blue-600/10 to-blue-900/10 flex items-center justify-center border-b border-white/5">
-                            <span className="text-2xl font-black text-blue-400">
-                              {getInitials(pro.name)}
-                            </span>
-                          </div>
-                        )}
-                        
-                        {/* Overlay Role Badge */}
-                        <div className="absolute top-2 left-2">
-                          <span className="inline-block text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-blue-500/80 text-white backdrop-blur-sm border border-blue-400/20 shadow-sm">
-                            {pro.coachType || 'PRO'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Details */}
-                      <div className="p-3 flex flex-col gap-0.5 relative z-10">
-                        <h4 className="text-xs font-black truncate text-white group-hover:text-blue-400 transition-colors leading-snug">
-                          {pro.name}
-                        </h4>
-                        <div className="flex items-center gap-1 text-[9px] text-[var(--muted)] font-semibold truncate mt-0.5">
-                          <MapPin size={9} className="text-blue-400 shrink-0" />
-                          <span>{pro.area || 'BD'}</span>
-                        </div>
-                        <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between">
-                          <span className="text-[9.5px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-0.5 group-hover:brightness-110 transition-all">
-                            {t('bookSession')} <ChevronRight size={10} className="transition-transform group-hover:translate-x-0.5" />
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </a>
-                );
-              })}
-            </div>
-          </section>
-        )}
+        {/* 5. Professionals Section with Type Filters */}
+        <ProfessionalsSection initialProfessionals={professionals as any} />
 
         {/* 6. Active Tournaments Carousel */}
         {tournaments.length > 0 && (
