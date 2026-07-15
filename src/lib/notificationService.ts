@@ -57,7 +57,7 @@ export async function notify({ userIds, type, url, actorId, params = {}, data = 
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Basic ${onesignalRestKey}`
+            'Authorization': `Key ${onesignalRestKey}`
           },
           body: JSON.stringify({
             app_id: onesignalAppId,
