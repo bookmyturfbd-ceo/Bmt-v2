@@ -3,6 +3,7 @@ import { useState, useCallback, useEffect } from 'react';
 import DateTimePicker from './DateTimePicker';
 import BookingReceipt from './BookingReceipt';
 import { getCookie } from '@/lib/cookies';
+import { triggerNotificationPrompt } from '@/lib/onesignal';
 import {
   LogIn, Zap, Loader2, X, Wallet, Tag, ChevronRight,
   Building2, Clock, Calendar, MapPin, CheckCircle2, AlertTriangle, Users, BadgeDollarSign
@@ -533,6 +534,7 @@ export default function TurfBookingClient({ turfId, turfName, area, cityName, sl
   const handleBooked = (receiptData: any) => {
     setShowConfirm(false);
     setReceipt(receiptData);
+    triggerNotificationPrompt();
   };
 
   const handleReceiptClose = () => {

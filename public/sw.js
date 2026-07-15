@@ -1,4 +1,6 @@
 // BMT Service Worker — Proudly Made in Bangladesh ♥
+importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
+
 const CACHE_NAME = 'bmt-v1';
 
 // Core assets to cache immediately on install
@@ -30,6 +32,11 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
+
+  // Only handle http/https requests (ignore chrome-extension, data etc)
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return;
+  }
 
   // Always go to network for API calls, auth, and Next.js internals
   if (

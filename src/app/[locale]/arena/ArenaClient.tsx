@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
+import { triggerNotificationPrompt } from '@/lib/onesignal';
 import {
   Swords, Users, Trophy, ArrowLeftRight, BarChart2,
   Plus, User, ChevronRight, Shield, Video, Lock, Clock,
@@ -217,6 +218,7 @@ export default function ArenaClient({
         alert('Challenge posted successfully!');
         setShowPostSheet(false);
         fetchDashboard();
+        triggerNotificationPrompt();
       } else {
         alert(`Error: ${data.error}`);
       }
@@ -242,6 +244,7 @@ export default function ArenaClient({
       if (res.ok) {
         alert('Challenge accepted successfully!');
         setShowAcceptSheet(false);
+        triggerNotificationPrompt();
         router.push(`/${locale}/interact/match/${data.matchId}`);
       } else {
         alert(`Error: ${data.error}`);

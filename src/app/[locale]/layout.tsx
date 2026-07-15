@@ -11,6 +11,7 @@ import Signature from '@/components/layout/Signature';
 import NextTopLoader from 'nextjs-toploader';
 import SplashScreen from '@/components/layout/SplashScreen';
 import MobileBridgeInitializer from '@/components/layout/MobileBridgeInitializer';
+import OneSignalInitializer from '@/components/providers/OneSignalInitializer';
 import { MatchResultProvider } from '@/context/MatchResultContext';
 import MatchResultModal from '@/components/match/MatchResultModal';
 import LanguagePromptModal from '@/components/layout/LanguagePromptModal';
@@ -142,6 +143,7 @@ export default async function LocaleLayout({
         <NextTopLoader color="#00FF41" height={3} showSpinner={false} />
         <SplashScreen />
         <MobileBridgeInitializer />
+        <OneSignalInitializer />
         <ThemeProvider>
           <NextIntlClientProvider messages={messages}>
             <MatchResultProvider>

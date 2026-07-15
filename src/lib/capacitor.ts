@@ -108,7 +108,7 @@ export const registerPushNotifications = async (
   onNotificationReceived?: (notification: any) => void
 ): Promise<void> => {
   if (!isNativePlatform()) {
-    console.log('Push notifications are ignored on non-native platform (Web).');
+    console.log('Capacitor native push notifications are ignored on non-native platform (Web). OneSignal handles Web Push.');
     return;
   }
 
