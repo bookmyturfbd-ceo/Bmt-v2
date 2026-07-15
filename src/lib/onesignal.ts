@@ -97,7 +97,14 @@ export async function initOneSignal(): Promise<void> {
     });
 
   } catch (err) {
-    console.error('OneSignal: Initialization failed:', err);
+    const msg = err instanceof Error ? err.message : String(err);
+    // "App not configured for web push" is expected on localhost — origin won't match the
+    // production domain registered in the OneSignal dashboard. Suppress it in dev.
+    if (msg.toLowerCase().includes('not configured') && window.location.hostname === 'localhost') {
+      console.log('OneSignal: Skipping on localhost (origin mismatch with production config — expected).');
+    } else {
+      console.error('OneSignal: Initialization failed:', err);
+    }
   }
 }
 
