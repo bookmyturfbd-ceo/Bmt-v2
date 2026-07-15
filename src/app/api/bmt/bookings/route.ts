@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { notify } from '@/lib/notificationService';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -41,10 +42,10 @@ export async function POST(req: NextRequest) {
 
   const grossPrice = Number(price || 0);
 
-  // ── Fetch turf revenue model to calculate ownerShare & bmtCut ──────────────
+  // ── Fetch turf details & revenue model to calculate ownerShare & bmtCut ──────────────
   const turf = await prisma.turf.findUnique({
     where: { id: turfId },
-    select: { revenueModelType: true, revenueModelValue: true },
+    select: { name: true, ownerId: true, revenueModelType: true, revenueModelValue: true },
   });
 
   let computedBmtCut = 0;
@@ -80,6 +81,28 @@ export async function POST(req: NextRequest) {
     await prisma.owner.updateMany({
       where: { turfs: { some: { id: turfId } } },
       data: { walletBalance: { increment: computedOwnerShare } },
+    });
+  }
+
+  // Trigger booking notifications
+  if (turf) {
+    const dateTimeStr = `${booking.date} (${booking.slot.startTime} - ${booking.slot.endTime})`;
+    
+    // Notify player
+    await notify({
+      userIds: [playerId],
+      type: 'booking_confirmed',
+      url: '/en/book?tab=history',
+      params: { turfName: turf.name, dateTime: dateTimeStr }
+    });
+
+    // Notify owner
+    await notify({
+      userIds: [turf.ownerId],
+      type: 'booking_received',
+      url: '/en/dashboard/owner',
+      params: { turfName: turf.name, dateTime: dateTimeStr },
+      actorId: playerId
     });
   }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { broadcastMatchEvent } from '@/lib/supabaseRealtime';
 import { calcTeamMMR, calcPlayerBaseMMR } from '@/lib/mmrCalculator';
+import { notify } from '@/lib/notificationService';
 
 function pid(req: NextRequest) {
   return req.cookies.get('bmt_player_id')?.value ?? null;
@@ -88,6 +89,14 @@ export async function POST(
 
     // Notify opponent that we submitted
     await broadcastMatchEvent(matchId, 'OPPONENT_SUBMITTED', { fromTeamId: myTeamId });
+
+    const opponentOwnerId = isA ? match.teamB.ownerId : match.teamA.ownerId;
+    await notify({
+      userIds: [opponentOwnerId],
+      type: 'match_result_confirmation',
+      url: `/en/interact/match/${matchId}`,
+      actorId: playerId
+    });
 
     // Check if both have now submitted
     const bothSubmitted = updated.scoreSubmittedByA && updated.scoreSubmittedByB;

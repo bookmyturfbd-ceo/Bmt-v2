@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { notify } from '@/lib/notificationService';
 
 function getPlayerId(req: NextRequest): string | null {
   return req.cookies.get('bmt_player_id')?.value ?? null;
@@ -16,7 +17,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const invite = await prisma.teamInvitation.findUnique({
       where: { id },
-      include: { team: true },
+      include: { team: true, player: true },
     });
 
     if (!invite) {
@@ -114,6 +115,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const { syncTournamentTeamMmr } = await import('@/lib/teamMmr');
     await syncTournamentTeamMmr(invite.teamId);
+
+    // Notify the team owner that a new member has joined
+    await notify({
+      userIds: [invite.team.ownerId],
+      type: 'team_member_joined',
+      url: `/en/teams/${invite.teamId}`,
+      params: { playerName: invite.player.fullName, teamName: invite.team.name },
+      actorId: invite.playerId
+    });
 
     return NextResponse.json({ ok: true, status: 'ACCEPTED' });
   } catch (error: any) {

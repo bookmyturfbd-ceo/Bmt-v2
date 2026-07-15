@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import { notify } from '@/lib/notificationService';
 
 function getPlayerId(req: NextRequest): string | null {
   return req.cookies.get('bmt_player_id')?.value ?? null;
@@ -125,7 +126,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   
   const teamCheck = await prisma.team.findUnique({ 
     where: { id }, 
-    select: { ownerId: true, sportType: true, teamType: true, members: true } 
+    select: { name: true, ownerId: true, sportType: true, teamType: true, members: true } 
   });
   if (!teamCheck) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   
@@ -216,6 +217,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         });
       }
 
+      await notify({
+        userIds: [targetPlayerId],
+        type: 'team_invite_received',
+        url: '/en/teams/invitations',
+        params: { teamName: teamCheck.name },
+        actorId: playerId
+      });
+      
       return NextResponse.json({ ok: true, invitationSent: true });
     }
 

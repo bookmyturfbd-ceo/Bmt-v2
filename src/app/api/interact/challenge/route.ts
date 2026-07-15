@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { notify } from '@/lib/notificationService';
 
 // POST: Issue a challenge (creates a Match in PENDING status)
 export async function POST(req: NextRequest) {
@@ -137,6 +138,14 @@ export async function POST(req: NextRequest) {
       return m;
     });
 
+    await notify({
+      userIds: [opponentTeam.ownerId],
+      type: 'challenge_received',
+      url: `/en/interact/match/${match.id}`,
+      params: { teamName: match.teamA.name },
+      actorId: playerId
+    });
+
     return NextResponse.json({ ok: true, match });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -155,7 +164,8 @@ export async function PATCH(req: NextRequest) {
     const match = await prisma.match.findUnique({
       where: { id: matchId },
       include: {
-        teamB: { include: { members: { select: { playerId: true, role: true } } } },
+        teamA: { select: { id: true, name: true, ownerId: true } },
+        teamB: { select: { id: true, name: true, ownerId: true }, include: { members: { select: { playerId: true, role: true } } } },
       },
     });
 
@@ -189,6 +199,15 @@ export async function PATCH(req: NextRequest) {
         where: { id: matchId },
         data: { status: 'INTERACTION' },
       });
+
+      await notify({
+        userIds: [match.teamA.ownerId],
+        type: 'challenge_accepted',
+        url: `/en/interact/match/${matchId}`,
+        params: { teamName: match.teamB.name },
+        actorId: playerId
+      });
+
       return NextResponse.json({ ok: true, match: updated });
     } else if (action === 'decline') {
       await prisma.match.update({

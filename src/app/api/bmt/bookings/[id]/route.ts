@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { notify } from '@/lib/notificationService';
 
 type Params = Promise<{ id: string }>;
 
@@ -36,6 +37,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Params }) {
   if (patch.bmtCut !== undefined) patch.bmtCut = Number(patch.bmtCut);
 
   try {
+    const oldBooking = await prisma.booking.findUnique({ where: { id } });
     const updated = await prisma.booking.update({
       where: { id },
       data: patch,
@@ -44,6 +46,33 @@ export async function PATCH(req: NextRequest, { params }: { params: Params }) {
         slot: { include: { ground: true } } 
       }
     });
+
+    if (oldBooking?.status !== 'cancelled' && updated.status === 'cancelled') {
+      const turf = await prisma.turf.findUnique({
+        where: { id: updated.turfId },
+        select: { name: true, ownerId: true }
+      });
+      if (turf) {
+        const dateTimeStr = `${updated.date} (${updated.slot.startTime} - ${updated.slot.endTime})`;
+        
+        // Notify player
+        await notify({
+          userIds: [updated.playerId],
+          type: 'booking_cancelled',
+          url: '/en/book?tab=history',
+          params: { turfName: turf.name, dateTime: dateTimeStr }
+        });
+
+        // Notify owner
+        await notify({
+          userIds: [turf.ownerId],
+          type: 'booking_cancelled',
+          url: '/en/dashboard/owner',
+          params: { turfName: turf.name, dateTime: dateTimeStr }
+        });
+      }
+    }
+
     return NextResponse.json(updated);
   } catch (err) {
     return NextResponse.json({ error: 'Failed to update booking' }, { status: 400 });

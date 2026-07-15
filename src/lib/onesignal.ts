@@ -105,15 +105,38 @@ export async function initOneSignal(): Promise<void> {
  * Programmatically triggers the browser's native notification permission prompt.
  * Recommended to be called after high-intent user actions (e.g., booking slots, sending challenges).
  */
+let shownThisSession = false;
+
 export async function triggerNotificationPrompt(): Promise<void> {
   if (typeof window === 'undefined') return;
 
+  // 1. Never show if permission is already granted or denied
+  if ('Notification' in window && Notification.permission !== 'default') {
+    return;
+  }
+
+  // 2. Cooldown check (3 days)
+  const cooldownKey = 'bmt_onesignal_cooldown';
+  const cooldownVal = localStorage.getItem(cooldownKey);
+  if (cooldownVal) {
+    const elapsed = Date.now() - parseInt(cooldownVal, 10);
+    if (elapsed < 3 * 24 * 60 * 60 * 1000) {
+      return;
+    }
+  }
+
+  // 3. Max once per session
+  if (shownThisSession) {
+    return;
+  }
+
+  shownThisSession = true;
+
   try {
-    console.log('OneSignal: Prompting for push notification permission...');
-    await OneSignal.Notifications.requestPermission();
-    // Re-sync identity in case the user successfully allowed notifications
-    await syncOneSignalIdentity();
+    // Dynamically import to avoid any SSR/circular dependency issues
+    const { useNotificationsStore } = await import('@/hooks/useNotificationsStore');
+    useNotificationsStore.getState().openModal('trigger');
   } catch (err) {
-    console.error('OneSignal: Failed to request notification permission:', err);
+    console.error('OneSignal: Failed to open soft permission modal:', err);
   }
 }

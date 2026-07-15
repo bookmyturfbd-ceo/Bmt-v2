@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { broadcastMatchEvent, broadcastInteractEvent } from '@/lib/supabaseRealtime';
+import { notify } from '@/lib/notificationService';
 
 function getPlayerId(req: NextRequest) {
   return req.cookies.get('bmt_player_id')?.value ?? null;
@@ -257,6 +258,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (match.status !== 'SCHEDULED') return NextResponse.json({ error: 'Match is not scheduled yet' }, { status: 400 });
       const updateData = isTeamA ? { matchStartedByA: true } : { matchStartedByB: true };
       const updated = await prisma.match.update({ where: { id: matchId }, data: updateData });
+      
+      if (isTeamA && !updated.matchStartedByB) {
+        await notify({
+          userIds: [match.teamB.ownerId],
+          type: 'match_started_confirmation',
+          url: `/en/interact/match/${matchId}`,
+          params: { teamName: match.teamA.name },
+          actorId: playerId
+        });
+      } else if (!isTeamA && !updated.matchStartedByA) {
+        await notify({
+          userIds: [match.teamA.ownerId],
+          type: 'match_started_confirmation',
+          url: `/en/interact/match/${matchId}`,
+          params: { teamName: match.teamB.name },
+          actorId: playerId
+        });
+      }
+
       if (updated.matchStartedByA && updated.matchStartedByB) {
         await prisma.match.update({ where: { id: matchId }, data: { status: 'LIVE' } });
         await broadcastInteractEvent(matchId, 'match_started', {});

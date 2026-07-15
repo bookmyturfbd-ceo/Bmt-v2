@@ -637,5 +637,13 @@
     "topTeams": "Top Teams This Week",
     "accept": "Accept",
     "scoutingAs": "Scouting As"
+  },
+  "NotificationsModal": {
+    "title": "Never Miss a Challenge ⚔️",
+    "benefit1": "Know instantly when a team challenges you",
+    "benefit2": "Booking confirmations & reminders",
+    "benefit3": "Match results & rank updates",
+    "enable": "Enable Notifications",
+    "maybeLater": "Maybe later"
   }
 }

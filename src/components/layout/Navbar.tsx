@@ -5,6 +5,7 @@ import { usePathname, useRouter } from '@/i18n/routing';
 import { useState, useEffect } from 'react';
 import { Globe } from 'lucide-react';
 import { useParams } from 'next/navigation';
+import NotificationCenter from './NotificationCenter';
 
 export default function Navbar() {
   const t = useTranslations('Navigation');
@@ -40,6 +41,8 @@ export default function Navbar() {
             <span className="hover:text-accent transition-colors">{t('dashboard')}</span>
             <span className="hover:text-accent transition-colors">{t('login')}</span>
           </div>
+
+          {mounted && <NotificationCenter />}
 
           <div 
             className="relative flex items-center p-[2px] rounded-full bg-slate-900/10 dark:bg-white/5 border border-slate-900/5 dark:border-white/5 font-mono select-none w-[78px] h-[32px] shadow-inner pointer-events-auto"

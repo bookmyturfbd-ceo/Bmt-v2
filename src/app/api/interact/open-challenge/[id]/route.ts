@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { TIER_RANGES } from '@/lib/rankUtils';
+import { notify } from '@/lib/notificationService';
 
 function getFormatSize(sport: string): number {
   if (sport.includes('5')) return 5;
@@ -116,6 +117,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       });
 
       return { updatedChallenge, match };
+    });
+
+    await notify({
+      userIds: [openChallenge.team.ownerId],
+      type: 'open_challenge_accepted',
+      url: `/en/interact/match/${result.match.id}`,
+      params: { teamName: acceptingTeam.name },
+      actorId: playerId
     });
 
     return NextResponse.json({ ok: true, match: result.match });
