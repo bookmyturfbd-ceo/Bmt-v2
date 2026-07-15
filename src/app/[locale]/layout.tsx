@@ -143,12 +143,12 @@ export default async function LocaleLayout({
         <NextTopLoader color="#00FF41" height={3} showSpinner={false} />
         <SplashScreen />
         <MobileBridgeInitializer />
-        <OneSignalInitializer />
         <ThemeProvider>
           <NextIntlClientProvider messages={messages}>
             <MatchResultProvider>
               <MatchResultModal />
               <LanguagePromptModal />
+              <OneSignalInitializer />
               <MadeInBangladesh />
               <MetaTracker />
               <main className="flex-1 flex flex-col relative pb-16">
