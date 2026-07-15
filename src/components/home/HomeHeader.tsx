@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { MapPin, Bell, UserCircle, Globe, X, Phone, Mail } from 'lucide-react';
+import { MapPin, Users, Globe, X, Phone, Mail } from 'lucide-react';
+import NotificationCenter from '@/components/layout/NotificationCenter';
 import { Link, usePathname, useRouter } from '@/i18n/routing';
 import { useParams } from 'next/navigation';
 import { getCookie } from '@/lib/cookies';
@@ -231,6 +232,17 @@ export default function HomeHeader({ initialAuth = false }: { initialAuth?: bool
 
         {/* Header Actions */}
         <div className="flex items-center gap-2">
+          {/* Follow Us Button — anchors to social row below */}
+          {(socials.social_facebook || socials.social_instagram || socials.social_tiktok || socials.social_youtube) && (
+            <a
+              href="#social-links"
+              className="px-3 py-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-[10px] font-black uppercase tracking-wider text-neutral-300 hover:text-accent hover:border-accent/30 flex items-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <Users size={10} />
+              {locale === 'bn' ? 'ফলো করুন' : 'Follow Us'}
+            </a>
+          )}
+
           {/* Outlined Contact Us Button */}
           <button 
             onClick={() => setShowContactModal(true)}
@@ -242,10 +254,8 @@ export default function HomeHeader({ initialAuth = false }: { initialAuth?: bool
           {/* Login or Profile Avatar / Notification */}
           {isAuthed ? (
             <div className="flex items-center gap-2">
-              <button className="relative p-1.5 rounded-full glass hover:border-accent/50 transition-colors">
-                <Bell size={16} />
-                <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full border-2 border-black" />
-              </button>
+              {/* Real Notification Center */}
+              <NotificationCenter />
 
               <Link href="/profile">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-accent to-blue-500 p-[2px] hover:scale-105 transition-transform active:scale-95">
@@ -268,7 +278,7 @@ export default function HomeHeader({ initialAuth = false }: { initialAuth?: bool
 
       {/* Social Links Row Under Header */}
       {(socials.social_facebook || socials.social_instagram || socials.social_tiktok || socials.social_youtube) && (
-        <div className="flex items-center justify-center gap-2.5 px-4 py-1.5 border-t border-white/[0.03] bg-white/[0.01]">
+        <div id="social-links" className="flex items-center justify-center gap-2.5 px-4 py-1.5 border-t border-white/[0.03] bg-white/[0.01]">
           <span className="text-[10px] font-black uppercase tracking-wider text-neutral-500">Follow us</span>
           <div className="flex items-center gap-1.5 select-none">
             {socials.social_facebook && (
