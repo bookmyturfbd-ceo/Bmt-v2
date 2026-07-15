@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { MapPin, Users, Globe, X, Phone, Mail } from 'lucide-react';
+import { MapPin, Globe, X, Phone, Mail } from 'lucide-react';
 import NotificationCenter from '@/components/layout/NotificationCenter';
 import { Link, usePathname, useRouter } from '@/i18n/routing';
 import { useParams } from 'next/navigation';
@@ -232,25 +232,6 @@ export default function HomeHeader({ initialAuth = false }: { initialAuth?: bool
 
         {/* Header Actions */}
         <div className="flex items-center gap-2">
-          {/* Follow Us Button — anchors to social row below */}
-          {(socials.social_facebook || socials.social_instagram || socials.social_tiktok || socials.social_youtube) && (
-            <a
-              href="#social-links"
-              className="px-3 py-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-[10px] font-black uppercase tracking-wider text-neutral-300 hover:text-accent hover:border-accent/30 flex items-center gap-1.5 shadow-sm cursor-pointer"
-            >
-              <Users size={10} />
-              {locale === 'bn' ? 'ফলো করুন' : 'Follow Us'}
-            </a>
-          )}
-
-          {/* Outlined Contact Us Button */}
-          <button 
-            onClick={() => setShowContactModal(true)}
-            className="px-3.5 py-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-[10px] font-black uppercase tracking-wider text-neutral-300 hover:text-accent hover:border-accent/30 flex items-center gap-1.5 shadow-sm cursor-pointer"
-          >
-            {t('contact')}
-          </button>
-
           {/* Login or Profile Avatar / Notification */}
           {isAuthed ? (
             <div className="flex items-center gap-2">
@@ -276,32 +257,43 @@ export default function HomeHeader({ initialAuth = false }: { initialAuth?: bool
         </div>
       </div>
 
-      {/* Social Links Row Under Header */}
+      {/* Social Links Row Under Header — also hosts Contact Us button */}
       {(socials.social_facebook || socials.social_instagram || socials.social_tiktok || socials.social_youtube) && (
-        <div id="social-links" className="flex items-center justify-center gap-2.5 px-4 py-1.5 border-t border-white/[0.03] bg-white/[0.01]">
-          <span className="text-[10px] font-black uppercase tracking-wider text-neutral-500">Follow us</span>
-          <div className="flex items-center gap-1.5 select-none">
-            {socials.social_facebook && (
-              <a href={socials.social_facebook} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-[#1877F2] hover:border-transparent hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="Facebook">
-                <FacebookIcon size={11} />
-              </a>
-            )}
-            {socials.social_instagram && (
-              <a href={socials.social_instagram} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-gradient-to-tr hover:from-[#FCAF45] hover:to-[#E1306C] hover:border-transparent hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="Instagram">
-                <InstagramIcon size={11} />
-              </a>
-            )}
-            {socials.social_tiktok && (
-              <a href={socials.social_tiktok} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-black hover:border-white/10 hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="TikTok">
-                <TiktokIcon size={11} />
-              </a>
-            )}
-            {socials.social_youtube && (
-              <a href={socials.social_youtube} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-[#FF0000] hover:border-transparent hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="YouTube">
-                <YoutubeIcon size={11} />
-              </a>
-            )}
+        <div id="social-links" className="flex items-center justify-between px-4 py-1.5 border-t border-white/[0.03] bg-white/[0.01]">
+          {/* Left: Follow Us + social icons */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-wider text-neutral-500">Follow us</span>
+            <div className="flex items-center gap-1.5 select-none">
+              {socials.social_facebook && (
+                <a href={socials.social_facebook} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-[#1877F2] hover:border-transparent hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="Facebook">
+                  <FacebookIcon size={11} />
+                </a>
+              )}
+              {socials.social_instagram && (
+                <a href={socials.social_instagram} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-gradient-to-tr hover:from-[#FCAF45] hover:to-[#E1306C] hover:border-transparent hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="Instagram">
+                  <InstagramIcon size={11} />
+                </a>
+              )}
+              {socials.social_tiktok && (
+                <a href={socials.social_tiktok} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-black hover:border-white/10 hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="TikTok">
+                  <TiktokIcon size={11} />
+                </a>
+              )}
+              {socials.social_youtube && (
+                <a href={socials.social_youtube} target="_blank" rel="noopener noreferrer" className="w-[26px] h-[26px] rounded-full border border-white/5 bg-white/5 hover:bg-[#FF0000] hover:border-transparent hover:text-white transition-all flex items-center justify-center text-neutral-400 active:scale-90" title="YouTube">
+                  <YoutubeIcon size={11} />
+                </a>
+              )}
+            </div>
           </div>
+
+          {/* Right: Contact Us */}
+          <button
+            onClick={() => setShowContactModal(true)}
+            className="px-3 py-1 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-[9px] font-black uppercase tracking-wider text-neutral-300 hover:text-accent hover:border-accent/30 cursor-pointer"
+          >
+            {t('contact')}
+          </button>
         </div>
       )}
 
