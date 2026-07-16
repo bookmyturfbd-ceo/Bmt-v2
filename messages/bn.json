@@ -139,7 +139,17 @@
     "topCompetitors": "সেরা প্রতিযোগী",
     "playerStandings": "খেলোয়াড়দের অবস্থান",
     "freeAgent": "ফ্রি এজেন্ট",
-    "active": "সক্রিয়"
+    "active": "সক্রিয়",
+    "greeting": {
+      "morning": "শুভ সকাল, {name} 👋",
+      "afternoon": "শুভ দুপুর/বিকাল, {name} 👋",
+      "evening": "শুভ সন্ধ্যা, {name} 👋",
+      "createTeamCTA": "আপনার দল তৈরি করুন এবং এরেনায় প্রবেশ করুন ⚔️",
+      "calibrating": "ক্যালিব্রেটিং · {count}/৩ ম্যাচ",
+      "pendingChallenge": "⚔️ {count}টি অপেক্ষমান",
+      "upcomingBooking": "🏟️ {date} {time}",
+      "unreadNotifications": "🔔 {count}টি অপঠিত"
+    }
   },
   "Dashboard": {
     "title": "আপনার টার্ফ ড্যাশবোর্ড",
@@ -182,7 +192,8 @@
       "all": "সব খেলা",
       "football": "ফুটবল",
       "badminton": "ব্যাডমিন্টন",
-      "cricket": "ক্রিকেট"
+      "cricket": "ক্রিকেট",
+      "allProfessions": "সব পেশা"
     },
     "turfCard": {
       "startsFrom": "শুরু",

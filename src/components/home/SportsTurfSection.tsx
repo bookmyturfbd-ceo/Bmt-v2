@@ -5,7 +5,23 @@ import { Building2, MapPin, ChevronRight, Clock } from 'lucide-react';
 import { useLocale } from 'next-intl';
 
 interface Sport { id: string; name: string; category?: string; }
-interface Turf  { id: string; name: string; sportIds: string[]; cityId: string; area?: string; logoUrl?: string; imageUrls?: string[]; status: string; }
+interface Turf {
+  id: string;
+  name: string;
+  sportIds: string[];
+  cityId: string;
+  area?: string | null;
+  logoUrl?: string | null;
+  imageUrls?: string[];
+  status: string;
+  city?: { id: string; name: string } | null;
+  division?: { id: string; name: string } | null;
+  grounds?: Array<{
+    slots?: Array<{
+      price: number;
+    }>;
+  }>;
+}
 interface TurfServiceSetting { isActive: boolean; launchAt: Date | string | null; }
 
 const SPORT_EMOJI: Record<string, string> = {
@@ -119,19 +135,35 @@ export default function SportsTurfSection({
     new Map(initialSports.map(s => [s.name, s])).values()
   );
 
+  const divisionItems = Array.from(
+    new Set(
+      initialTurfs
+        .map(t => t.division?.name)
+        .filter((name): name is string => !!name)
+    )
+  ).sort();
+
   const [selected, setSelected] = useState<string | null>(null);
+  const [selectedDivision, setSelectedDivision] = useState<string | null>(null);
 
   const publishedTurfs = initialTurfs;
-  const filteredTurfs  = selected
-    ? (() => {
-        const sportIds = initialSports
-          .filter(s => s.name === selected)
-          .map(s => s.id);
-        return publishedTurfs.filter(t =>
-          Array.isArray(t.sportIds) && t.sportIds.some(id => sportIds.includes(id))
-        );
-      })()
-    : publishedTurfs;
+  const filteredTurfs = publishedTurfs.filter(t => {
+    // 1. Sport category match
+    if (selected) {
+      const sportIds = initialSports
+        .filter(s => s.name === selected)
+        .map(s => s.id);
+      const matchesSport = Array.isArray(t.sportIds) && t.sportIds.some(id => sportIds.includes(id));
+      if (!matchesSport) return false;
+    }
+    // 2. Division match
+    if (selectedDivision) {
+      if (t.division?.name?.toLowerCase() !== selectedDivision.toLowerCase()) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   // If coming soon mode is active, show overlay instead of turf list
   if (turfServiceSetting.isActive) {
@@ -181,6 +213,48 @@ export default function SportsTurfSection({
         </div>
       </section>
 
+      {/* ── Locations Pill Row ── */}
+      {divisionItems.length > 0 && (
+        <section className="pt-2 pb-2">
+          <div className="flex items-center justify-between px-4 mb-3">
+            <h3 className="text-xl font-bold tracking-tight">Locations</h3>
+            <span className="text-xs font-bold text-neutral-500 tracking-wider uppercase">
+              {divisionItems.length} {divisionItems.length === 1 ? 'area' : 'areas'}
+            </span>
+          </div>
+
+          <div className="flex gap-2.5 overflow-x-auto green-scrollbar px-4 pb-3 snap-x">
+            <button
+              onClick={() => setSelectedDivision(null)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full shrink-0 transition-all active:scale-95 snap-start border text-xs font-black whitespace-nowrap
+                ${!selectedDivision
+                  ? 'bg-accent text-black border-accent shadow-[0_0_12px_rgba(0,255,65,0.3)]'
+                  : 'bg-[var(--panel-bg)] border-[var(--panel-border)] text-[var(--muted)] hover:border-accent/40'
+                }`}
+            >
+              <span>📍</span> All Areas
+            </button>
+
+            {divisionItems.map(divName => {
+              const isActive = selectedDivision === divName;
+              return (
+                <button
+                  key={divName}
+                  onClick={() => setSelectedDivision(divName)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full shrink-0 transition-all active:scale-95 snap-start border text-xs font-black whitespace-nowrap
+                    ${isActive
+                      ? 'bg-accent text-black border-accent shadow-[0_0_12px_rgba(0,255,65,0.3)]'
+                      : 'bg-[var(--panel-bg)] border-[var(--panel-border)] text-[var(--muted)] hover:border-accent/40'
+                    }`}
+                >
+                  📍 {divName}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* ── Turf Carousel ── */}
       <section className="pb-6">
         <div className="flex items-center justify-between px-4 mb-3">
@@ -195,7 +269,7 @@ export default function SportsTurfSection({
         {filteredTurfs.length === 0 ? (
           <div className="mx-4 flex flex-col items-center justify-center gap-2 py-10 rounded-2xl border border-dashed border-[var(--panel-border)] text-center">
             <Building2 size={28} className="text-[var(--muted)] opacity-40" />
-            <p className="text-sm font-semibold text-[var(--muted)]">No turfs for this sport yet</p>
+            <p className="text-sm font-semibold text-[var(--muted)]">No turfs match the selection</p>
             <p className="text-xs text-[var(--muted)] opacity-60">Check back later!</p>
           </div>
         ) : (
@@ -211,13 +285,24 @@ export default function SportsTurfSection({
                     ? (initialSports.find(s => s.id === sportIds[0])?.name ?? null)
                     : 'Multisports';
 
+              // Calculate min slot price dynamically
+              let minPrice = Infinity;
+              turf.grounds?.forEach((g: any) => {
+                g.slots?.forEach((s: any) => {
+                  if (s.price && s.price < minPrice) {
+                    minPrice = s.price;
+                  }
+                });
+              });
+              const priceHint = minPrice !== Infinity ? `From ৳${minPrice}/hr` : null;
+
               return (
                 <a
                   key={turf.id}
                   href={`/${locale}/turf/${turf.id}`}
-                  className="shrink-0 w-[60vw] max-w-[240px] snap-start block active:scale-[0.97] transition-transform"
+                  className="group shrink-0 w-[60vw] max-w-[240px] snap-start block active:scale-[0.98] transition-transform"
                 >
-                  <div className="glass-panel rounded-3xl overflow-hidden flex flex-col border border-[var(--panel-border)] shadow-md">
+                  <div className="glass-panel rounded-3xl overflow-hidden flex flex-col border border-[var(--panel-border)] group-hover:border-white/10 group-active:border-accent/40 group-active:shadow-[0_0_15px_rgba(0,255,65,0.1)] transition-all duration-300 shadow-md">
                     <div className="relative h-32 w-full bg-neutral-900 shrink-0">
                       <img
                         src={coverImage}
@@ -237,17 +322,37 @@ export default function SportsTurfSection({
                       )}
                     </div>
 
-                    <div className={`px-4 pb-4 flex flex-col gap-1 ${turf.logoUrl ? 'pt-7' : 'pt-4'}`}>
-                      <h4 className="text-[15px] font-bold tracking-tight truncate text-foreground">
+                    <div className={`px-4 pb-4 flex flex-col gap-1.5 ${turf.logoUrl ? 'pt-7' : 'pt-4'}`}>
+                      <h4 className="text-[14px] font-black tracking-tight truncate text-white leading-tight group-hover:text-accent transition-colors">
                         {turf.name}
                       </h4>
-                      <div className="flex items-center gap-1 text-[11px] text-[var(--muted)] font-semibold">
-                        <MapPin size={10} className="text-accent shrink-0" />
-                        <span className="truncate">{turf.area || 'Location not set'}</span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {turf.area && (
+                          <span className="text-[9px] font-bold text-neutral-400 bg-neutral-900 border border-white/5 px-2 py-0.5 rounded-full truncate max-w-[110px]">
+                            {turf.area}
+                          </span>
+                        )}
+                        {turf.division?.name && (
+                          <span
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setSelectedDivision(turf.division!.name);
+                            }}
+                            className="text-[9px] font-black text-accent hover:underline cursor-pointer bg-[#00ff41]/5 border border-[#00ff41]/20 px-2 py-0.5 rounded-full shrink-0"
+                          >
+                            📍 {turf.division.name}
+                          </span>
+                        )}
+                        {priceHint && (
+                          <span className="text-[9px] font-black text-[#00ff41] bg-[#00ff41]/10 border border-[#00ff41]/20 px-2 py-0.5 rounded-full shrink-0">
+                            {priceHint}
+                          </span>
+                        )}
                       </div>
-                      <div className="flex items-center justify-between mt-2 pt-2.5 border-t border-[var(--panel-border)]">
-                        <span className="text-[11px] font-black text-accent">Tap to book</span>
-                        <ChevronRight size={14} className="text-[var(--muted)]" />
+                      <div className="flex items-center justify-between mt-2 pt-2.5 border-t border-white/5">
+                        <span className="text-[9px] font-black text-accent uppercase tracking-widest bg-[#00ff41]/10 border border-[#00ff41]/20 px-2.5 py-1 rounded-lg shadow-[0_0_10px_rgba(0,255,65,0.05)] transition-all">BOOK NOW</span>
+                        <ChevronRight size={12} className="text-[var(--muted)]" />
                       </div>
                     </div>
                   </div>

@@ -139,7 +139,17 @@
     "topCompetitors": "Top Competitors",
     "playerStandings": "Player Standings",
     "freeAgent": "Free Agent",
-    "active": "active"
+    "active": "active",
+    "greeting": {
+      "morning": "Good morning, {name} 👋",
+      "afternoon": "Good afternoon, {name} 👋",
+      "evening": "Good evening, {name} 👋",
+      "createTeamCTA": "Create your team & enter the Arena ⚔️",
+      "calibrating": "Calibrating · {count}/3 matches",
+      "pendingChallenge": "⚔️ {count} pending",
+      "upcomingBooking": "🏟️ {date} {time}",
+      "unreadNotifications": "🔔 {count} unread"
+    }
   },
   "Dashboard": {
     "title": "Your Turf Dashboard",
@@ -182,7 +192,8 @@
       "all": "All Sports",
       "football": "Football",
       "badminton": "Badminton",
-      "cricket": "Cricket"
+      "cricket": "Cricket",
+      "allProfessions": "All Professions"
     },
     "turfCard": {
       "startsFrom": "Starts from",

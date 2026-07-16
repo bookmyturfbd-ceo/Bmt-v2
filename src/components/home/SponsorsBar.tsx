@@ -14,12 +14,16 @@ interface SponsorSettings {
   intervalMs: number;
 }
 
-export default function SponsorsBar({ sponsors, settings }: { sponsors: Sponsor[]; settings: SponsorSettings }) {
+export default function SponsorsBar({ 
+  sponsors, settings, compact = false 
+}: { 
+  sponsors: Sponsor[]; settings: SponsorSettings; compact?: boolean;
+}) {
   const t = useTranslations('Home');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!settings.autoSlide || !sponsors || sponsors.length <= 1) return;
+    if (compact || !settings.autoSlide || !sponsors || sponsors.length <= 1) return;
 
     const interval = setInterval(() => {
       if (!scrollRef.current) return;
@@ -29,15 +33,54 @@ export default function SponsorsBar({ sponsors, settings }: { sponsors: Sponsor[
       if (el.scrollLeft >= maxScroll - 5) {
         el.scrollTo({ left: 0, behavior: 'smooth' });
       } else {
-        // Scroll by one sponsor item's width + gap
         el.scrollBy({ left: 100, behavior: 'smooth' });
       }
     }, settings.intervalMs);
 
     return () => clearInterval(interval);
-  }, [settings.autoSlide, settings.intervalMs, sponsors]);
+  }, [settings.autoSlide, settings.intervalMs, sponsors, compact]);
 
   if (!sponsors || sponsors.length === 0) return null;
+
+  if (compact) {
+    return (
+      <div className="mx-4 mt-2 mb-4">
+        <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 text-center mb-2.5">Partners</p>
+        <div className="flex items-center justify-center gap-4 py-1 overflow-x-auto hide-scrollbar [&::-webkit-scrollbar]:hidden flex-wrap">
+          {sponsors.map((sponsor) => {
+            const content = (
+              <div className="h-6 w-16 opacity-40 hover:opacity-100 transition-opacity shrink-0 flex items-center justify-center">
+                <img 
+                  src={sponsor.imageUrl} 
+                  alt="Partner Logo" 
+                  className="max-w-full max-h-full object-contain filter grayscale hover:grayscale-0 transition-all" 
+                />
+              </div>
+            );
+
+            if (sponsor.ctaLink) {
+              return (
+                <a 
+                  key={sponsor.id} 
+                  href={sponsor.ctaLink} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="outline-none"
+                >
+                  {content}
+                </a>
+              );
+            }
+            return (
+              <div key={sponsor.id}>
+                {content}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-4 mt-6 mb-2">

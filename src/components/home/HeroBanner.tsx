@@ -20,13 +20,17 @@ const FALLBACK: Slide = {
 export default function HeroBanner({
   slides: initialSlides = [],
   settings: initialSettings = { autoSlide: true, intervalMs: 3500 },
+  singleSlide = false,
 }: {
   slides?: Slide[];
   settings?: Settings;
+  singleSlide?: boolean;
 }) {
   const locale = useLocale();
   const activeSlides = initialSlides.filter(s => s.active);
-  const slides = activeSlides.length > 0 ? activeSlides : [FALLBACK];
+  const slides = singleSlide
+    ? (activeSlides.length > 0 ? [activeSlides[0]] : [FALLBACK])
+    : (activeSlides.length > 0 ? activeSlides : [FALLBACK]);
 
   const [current, setCurrent] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);

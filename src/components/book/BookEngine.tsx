@@ -1,6 +1,7 @@
 'use client';
 import { useState, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import BookToggle from './BookToggle';
 import SearchCard from './SearchCard';
 import SportsFilter from './SportsFilter';
@@ -14,17 +15,42 @@ export default function BookEngine({
 }: { 
   sports: any[], turfs: any[], cities: any[], slots: any[], turfServiceSetting?: { isActive: boolean; launchAt: string | null } | null
 }) {
+  const t = useTranslations('Book');
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get('tab') === 'history' ? 'history' : 'turf') as 'turf' | 'pros' | 'history';
   const groupId = searchParams.get('groupId') ?? undefined; // set when coming from Play With Friends
 
   const categories = Array.from(new Set(sports.map(s => s.category || s.name)));
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedProfession, setSelectedProfession] = useState<string>('all');
   const [selectedCityId, setSelectedCityId] = useState<string>('all');
   const [searchDate, setSearchDate] = useState<string>('');
   const [searchTime, setSearchTime] = useState<string>('');
   
   const [activeTab, setActiveTab] = useState<'turf'|'pros'|'history'>(initialTab);
+
+  const availableProfessions = useMemo(() => {
+    const set = new Set<string>([
+      'Cricket Coach',
+      'Football Coach',
+      'Physio',
+      'Personal Trainer',
+      'Referee'
+    ]);
+    turfs.forEach(turf => {
+      if (turf.isCoachProfile) {
+        if (turf.coachType) {
+          set.add(turf.coachType);
+        }
+        if (Array.isArray(turf.professions)) {
+          turf.professions.forEach((p: string) => {
+            if (p) set.add(p);
+          });
+        }
+      }
+    });
+    return Array.from(set);
+  }, [turfs]);
 
   // The engine intercepts active filters and maps turfs that strictly pass filters
   const filteredTurfs = useMemo(() => {
@@ -33,8 +59,8 @@ export default function BookEngine({
       if (activeTab === 'turf' && turf.isCoachProfile) return false;
       if (activeTab === 'pros' && !turf.isCoachProfile) return false;
 
-      // 1. Sport Match (via Category bridging)
-      if (selectedCategory !== 'all') {
+      // 1. Sport Match (via Category bridging) - Only for standard turfs
+      if (activeTab === 'turf' && selectedCategory !== 'all') {
          const targetSports = sports.filter(s => (s.category || s.name) === selectedCategory);
          const targetSportIds = targetSports.map(s => s.id);
          const targetSportNames = targetSports.map(s => s.name);
@@ -45,10 +71,17 @@ export default function BookEngine({
          if (!hasGlobalSport && !hasSlotSport) return false;
       }
 
-      // 2. City Match
+      // 2. Profession Match (only when activeTab === 'pros')
+      if (activeTab === 'pros' && selectedProfession !== 'all') {
+         const matchCoachType = turf.coachType?.toLowerCase() === selectedProfession.toLowerCase();
+         const matchProfessions = Array.isArray(turf.professions) && turf.professions.some((p: string) => p.toLowerCase() === selectedProfession.toLowerCase());
+         if (!matchCoachType && !matchProfessions) return false;
+      }
+
+      // 3. City Match
       if (selectedCityId !== 'all' && turf.cityId !== selectedCityId) return false;
 
-      // 3. Slot Date/Time Intersection
+      // 4. Slot Date/Time Intersection
       if (searchDate || searchTime) {
          // Get all slots belonging to this turf
          const turfSlots = slots.filter(s => s.turfId === turf.id);
@@ -78,11 +111,17 @@ export default function BookEngine({
       
       return true;
     });
-  }, [activeTab, selectedCategory, selectedCityId, searchDate, searchTime, turfs, slots]);
+  }, [activeTab, selectedCategory, selectedProfession, selectedCityId, searchDate, searchTime, turfs, slots, sports]);
+
+  const handleTabChange = (tab: 'turf'|'pros'|'history') => {
+    setActiveTab(tab);
+    setSelectedCategory('all');
+    setSelectedProfession('all');
+  };
 
   return (
     <>
-      <BookToggle activeTab={activeTab} setActiveTab={setActiveTab} />
+      <BookToggle activeTab={activeTab} setActiveTab={handleTabChange} />
       
       {activeTab === 'history' ? (
         <PlayerBookingHistory />
@@ -98,6 +137,28 @@ export default function BookEngine({
              searchTime={searchTime}
              setSearchTime={setSearchTime}
           />
+          
+          {availableProfessions.length > 0 && (
+            <div className="flex overflow-x-auto gap-2 pb-1 snap-x hide-scrollbar [&::-webkit-scrollbar]:hidden px-1">
+              <button 
+                onClick={() => setSelectedProfession('all')}
+                className={`flex-shrink-0 snap-center px-5 py-2 rounded-full text-xs font-bold border transition-all ${selectedProfession === 'all' ? 'bg-accent text-black border-accent' : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:text-white'}`}
+              >
+                 {t('sports.allProfessions')}
+              </button>
+              
+              {availableProfessions.map((prof) => (
+                <button 
+                  key={prof} 
+                  onClick={() => setSelectedProfession(prof)}
+                  className={`flex-shrink-0 snap-center px-5 py-2 rounded-full text-xs font-bold border transition-all ${selectedProfession === prof ? 'bg-accent text-black border-accent' : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:text-white'}`}
+                >
+                  {prof}
+                </button>
+              ))}
+            </div>
+          )}
+
           <TurfList turfs={filteredTurfs} cities={cities} sports={sports} groupId={groupId} />
         </div>
       ) : (

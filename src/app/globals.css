@@ -135,14 +135,22 @@ body {
 /* Green scrollbar — used on home carousels */
 .green-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #00ff41 transparent;
+  scrollbar-color: rgba(0, 255, 65, 0.3) transparent;
 }
-.green-scrollbar::-webkit-scrollbar         { height: 3px; }
-.green-scrollbar::-webkit-scrollbar-track   { background: transparent; margin: 0 16px; }
+.green-scrollbar::-webkit-scrollbar         { height: 2px; }
+.green-scrollbar::-webkit-scrollbar-track   { background: rgba(255, 255, 255, 0.03); margin: 0 16px; border-radius: 99px; }
 .green-scrollbar::-webkit-scrollbar-thumb   {
-  background: #00ff41;
+  background: rgba(0, 255, 65, 0.35);
   border-radius: 99px;
-  opacity: 0.7;
+}
+.green-scrollbar::-webkit-scrollbar-button  { display: none; }
+@media (min-width: 1024px) {
+  .green-scrollbar::-webkit-scrollbar-button {
+    display: block;
+    width: 6px;
+    height: 6px;
+    background: transparent;
+  }
 }
 
 /* ── Made in Bangladesh — top origin banner ───────────────────── */
