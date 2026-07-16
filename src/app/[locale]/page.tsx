@@ -814,6 +814,7 @@ export default async function RootPage({ params }: { params: Promise<{ locale: s
             {/* 8. Partners + Join strips (Collapsed) */}
             <JoinUsBentoSection compact={true} />
             <SponsorsBar 
+              key="sponsors-compact"
               sponsors={sponsors} 
               settings={sponsorSettings ?? { autoSlide: false, intervalMs: 3500 }} 
               compact={true}
@@ -832,6 +833,7 @@ export default async function RootPage({ params }: { params: Promise<{ locale: s
 
             {/* 2. Partners row */}
             <SponsorsBar 
+              key="sponsors-full"
               sponsors={sponsors} 
               settings={sponsorSettings ?? { autoSlide: true, intervalMs: 3500 }} 
             />
