@@ -79,7 +79,7 @@ export default function ProfessionalsSection({ initialProfessionals }: Professio
 
       {/* Professional Type Filter Pills */}
       {availableTypes.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto green-scrollbar pb-1 snap-x">
+        <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1.5 snap-x">
           <button
             onClick={() => setSelectedType('ALL')}
             className={`px-3 py-1.5 rounded-xl text-[11px] font-black shrink-0 transition-all border snap-start whitespace-nowrap
