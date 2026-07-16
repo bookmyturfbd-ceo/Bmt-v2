@@ -1,6 +1,5 @@
 import HomeHeader from '@/components/home/HomeHeader';
 import HeroBanner from '@/components/home/HeroBanner';
-import SearchBar from '@/components/home/SearchBar';
 import SportsTurfSection from '@/components/home/SportsTurfSection';
 import SponsorsBar from '@/components/home/SponsorsBar';
 import JoinUsBentoSection from '@/components/home/JoinUsBentoSection';
@@ -782,22 +781,11 @@ export default async function RootPage({ params }: { params: Promise<{ locale: s
             )}
 
             {/* 3. Search & Booking Section */}
-            {isTimerActive ? (
-              <SportsTurfSection
-                initialSports={sports}
-                initialTurfs={standardTurfs as any}
-                turfServiceSetting={turfServiceSetting ?? { isActive: false, launchAt: null }}
-              />
-            ) : (
-              <>
-                <SearchBar turfs={standardTurfs as any} sports={sports} />
-                <SportsTurfSection
-                  initialSports={sports}
-                  initialTurfs={standardTurfs as any}
-                  turfServiceSetting={turfServiceSetting ?? { isActive: false, launchAt: null }}
-                />
-              </>
-            )}
+            <SportsTurfSection
+              initialSports={sports}
+              initialTurfs={standardTurfs as any}
+              turfServiceSetting={turfServiceSetting ?? { isActive: false, launchAt: null }}
+            />
 
             {/* 4. Hire Professionals (after turf!) */}
             <ProfessionalsSection initialProfessionals={professionals as any} />
@@ -842,22 +830,11 @@ export default async function RootPage({ params }: { params: Promise<{ locale: s
             <JoinUsBentoSection />
 
             {/* 4. Search + Sports + Available Turfs */}
-            {isTimerActive ? (
-              <SportsTurfSection
-                initialSports={sports}
-                initialTurfs={standardTurfs as any}
-                turfServiceSetting={turfServiceSetting ?? { isActive: false, launchAt: null }}
-              />
-            ) : (
-              <>
-                <SearchBar turfs={standardTurfs as any} sports={sports} />
-                <SportsTurfSection
-                  initialSports={sports}
-                  initialTurfs={standardTurfs as any}
-                  turfServiceSetting={turfServiceSetting ?? { isActive: false, launchAt: null }}
-                />
-              </>
-            )}
+            <SportsTurfSection
+              initialSports={sports}
+              initialTurfs={standardTurfs as any}
+              turfServiceSetting={turfServiceSetting ?? { isActive: false, launchAt: null }}
+            />
 
             {/* 5. Hire Professionals (after turf!) */}
             <ProfessionalsSection initialProfessionals={professionals as any} />

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Building2, MapPin, ChevronRight, Clock } from 'lucide-react';
+import { Building2, MapPin, ChevronRight, Clock, Search, X } from 'lucide-react';
 import { useLocale } from 'next-intl';
 
 interface Sport { id: string; name: string; category?: string; }
@@ -143,12 +143,20 @@ export default function SportsTurfSection({
     )
   ).sort();
 
+  const [searchQuery, setSearchQuery] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedDivision, setSelectedDivision] = useState<string | null>(null);
 
-  const publishedTurfs = initialTurfs;
-  const filteredTurfs = publishedTurfs.filter(t => {
-    // 1. Sport category match
+  const filteredTurfs = initialTurfs.filter(t => {
+    // 1. Search query match (name, area, division)
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchName = t.name.toLowerCase().includes(q);
+      const matchArea = t.area?.toLowerCase().includes(q) || false;
+      const matchDivision = t.division?.name?.toLowerCase().includes(q) || false;
+      if (!matchName && !matchArea && !matchDivision) return false;
+    }
+    // 2. Sport category match
     if (selected) {
       const sportIds = initialSports
         .filter(s => s.name === selected)
@@ -156,7 +164,7 @@ export default function SportsTurfSection({
       const matchesSport = Array.isArray(t.sportIds) && t.sportIds.some(id => sportIds.includes(id));
       if (!matchesSport) return false;
     }
-    // 2. Division match
+    // 3. Division match
     if (selectedDivision) {
       if (t.division?.name?.toLowerCase() !== selectedDivision.toLowerCase()) {
         return false;
@@ -172,91 +180,105 @@ export default function SportsTurfSection({
 
   return (
     <>
-      {/* ── Sports Pill Row ── */}
-      <section className="pt-5 pb-2">
-        <div className="flex items-center justify-between px-4 mb-3">
-          <h3 className="text-xl font-bold tracking-tight">Sports</h3>
-          <span className="text-xs font-bold text-neutral-500 tracking-wider uppercase">
-            {sportItems.length} {sportItems.length === 1 ? 'sport' : 'sports'}
-          </span>
+      {/* Unified Discover (Search & Filters) Panel */}
+      <div className="mx-4 mt-5 p-5 rounded-3xl border border-white/5 bg-neutral-900/50 backdrop-blur-md shadow-2xl flex flex-col gap-4">
+        {/* Search input */}
+        <div className="relative flex items-center gap-2">
+          <div className="flex-1 relative flex items-center h-12 bg-neutral-950/80 rounded-2xl border border-white/10 shadow-inner px-4 gap-2 focus-within:border-[#00ff41]/40 transition-all">
+            <Search size={15} className="text-neutral-500 shrink-0" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder={locale === 'bn' ? "মাঠের নাম বা এলাকা দিয়ে খুঁজুন..." : "Search by turf name or location..."}
+              className="flex-1 bg-transparent outline-none text-white text-xs font-semibold placeholder:text-neutral-500 py-3"
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')} 
+                className="shrink-0 hover:text-white text-neutral-500 transition-colors"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="flex gap-2.5 overflow-x-auto green-scrollbar px-4 pb-3 snap-x">
-          <button
-            onClick={() => setSelected(null)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full shrink-0 transition-all active:scale-95 snap-start border text-xs font-black whitespace-nowrap
-              ${!selected
-                ? 'bg-accent text-black border-accent shadow-[0_0_12px_rgba(0,255,65,0.3)]'
-                : 'bg-[var(--panel-bg)] border-[var(--panel-border)] text-[var(--muted)] hover:border-accent/40'
-              }`}
-          >
-            <span>🏟</span> All Turfs
-          </button>
-
-          {sportItems.map(sport => {
-            const isActive = selected === sport.name;
-            return (
+        {/* Filters inline */}
+        <div className="flex flex-col gap-3">
+          {/* Sports row */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-wider text-neutral-500 shrink-0 min-w-[50px]">Sports:</span>
+            <div className="flex-1 flex gap-1.5 overflow-x-auto hide-scrollbar scroll-smooth">
               <button
-                key={sport.id}
-                onClick={() => setSelected(sport.name)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full shrink-0 transition-all active:scale-95 snap-start border text-xs font-black whitespace-nowrap
-                  ${isActive
-                    ? 'bg-accent text-black border-accent shadow-[0_0_12px_rgba(0,255,65,0.3)]'
-                    : 'bg-[var(--panel-bg)] border-[var(--panel-border)] text-[var(--muted)] hover:border-accent/40'
+                onClick={() => setSelected(null)}
+                className={`px-3 py-1.5 rounded-xl border text-[10px] font-bold whitespace-nowrap transition-all shrink-0
+                  ${!selected
+                    ? 'bg-[#00ff41]/10 text-accent border-[#00ff41]/30 shadow-[0_0_10px_rgba(0,255,65,0.05)]'
+                    : 'bg-neutral-950/60 border-white/5 text-neutral-400 hover:border-white/10'
                   }`}
               >
-                <span>{sportEmoji(sport.name)}</span>
-                {sport.name}
+                All
               </button>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* ── Locations Pill Row ── */}
-      {divisionItems.length > 0 && (
-        <section className="pt-2 pb-2">
-          <div className="flex items-center justify-between px-4 mb-3">
-            <h3 className="text-xl font-bold tracking-tight">Locations</h3>
-            <span className="text-xs font-bold text-neutral-500 tracking-wider uppercase">
-              {divisionItems.length} {divisionItems.length === 1 ? 'area' : 'areas'}
-            </span>
+              {sportItems.map(sport => {
+                const isActive = selected === sport.name;
+                return (
+                  <button
+                    key={sport.id}
+                    onClick={() => setSelected(sport.name)}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-xl border text-[10px] font-bold whitespace-nowrap transition-all shrink-0
+                      ${isActive
+                        ? 'bg-[#00ff41]/10 text-accent border-[#00ff41]/30 shadow-[0_0_10px_rgba(0,255,65,0.05)]'
+                        : 'bg-neutral-950/60 border-white/5 text-neutral-400 hover:border-white/10'
+                      }`}
+                  >
+                    <span>{sportEmoji(sport.name)}</span>
+                    {sport.name}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          <div className="flex gap-2.5 overflow-x-auto green-scrollbar px-4 pb-3 snap-x">
-            <button
-              onClick={() => setSelectedDivision(null)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full shrink-0 transition-all active:scale-95 snap-start border text-xs font-black whitespace-nowrap
-                ${!selectedDivision
-                  ? 'bg-accent text-black border-accent shadow-[0_0_12px_rgba(0,255,65,0.3)]'
-                  : 'bg-[var(--panel-bg)] border-[var(--panel-border)] text-[var(--muted)] hover:border-accent/40'
-                }`}
-            >
-              <span>📍</span> All Areas
-            </button>
-
-            {divisionItems.map(divName => {
-              const isActive = selectedDivision === divName;
-              return (
+          {/* Locations row */}
+          {divisionItems.length > 0 && (
+            <div className="flex items-center gap-2 border-t border-white/5 pt-3">
+              <span className="text-[10px] font-black uppercase tracking-wider text-neutral-500 shrink-0 min-w-[50px]">Areas:</span>
+              <div className="flex-1 flex gap-1.5 overflow-x-auto hide-scrollbar scroll-smooth">
                 <button
-                  key={divName}
-                  onClick={() => setSelectedDivision(divName)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full shrink-0 transition-all active:scale-95 snap-start border text-xs font-black whitespace-nowrap
-                    ${isActive
-                      ? 'bg-accent text-black border-accent shadow-[0_0_12px_rgba(0,255,65,0.3)]'
-                      : 'bg-[var(--panel-bg)] border-[var(--panel-border)] text-[var(--muted)] hover:border-accent/40'
+                  onClick={() => setSelectedDivision(null)}
+                  className={`px-3 py-1.5 rounded-xl border text-[10px] font-bold whitespace-nowrap transition-all shrink-0
+                    ${!selectedDivision
+                      ? 'bg-[#00ff41]/10 text-accent border-[#00ff41]/30 shadow-[0_0_10px_rgba(0,255,65,0.05)]'
+                      : 'bg-neutral-950/60 border-white/5 text-neutral-400 hover:border-white/10'
                     }`}
                 >
-                  📍 {divName}
+                  All
                 </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
+                {divisionItems.map(divName => {
+                  const isActive = selectedDivision === divName;
+                  return (
+                    <button
+                      key={divName}
+                      onClick={() => setSelectedDivision(divName)}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-xl border text-[10px] font-bold whitespace-nowrap transition-all shrink-0
+                        ${isActive
+                          ? 'bg-[#00ff41]/10 text-accent border-[#00ff41]/30 shadow-[0_0_10px_rgba(0,255,65,0.05)]'
+                          : 'bg-neutral-950/60 border-white/5 text-neutral-400 hover:border-white/10'
+                        }`}
+                    >
+                      📍 {divName}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* ── Turf Carousel ── */}
-      <section className="pb-6">
+      <section className="pt-5 pb-6">
         <div className="flex items-center justify-between px-4 mb-3">
           <h3 className="text-sm font-black tracking-tight">
             {selected ? `${selected} Turfs` : 'Available Turfs'}
