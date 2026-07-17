@@ -717,16 +717,6 @@ export default async function RootPage({ params }: { params: Promise<{ locale: s
               settings={carouselSettings ?? { autoSlide: true, intervalMs: 3500 }}
             />
 
-            {/* 2. Partners row */}
-            <SponsorsBar 
-              key="sponsors-full"
-              sponsors={sponsors} 
-              settings={sponsorSettings ?? { autoSlide: true, intervalMs: 3500 }} 
-            />
-
-            {/* 3. Join the Platform */}
-            <JoinUsBentoSection />
-
             {/* 4. Search + Sports + Available Turfs */}
             <SportsTurfSection
               initialSports={sports}
@@ -742,6 +732,16 @@ export default async function RootPage({ params }: { params: Promise<{ locale: s
 
             {/* 7. Leaderboard */}
             {renderLeaderboardSection()}
+
+            {/* Partners row */}
+            <SponsorsBar 
+              key="sponsors-full"
+              sponsors={sponsors} 
+              settings={sponsorSettings ?? { autoSlide: true, intervalMs: 3500 }} 
+            />
+
+            {/* Join the Platform */}
+            <JoinUsBentoSection />
 
             {/* 8. Merch Banner (moved below Leaderboard) */}
             {renderMerchBanner()}
