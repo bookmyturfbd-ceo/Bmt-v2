@@ -713,7 +713,7 @@ export default function SquadManager({ team, setTeam, myRole, tournamentMatches 
     if (q.length < 3) { setSearchResults([]); return; }
     setSearching(true);
     const data = await fetch(`/api/players/search?q=${encodeURIComponent(q)}`).then(r => r.json());
-    setSearchResults(data.players || []);
+    setSearchResults(Array.isArray(data) ? data : (data.players || []));
     setSearching(false);
   }, []);
 

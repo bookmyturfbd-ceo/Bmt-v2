@@ -177,7 +177,8 @@ function PlayApp({ locale, playerId, playerName, router }: { locale: string; pla
     if (q.length < 3) { setSearchResults([]); return; }
     setSearching(true);
     const d = await fetch(`/api/players/search?q=${encodeURIComponent(q)}`).then(r => r.json());
-    setSearchResults((d.players || []).filter((p: any) => p.id !== playerId));
+    const playersArr = Array.isArray(d) ? d : (d.players || []);
+    setSearchResults(playersArr.filter((p: any) => p.id !== playerId));
     setSearching(false);
   }, [playerId]);
 

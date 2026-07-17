@@ -310,7 +310,7 @@ function ScorerSearchModal({ myTeam, opponentTeam, onClose, onSelect }: {
       setSearching(true);
       const r = await fetch(`/api/players/search?q=${encodeURIComponent(query)}`);
       const d = await r.json();
-      setResults(d.players || []);
+      setResults(Array.isArray(d) ? d : (d.players || []));
       setSearching(false);
     }, 400);
     return () => clearTimeout(delay);
