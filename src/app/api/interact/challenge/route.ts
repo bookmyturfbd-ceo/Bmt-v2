@@ -165,7 +165,19 @@ export async function PATCH(req: NextRequest) {
       where: { id: matchId },
       include: {
         teamA: { select: { id: true, name: true, ownerId: true } },
-        teamB: { select: { id: true, name: true, ownerId: true }, include: { members: { select: { playerId: true, role: true } } } },
+        teamB: {
+          select: {
+            id: true,
+            name: true,
+            ownerId: true,
+            members: {
+              select: {
+                playerId: true,
+                role: true
+              }
+            }
+          }
+        },
       },
     });
 
