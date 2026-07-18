@@ -225,6 +225,14 @@ export default function NotificationCenter() {
       } else if (targetUrl === '/en' || targetUrl === '/bn') {
         targetUrl = '/';
       }
+
+      // Notification type specific routing overrides
+      if (notif.type.startsWith('challenge_')) {
+        targetUrl = '/interact';
+      } else if (notif.type.startsWith('team_')) {
+        targetUrl = '/teams';
+      }
+
       router.push(targetUrl);
     }
   };
