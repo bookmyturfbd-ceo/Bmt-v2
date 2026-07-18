@@ -218,7 +218,14 @@ export default function NotificationCenter() {
     }
 
     if (notif.url) {
-      router.push(notif.url);
+      let targetUrl = notif.url;
+      // Strip leading slash + 2-letter locale if present (e.g. /en/abc -> /abc)
+      if (targetUrl.startsWith('/en/') || targetUrl.startsWith('/bn/')) {
+        targetUrl = targetUrl.substring(3);
+      } else if (targetUrl === '/en' || targetUrl === '/bn') {
+        targetUrl = '/';
+      }
+      router.push(targetUrl);
     }
   };
 
