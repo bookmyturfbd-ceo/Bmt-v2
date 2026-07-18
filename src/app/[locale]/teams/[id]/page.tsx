@@ -451,6 +451,31 @@ export default function SingleTeamPage() {
     setLeaving(false);
   };
 
+  const handleJoinChallenge = async () => {
+    setSaving(true);
+    const res = await fetch(`/api/teams/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'subscribe_challenge' }),
+    });
+    const d = await res.json();
+    if (res.ok) {
+      setTeam({
+        ...team,
+        isSubscribed: true,
+        challengeSubscription: {
+          ...team.challengeSubscription,
+          active: true,
+          subscribedAt: new Date().toISOString()
+        }
+      });
+      setShowSubModal(false);
+    } else {
+      alert(d.error || 'Failed to join Challenge Market.');
+    }
+    setSaving(false);
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen pb-32 font-sans" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
@@ -1190,13 +1215,45 @@ export default function SingleTeamPage() {
               )}
             </div>
 
-            <div className="mt-4 flex gap-2">
-              <motion.button
-                whileTap={btnTap}
-                onClick={() => setShowSubModal(false)}
-                className="w-full py-3 font-bold rounded-xl transition-colors text-sm"
-                style={{ background: 'var(--bg-surface-raised)', color: 'var(--text-secondary)' }}
-              >Close</motion.button>
+            <div className="mt-4 flex flex-col gap-2">
+              <div className="flex gap-2 w-full">
+                {isSubActive ? (
+                  <motion.button
+                    whileTap={btnTap}
+                    onClick={() => setShowSubModal(false)}
+                    className="w-full py-3 font-bold rounded-xl transition-colors text-sm"
+                    style={{ background: 'var(--bg-surface-raised)', color: 'var(--text-secondary)' }}
+                  >Close</motion.button>
+                ) : (
+                  <>
+                    <motion.button
+                      whileTap={btnTap}
+                      onClick={() => setShowSubModal(false)}
+                      className="w-[100px] py-3 font-bold rounded-xl transition-colors text-sm"
+                      style={{ background: 'var(--bg-surface-raised)', color: 'var(--text-secondary)' }}
+                    >Cancel</motion.button>
+                    <motion.button
+                      whileTap={btnTap}
+                      onClick={handleJoinChallenge}
+                      disabled={saving || !isOM}
+                      className="flex-1 py-3 font-black rounded-xl transition-colors text-sm flex items-center justify-center gap-1.5 disabled:opacity-40"
+                      style={{ background: 'var(--accent)', color: '#000' }}
+                    >
+                      {saving ? <Loader2 size={15} className="animate-spin" /> : (
+                        <>
+                          <Swords size={14} />
+                          Join Market
+                        </>
+                      )}
+                    </motion.button>
+                  </>
+                )}
+              </div>
+              {!isSubActive && !isOM && (
+                <p className="text-[10px] text-red-400 font-bold text-center mt-1">
+                  Only Team Owner or Manager can join Challenge Market.
+                </p>
+              )}
             </div>
           </div>
         </div>
