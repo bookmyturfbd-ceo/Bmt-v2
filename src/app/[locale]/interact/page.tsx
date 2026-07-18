@@ -204,7 +204,7 @@ export default function MarketPage() {
     if (scoutTeamId !== 'ALL') return; // already user-selected, don't override
     const first = myTeams[0];
     setScoutTeamId(first.id);
-    setSportFilter(first.sportType);
+    setSportFilter(getSportFamily(first.sportType));
     const lbl = getRankData(first.teamMmr ?? 1000).label;
     if (lbl.includes('Bronze')) setDivisionFilter('Bronze');
     else if (lbl.includes('Silver')) setDivisionFilter('Silver');
