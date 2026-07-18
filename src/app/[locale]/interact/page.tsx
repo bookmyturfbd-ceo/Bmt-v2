@@ -577,7 +577,7 @@ export default function MarketPage() {
           body: JSON.stringify({ matchId, action }),
         });
         if (res.ok) {
-          if (action === 'accept') router.push(`/${locale}/interact/match/${matchId}`);
+          if (action === 'accept') router.push(`/interact/match/${matchId}`);
           loadChallenges();
         }
       } else {
@@ -592,7 +592,7 @@ export default function MarketPage() {
              const d = await mRes.json();
              if (d.match?.status === 'LIVE') {
                const isCricket = getSportFamily(d.match.teamA?.sportType) === 'CRICKET';
-               const liveRoute = isCricket ? `/${locale}/matches/${matchId}/cricket` : `/${locale}/matches/${matchId}/live`;
+               const liveRoute = isCricket ? `/matches/${matchId}/cricket` : `/matches/${matchId}/live`;
                router.push(liveRoute);
                return;
              }
@@ -1453,7 +1453,7 @@ export default function MarketPage() {
                           className="w-full py-3 bg-[#00ff41] hover:bg-[#00dd38] border border-[#00ff41]/50 text-black font-black text-sm uppercase rounded-2xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 active:scale-[0.98]">
                           {(amA ? m.matchStartedByA : m.matchStartedByB) ? '✓ Ready — waiting for opponent' : '🚀 Start Match'}
                         </button>
-                        <button onClick={() => router.push(`/${locale}/interact/match/${m.id}`)}
+                        <button onClick={() => router.push(`/interact/match/${m.id}`)}
                           className="w-full py-2.5 text-xs font-bold text-neutral-400 hover:text-white flex items-center justify-center gap-1.5 transition-colors">
                           <ExternalLink size={12} /> Open Match Board (History & Chat)
                         </button>
@@ -1479,7 +1479,7 @@ export default function MarketPage() {
                     <div className="flex-1 text-center"><p className="font-black text-neutral-500">vs</p></div>
                     <TeamAvatar team={oppHere || m.teamA} accent="green" flip />
                   </div>
-                  <button onClick={() => router.push(`/${locale}/interact/match/${m.id}`)}
+                  <button onClick={() => router.push(`/interact/match/${m.id}`)}
                     className="w-full py-3 bg-[#00ff41]/10 hover:bg-[#00ff41]/20 border border-[#00ff41]/30 text-[#00ff41] font-black text-sm rounded-2xl flex items-center justify-center gap-2 transition-all">
                     <ExternalLink size={13} /> Open Interaction Board
                   </button>
