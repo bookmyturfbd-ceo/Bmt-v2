@@ -78,9 +78,9 @@ export default function NotificationCenter() {
           }
         }
 
-        // Subscribe to database changes (inserts only) for notifications matching this user
+        // Subscribe to database changes and direct broadcasts for notifications matching this user
         channel = supabase
-          .channel(`public-notifications-changes-${userId}`)
+          .channel(`notifications:${userId}`)
           .on(
             'postgres_changes',
             {
@@ -91,8 +91,23 @@ export default function NotificationCenter() {
             },
             (payload) => {
               const newNotif = payload.new as NotificationItem;
-              setNotifications(prev => [newNotif, ...prev]);
-              setUnreadCount(prev => prev + 1);
+              setNotifications(prev => {
+                if (prev.some(n => n.id === newNotif.id)) return prev;
+                setUnreadCount(c => c + 1);
+                return [newNotif, ...prev];
+              });
+            }
+          )
+          .on(
+            'broadcast',
+            { event: 'new_notification' },
+            (payload) => {
+              const newNotif = payload.payload as NotificationItem;
+              setNotifications(prev => {
+                if (prev.some(n => n.id === newNotif.id)) return prev;
+                setUnreadCount(c => c + 1);
+                return [newNotif, ...prev];
+              });
             }
           )
           .subscribe();
