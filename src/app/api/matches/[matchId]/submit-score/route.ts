@@ -57,9 +57,22 @@ export async function POST(
       return NextResponse.json({ error: 'Only OMC can submit score' }, { status: 403 });
     }
 
-    const { scoreForUs, scoreForThem } = await req.json();
+    const { scoreForUs, scoreForThem, playedMemberIds } = await req.json();
     if (typeof scoreForUs !== 'number' || typeof scoreForThem !== 'number' || scoreForUs < 0 || scoreForThem < 0) {
       return NextResponse.json({ error: 'Invalid score values' }, { status: 400 });
+    }
+
+    if (Array.isArray(playedMemberIds)) {
+      const picks = await prisma.matchRosterPick.findMany({
+        where: { matchId, teamId: myTeamId }
+      });
+      const updatePicks = picks.map(p => prisma.matchRosterPick.update({
+        where: { id: p.id },
+        data: { isStarter: playedMemberIds.includes(p.memberId) }
+      }));
+      if (updatePicks.length > 0) {
+        await prisma.$transaction(updatePicks);
+      }
     }
 
     // Map submitted score to the A/B perspective

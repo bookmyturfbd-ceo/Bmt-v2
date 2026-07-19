@@ -34,13 +34,41 @@ export function calcTeamMMR(
   teamBId  : string,
   winnerId : string | null,
   sportType: SportType,
-): TeamMMRResult {
-  let mmrChangeA: number, mmrChangeB: number;
-  if (winnerId === teamAId)      { mmrChangeA =  TEAM_WIN_MMR; mmrChangeB = TEAM_LOSS_MMR; }
-  else if (winnerId === teamBId) { mmrChangeA = TEAM_LOSS_MMR; mmrChangeB =  TEAM_WIN_MMR; }
-  else                           { mmrChangeA = TEAM_DRAW_MMR; mmrChangeB = TEAM_DRAW_MMR; }
+  teamAMmr : number = 1000,
+  teamBMmr : number = 1000,
+  isProvisional: boolean = false,
+): TeamMMRResult & { multA: number; multB: number } {
+  let baseChangeA = 0;
+  let baseChangeB = 0;
 
-  return { mmrChangeA, mmrChangeB, mmrField: getSportMmrField(sportType) };
+  if (winnerId === teamAId)      { baseChangeA =  TEAM_WIN_MMR; baseChangeB = TEAM_LOSS_MMR; }
+  else if (winnerId === teamBId) { baseChangeA = TEAM_LOSS_MMR; baseChangeB =  TEAM_WIN_MMR; }
+  else                           { baseChangeA = TEAM_DRAW_MMR; baseChangeB = TEAM_DRAW_MMR; }
+
+  let multA = 1.0;
+  let multB = 1.0;
+
+  // Draws are flat (no scaling), as are placement matches
+  if (winnerId !== null && !isProvisional) {
+    const diffA = teamBMmr - teamAMmr;
+    const diffB = teamAMmr - teamBMmr;
+
+    if (winnerId === teamAId) {
+      multA = diffA >= 200 ? 1.5 : diffA <= -200 ? 0.5 : 1.0;
+      multB = diffB >= 200 ? 0.5 : diffB <= -200 ? 1.5 : 1.0;
+    } else if (winnerId === teamBId) {
+      multA = diffA >= 200 ? 0.5 : diffA <= -200 ? 1.5 : 1.0;
+      multB = diffB >= 200 ? 1.5 : diffB <= -200 ? 0.5 : 1.0;
+    }
+  }
+
+  return {
+    mmrChangeA: Math.round(baseChangeA * multA),
+    mmrChangeB: Math.round(baseChangeB * multB),
+    mmrField: getSportMmrField(sportType),
+    multA,
+    multB,
+  };
 }
 
 // ─── Player base MMR (applied at signoff for every roster player) ─────────────
@@ -60,13 +88,31 @@ export function calcPlayerBaseMMR(
   input    : PlayerBaseMMRInput[],
   winnerId : string | null,
   sportType: SportType,
+  teamAId  : string,
+  multA    : number = 1.0,
+  multB    : number = 1.0,
+  playedPlayerIds?: string[], // Gating!
 ): PlayerBaseMMRResult[] {
   const mmrField = getSportMmrField(sportType);
   return input.map(p => {
-    let mmrChange: number;
-    if (winnerId === null) mmrChange = PLAYER_DRAW_BASE;
-    else mmrChange = p.teamId === winnerId ? PLAYER_WIN_BASE : PLAYER_LOSS_BASE;
-    return { playerId: p.playerId, mmrChange, mmrField };
+    // Participation check: unplayed bench players get 0 MMR change
+    if (playedPlayerIds && !playedPlayerIds.includes(p.playerId)) {
+      return { playerId: p.playerId, mmrChange: 0, mmrField };
+    }
+
+    let baseChange = 0;
+    if (winnerId === null) {
+      baseChange = PLAYER_DRAW_BASE;
+    } else {
+      baseChange = p.teamId === winnerId ? PLAYER_WIN_BASE : PLAYER_LOSS_BASE;
+    }
+
+    const mult = p.teamId === teamAId ? multA : multB;
+    return {
+      playerId: p.playerId,
+      mmrChange: Math.round(baseChange * mult),
+      mmrField,
+    };
   });
 }
 

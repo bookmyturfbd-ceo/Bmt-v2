@@ -79,6 +79,10 @@ export function PublicProfileClient({
     ['bmt_auth', 'bmt_role', 'bmt_player_id', 'bmt_name'].forEach(k => {
       document.cookie = `${k}=; path=/; max-age=0`;
     });
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('bmt_remember_me');
+      localStorage.removeItem('bmt_session_backup');
+    }
     router.replace(`/${locale}/login`);
   };
 

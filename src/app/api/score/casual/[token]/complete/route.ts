@@ -60,7 +60,33 @@ export async function POST(
                    : null;
 
     const sportType = (match.sportType ?? match.teamA.sportType) as any;
-    const { mmrChangeA, mmrChangeB, mmrField } = calcTeamMMR(match.teamA_Id, match.teamB_Id, winnerId, sportType);
+    const isCricket = sportType.includes('CRICKET');
+    const teamAMmr = isCricket ? (match.teamA.cricketMmr ?? 1000) : (match.teamA.footballMmr ?? 1000);
+    const teamBMmr = isCricket ? (match.teamB.cricketMmr ?? 1000) : (match.teamB.footballMmr ?? 1000);
+
+    const completedMatchesA = await prisma.match.count({
+      where: {
+        OR: [{ teamA_Id: match.teamA_Id }, { teamB_Id: match.teamA_Id }],
+        status: 'COMPLETED'
+      }
+    });
+    const completedMatchesB = await prisma.match.count({
+      where: {
+        OR: [{ teamA_Id: match.teamB_Id }, { teamB_Id: match.teamB_Id }],
+        status: 'COMPLETED'
+      }
+    });
+    const isProvisional = completedMatchesA < 3 || completedMatchesB < 3;
+
+    const { mmrChangeA, mmrChangeB, mmrField, multA, multB } = calcTeamMMR(
+      match.teamA_Id,
+      match.teamB_Id,
+      winnerId,
+      sportType,
+      teamAMmr,
+      teamBMmr,
+      isProvisional
+    );
 
     // MMR cap check: max 2 games per week between same teams
     const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -89,6 +115,9 @@ export async function POST(
       rosterMembers.map(m => ({ playerId: m.playerId, teamId: m.teamId })),
       recentCount >= 2 ? null : winnerId,
       sportType,
+      match.teamA_Id,
+      recentCount >= 2 ? 1.0 : multA,
+      recentCount >= 2 ? 1.0 : multB,
     );
 
     // Prepare upserts for PlayerMatchStat

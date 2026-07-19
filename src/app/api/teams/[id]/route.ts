@@ -47,6 +47,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           teamB: { select: { id: true, name: true, logoUrl: true } },
           playerStats: {
             include: { player: { select: { id: true, fullName: true, avatarUrl: true } } }
+          },
+          rosterPicks: true,
+          events: {
+            where: { type: { in: ['SUBSTITUTION', 'SUB' as any] }, status: { not: 'REMOVED' } }
           }
         }
       },
@@ -56,6 +60,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           teamA: { select: { id: true, name: true, logoUrl: true } },
           playerStats: {
             include: { player: { select: { id: true, fullName: true, avatarUrl: true } } }
+          },
+          rosterPicks: true,
+          events: {
+            where: { type: { in: ['SUBSTITUTION', 'SUB' as any] }, status: { not: 'REMOVED' } }
           }
         }
       },

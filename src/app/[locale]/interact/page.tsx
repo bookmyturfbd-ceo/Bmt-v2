@@ -91,6 +91,7 @@ export default function MarketPage() {
   const [loading,   setLoading]   = useState(true);
   const [myTeams,   setMyTeams]   = useState<any[]>([]);
   const [otherTeams,setOtherTeams]= useState<any[]>([]);
+  const scout = myTeams.find(t => t.id === scoutTeamId) ?? myTeams[0];
 
   const [challenges,        setChallenges]        = useState<{ sent: any[]; received: any[]; upcoming: any[] }>({ sent: [], received: [], upcoming: [] });
   const [challengesLoading, setChallengesLoading] = useState(false);
@@ -761,6 +762,18 @@ export default function MarketPage() {
   const historyCards = challenges.upcoming.filter((m: any) => ['COMPLETED', 'DISPUTED'].includes(m.status));
   const vaultCards = historyCards; // alias kept for render block
 
+  const getMmrHint = (scout: any, opponent: any) => {
+    if (!scout || !opponent) return null;
+    const scoutProv = (scout.completedCount ?? 0) < 3;
+    const oppProv = (opponent.completedCount ?? 0) < 3;
+    if (scoutProv || oppProv) return null;
+    const diff = (opponent.teamMmr ?? 1000) - (scout.teamMmr ?? 1000);
+    if (diff >= 200) {
+      return 'Worth up to +120 MMR';
+    }
+    return null;
+  };
+
   // ─────────────────────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1091,6 +1104,7 @@ export default function MarketPage() {
             <div className="px-4 flex flex-col gap-3">
               
               {interleavedFeed.slice(0, visibleCount).map((item: any) => {
+                const scout = myTeams.find((t: any) => t.id === scoutTeamId) ?? myTeams[0];
                 if (item.type === 'open_challenge') {
                   const oc = item.data;
                   const poster = oc.team;
@@ -1133,6 +1147,15 @@ export default function MarketPage() {
                           <p className="text-[10px] text-neutral-500 font-bold truncate">
                             {isPosterProv ? 'NEW CHALLENGER' : posterRank.label} · {recordW}W-{recordL}L-{recordD}D · {poster?.members?.length ?? 0} players
                           </p>
+                          {(() => {
+                            const hint = getMmrHint(scout, poster);
+                            if (!hint) return null;
+                            return (
+                              <span className="mt-1.5 px-2 py-0.5 rounded bg-[#00ff41]/10 border border-[#00ff41]/20 text-[9px] font-black text-[#00ff41] uppercase tracking-wider self-start animate-pulse">
+                                ⭐ {hint}
+                              </span>
+                            );
+                          })()}
                         </div>
                       </div>
 
@@ -1244,6 +1267,15 @@ export default function MarketPage() {
                           <span className="text-[9px] text-neutral-600 font-bold mt-0.5">
                             {isProv ? `Calibrating (${t.completedCount}/3)` : `${t.teamMmr ?? 1000} MMR`}
                           </span>
+                          {(() => {
+                            const hint = getMmrHint(scout, t);
+                            if (!hint) return null;
+                            return (
+                              <span className="text-[8px] font-black text-[#00ff41] bg-[#00ff41]/10 border border-[#00ff41]/20 px-1.5 py-0.5 rounded mt-1.5 whitespace-nowrap animate-pulse">
+                                {hint}
+                              </span>
+                            );
+                          })()}
                         </div>
                       </div>
 
@@ -1412,11 +1444,15 @@ export default function MarketPage() {
                           : <><Lock size={10} className="text-[#00ff41]" /><span className="text-[10px] font-black text-[#00ff41] tracking-wider">BOOKED</span></>
                         }
                       </div>
-                      {m.matchDate && (
-                        <span className="text-[10px] text-neutral-500 font-bold">
-                          {new Date(m.matchDate).toLocaleDateString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      )}
+                      {m.matchDate && (() => {
+                        const info = getMatchTimeStatus(m.matchDate, m.wbtFrom);
+                        if (!info) return null;
+                        return (
+                          <span className={`text-[10px] font-black tracking-wide ${info.isNear ? 'text-[#00ff41] bg-[#00ff41]/10 px-2.5 py-0.5 rounded-lg border border-[#00ff41]/20 shadow-[0_0_10px_rgba(0,255,65,0.05)] animate-pulse' : 'text-neutral-500'}`}>
+                            {info.label}
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     <div className="flex items-center gap-3 mb-4">
@@ -2409,9 +2445,45 @@ export default function MarketPage() {
 }
 
 
+const getMatchTimeStatus = (matchDateStr: string, wbtFromStr: string | null) => {
+  if (!matchDateStr) return null;
+  
+  let matchDateTime: Date;
+  if (wbtFromStr) {
+    matchDateTime = new Date(`${matchDateStr}T${wbtFromStr}:00`);
+  } else {
+    matchDateTime = new Date(matchDateStr);
+  }
+  
+  const now = new Date();
+  const diffMs = matchDateTime.getTime() - now.getTime();
+  
+  if (diffMs <= 0) {
+    return { label: 'Ready to start', isNear: false, isPassed: true };
+  }
+  
+  const diffHours = diffMs / (1000 * 60 * 60);
+  if (diffHours < 24) {
+    const hours = Math.floor(diffHours);
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    return { label: `⏳ Starts in ${hours}h ${minutes}m`, isNear: true, isPassed: false };
+  } else {
+    const days = Math.floor(diffHours / 24);
+    const hours = Math.floor(diffHours % 24);
+    const timeFormatted = matchDateTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    const weekday = matchDateTime.toLocaleDateString('en-US', { weekday: 'short' });
+    return { 
+      label: `${weekday} ${timeFormatted} · in ${days}d ${hours}h`, 
+      isNear: false, 
+      isPassed: false 
+    };
+  }
+};
+
 // ── Small team avatar component ───────────────────────────────────────────────
 function TeamAvatar({ team, accent = 'green', flip }: { team: any; accent?: 'green' | 'purple'; flip?: boolean }) {
   const borderColor = accent === 'green' ? 'border-[#00ff41]/30' : 'border-purple-500/30';
+  const isProv = (team?.completedCount ?? 0) < 3;
   return (
     <div className={`flex items-center gap-2 flex-1 ${flip ? 'flex-row-reverse' : ''}`}>
       <div className={`w-10 h-10 rounded-xl bg-neutral-800 border ${borderColor} flex items-center justify-center overflow-hidden shrink-0`}>
@@ -2419,7 +2491,13 @@ function TeamAvatar({ team, accent = 'green', flip }: { team: any; accent?: 'gre
       </div>
       <div className={`min-w-0 flex-1 ${flip ? 'text-right' : ''}`}>
         <p className="font-black text-sm truncate leading-tight">{team?.name ?? 'Unknown'}</p>
-        <p className="text-[10px] text-neutral-500">{team?.teamMmr ?? '—'} MMR</p>
+        {isProv ? (
+          <span className="inline-block text-[8px] font-black tracking-wide uppercase px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 mt-0.5">
+            Calibrating
+          </span>
+        ) : (
+          <p className="text-[10px] text-neutral-500 mt-0.5">{team?.teamMmr ?? '—'} MMR</p>
+        )}
       </div>
     </div>
   );

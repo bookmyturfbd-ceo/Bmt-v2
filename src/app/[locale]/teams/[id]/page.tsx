@@ -1011,17 +1011,35 @@ export default function SingleTeamPage() {
                                       <th className='px-2 py-2 font-black text-center' style={{ color: 'var(--text-muted)' }}>A</th>
                                       <th className='px-2 py-2 font-black text-center' style={{ color: 'var(--text-muted)' }}>Rtg</th>
                                       <th className='px-2 py-2 font-black text-center' style={{ color: 'var(--text-muted)' }}>\u2605</th>
+                                      <th className='px-2 py-2 font-black text-center' style={{ color: 'var(--text-muted)' }}>MMR</th>
                                     </tr></thead>
                                     <tbody>
-                                      {mStats.map((ps: any) => (
-                                        <tr key={ps.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                          <td className='px-3 py-2 font-bold truncate max-w-[120px]'>{ps.player?.fullName || '\u2014'}</td>
-                                          <td className='px-2 py-2 text-center font-black' style={{ color: 'var(--accent)' }}>{ps.goals ?? 0}</td>
-                                          <td className='px-2 py-2 text-center font-bold'>{ps.assists ?? 0}</td>
-                                          <td className='px-2 py-2 text-center font-bold'>{ps.rating ? ps.rating.toFixed(1) : '\u2014'}</td>
-                                          <td className='px-2 py-2 text-center'>{ps.motm ? '\u2b50' : ''}</td>
-                                        </tr>
-                                      ))}
+                                      {mStats.map((ps: any) => {
+                                        const member = team.members?.find((mb: any) => mb.playerId === ps.playerId);
+                                        const pick = m.rosterPicks?.find((p: any) => p.memberId === member?.id);
+                                        const subEvents = m.events || [];
+                                        const played = pick?.isStarter || subEvents.some((e: any) => e.playerOnId === ps.playerId);
+                                        const changeVal = ps.mmrChange ?? 0;
+                                        const changeStr = changeVal > 0 ? `+${changeVal}` : changeVal === 0 ? '±0' : `${changeVal}`;
+                                        const changeColor = changeVal > 0 ? '#00ff41' : changeVal < 0 ? '#ef4444' : 'var(--text-secondary)';
+
+                                        const isBn = locale === 'bn';
+                                        const playedLabel = isBn ? 'খেলেছে' : 'played';
+                                        const didntPlayLabel = isBn ? 'খেলে নাই' : "didn't play";
+
+                                        return (
+                                          <tr key={ps.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                            <td className='px-3 py-2 font-bold truncate max-w-[120px]'>{ps.player?.fullName || '\u2014'}</td>
+                                            <td className='px-2 py-2 text-center font-black' style={{ color: 'var(--accent)' }}>{ps.goals ?? 0}</td>
+                                            <td className='px-2 py-2 text-center font-bold'>{ps.assists ?? 0}</td>
+                                            <td className='px-2 py-2 text-center font-bold'>{ps.rating ? ps.rating.toFixed(1) : '\u2014'}</td>
+                                            <td className='px-2 py-2 text-center'>{ps.motm ? '\u2b50' : ''}</td>
+                                            <td className='px-2 py-2 text-center font-bold' style={{ color: changeColor, whiteSpace: 'nowrap' }}>
+                                              {played ? `${changeStr} (${playedLabel})` : `\u00b10 (${didntPlayLabel})`}
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
                                     </tbody>
                                   </table>
                                 </div>

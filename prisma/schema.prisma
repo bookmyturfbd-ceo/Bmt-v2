@@ -1024,6 +1024,25 @@ model Match {
   scoreModeRequestedBy String?     // teamId that proposed the mode
   scoreModeAgreed      Boolean     @default(false)
   proposedSingleScorerId String?   // playerId of the proposed single scorer
+  lastReminderSentAt DateTime?
+
+  // Scoring Mode Negotiation
+  negotiation_scoring_mode   String?   // "live" | "after_match"
+  negotiation_live_method    String?   // "individual" | "single_scorer"
+  negotiation_proposed_by    String?   // teamId
+  negotiation_proposed_mode  String?   // "live" | "after_match"
+  negotiation_proposed_method String?  // "individual" | "single_scorer"
+  proposalA_mode             String?
+  proposalA_method           String?
+  proposalB_mode             String?
+  proposalB_method           String?
+  scoringNegotiationStatus   String    @default("negotiating") // "negotiating" | "agreed"
+  teamA_Present              Boolean   @default(false)
+  teamB_Present              Boolean   @default(false)
+  teamA_LastActive           DateTime?
+  teamB_LastActive           DateTime?
+  scoringAgreedAt            DateTime?
+  matchStartedAt             DateTime?
 
 
   seasonId    String?
@@ -1047,6 +1066,7 @@ model Match {
   halfTime         MatchHalfTime?
   cricketInnings   CricketInnings[]
   cricketToss      CricketToss?
+  externalTurfMentions ExternalTurfMention[]
 
   @@map("matches")
 }
@@ -1155,6 +1175,7 @@ model MatchEvent {
   resolvedAt       DateTime?
   resolution       String?        // 'accepted' | 'corrected' | 'removed'
   createdAt        DateTime       @default(now())
+  isEdited         Boolean        @default(false)
 
   match            Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
 
@@ -2661,6 +2682,18 @@ model Notification {
   @@index([userId])
   @@index([read])
   @@map("notifications")
+}
+
+model ExternalTurfMention {
+  id        String   @id @default(uuid())
+  name      String
+  area      String
+  matchId   String   @map("match_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@map("external_turf_mentions")
 }
 
 

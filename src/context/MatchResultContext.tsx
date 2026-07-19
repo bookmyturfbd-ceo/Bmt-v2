@@ -20,6 +20,9 @@ export interface MatchResultPayload {
   currentMmr    : number;          // MMR *after* the change applied
   matchId       : string;
   onDismissPath?: string;          // custom redirect path on dismiss
+  multA         ?: number;
+  multB         ?: number;
+  myMultiplier  ?: number;
 }
 
 // ─── Context type ──────────────────────────────────────────────────────────────

@@ -34,11 +34,16 @@ export async function POST(request: NextRequest) {
   const isCoach      = roleLower.includes('coach') || roleLower.includes('pro');
   const isOwnerRole  = isTurfOwner || isCoach;
 
+  const isHttps = request.url.startsWith('https:');
+  const maxAge = 86400 * 30;
+  const expires = new Date(Date.now() + maxAge * 1000);
   const cookieOpts = {
     path: '/',
-    maxAge: 86400 * 30,
+    maxAge,
+    expires,
     sameSite: 'lax' as const,
     httpOnly: false,
+    secure: isHttps,
   };
 
   if (isOwnerRole) {
@@ -73,7 +78,8 @@ export async function POST(request: NextRequest) {
     const redirect = isCoach ? '/en/dashboard/coach' : '/en/dashboard/owner';
     const roleCookie = isCoach ? 'coach' : 'owner';
     
-    const response = NextResponse.json({ ok: true, redirect });
+    const session = { bmt_auth: '1', bmt_role: roleCookie, bmt_owner_id: owner.id, bmt_name: owner.name };
+    const response = NextResponse.json({ ok: true, redirect, session });
     response.cookies.set('bmt_auth',     '1',        cookieOpts);
     response.cookies.set('bmt_role',     roleCookie, cookieOpts);
     response.cookies.set('bmt_owner_id', owner.id,   cookieOpts);
@@ -82,7 +88,8 @@ export async function POST(request: NextRequest) {
   }
 
   // Non-owner invite flows
-  const response = NextResponse.json({ ok: true, redirect: '/en' });
+  const session = { bmt_auth: '1' };
+  const response = NextResponse.json({ ok: true, redirect: '/en', session });
   response.cookies.set('bmt_auth', '1', cookieOpts);
   return response;
 }

@@ -246,7 +246,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         prisma.player.update({ where: { id: match.teamA.ownerId }, data: { walletBalance: { decrement: halfCost } } }),
         prisma.player.update({ where: { id: match.teamB.ownerId }, data: { walletBalance: { decrement: halfCost } } }),
         prisma.owner.updateMany({ where: { turfs: { some: { id: turf.id } } }, data: { walletBalance: { increment: ownerShareA + ownerShareB } } }),
-        prisma.match.update({ where: { id: matchId }, data: { status: 'SCHEDULED', venueBookedAt: new Date(), bookingCode: code } }),
+        prisma.match.update({ where: { id: matchId }, data: { status: 'SCHEDULED', venueBookedAt: new Date(), bookingCode: code, wbtFrom: slot.startTime, wbtTo: slot.endTime } }),
       ]);
 
       return NextResponse.json({ ok: true, bookingCode: code, halfCost, message: `Venue booked! Booking code: ${code}` });
@@ -400,6 +400,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ]);
 
       await broadcastInteractEvent(matchId, 'bmt_slot_response', { accepted: true, bookingCode: code });
+      
+      // Fire match_confirmed notifications asynchronously
+      sendMatchConfirmedOrUpdatedNotification(matchId, false);
+
       return NextResponse.json({ ok: true, bookingCode: code });
     }
 
@@ -407,18 +411,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (action === 'select_wbt_turf') {
       if (!isOMC || !isTeamA) return NextResponse.json({ error: 'Only challenger OMC can select WBT turf' }, { status: 403 });
       if (!match.rosterLockedA || !match.rosterLockedB) return NextResponse.json({ error: 'Both teams must lock rosters before booking' }, { status: 400 });
-      const { wbtTurfId, wbtFrom, wbtTo, matchDate } = body;
-      if (!wbtTurfId || !wbtFrom || !wbtTo || !matchDate) return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
-      const turf = await prisma.wbtTurf.findUnique({ where: { id: wbtTurfId }, include: { division: true, city: true } });
-      if (!turf) return NextResponse.json({ error: 'WBT Turf not found' }, { status: 404 });
+      const { wbtTurfId, customTurfName, customTurfArea, wbtFrom, wbtTo, matchDate } = body;
+      if ((!wbtTurfId && !customTurfName) || !wbtFrom || !wbtTo || !matchDate) {
+        return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+      }
+
+      let turfName = '';
+      if (wbtTurfId) {
+        const turf = await prisma.wbtTurf.findUnique({ where: { id: wbtTurfId } });
+        if (!turf) return NextResponse.json({ error: 'WBT Turf not found' }, { status: 404 });
+        turfName = turf.name;
+      } else {
+        turfName = customTurfName;
+      }
       
       const code = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const previousMatch = await prisma.match.findUnique({ where: { id: matchId } });
+      const isUpdate = previousMatch?.status === 'SCHEDULED';
 
       await prisma.match.update({ 
         where: { id: matchId }, 
         data: { 
-          wbtTurfId, 
-          wbtTurfName: turf.name, 
+          wbtTurfId: wbtTurfId || null, 
+          wbtTurfName: turfName, 
           wbtFrom, 
           wbtTo, 
           matchDate,
@@ -427,8 +442,57 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           bookingCode: code
         } 
       });
+
+      if (customTurfName) {
+        await prisma.externalTurfMention.create({
+          data: {
+            name: customTurfName,
+            area: customTurfArea || '',
+            matchId
+          }
+        });
+      }
+
       await broadcastInteractEvent(matchId, 'wbt_booking_complete', { bookingCode: code });
+
+      // Fire match_confirmed or match_updated notification
+      sendMatchConfirmedOrUpdatedNotification(matchId, isUpdate);
+
       return NextResponse.json({ ok: true, bookingCode: code });
+    }
+
+    // ── send_reminder ────────────────────────────────────────────────────────
+    if (action === 'send_reminder') {
+      if (!isOMC) return NextResponse.json({ error: 'Only OMC can send reminders' }, { status: 403 });
+      
+      const now = new Date();
+      if (match.lastReminderSentAt) {
+        const lastSent = new Date(match.lastReminderSentAt);
+        const hoursDiff = (now.getTime() - lastSent.getTime()) / (1000 * 60 * 60);
+        if (hoursDiff < 24) {
+          const remainingHours = Math.ceil(24 - hoursDiff);
+          return NextResponse.json({ error: `You can only send one reminder every 24 hours. Please wait ${remainingHours}h.` }, { status: 429 });
+        }
+      }
+
+      await prisma.match.update({
+        where: { id: matchId },
+        data: { lastReminderSentAt: now }
+      });
+
+      const { notify } = await import('@/lib/notificationService');
+      const reminderRecipientId = isTeamA ? match.teamB.ownerId : match.teamA.ownerId;
+      const reminderSenderTeamName = isTeamA ? match.teamA.name : match.teamB.name;
+
+      await notify({
+        userIds: [reminderRecipientId],
+        type: 'challenge_reminder',
+        url: `/interact`,
+        params: { teamName: reminderSenderTeamName },
+        actorId: isTeamA ? match.teamA.ownerId : match.teamB.ownerId
+      });
+
+      return NextResponse.json({ ok: true, lastReminderSentAt: now });
     }
 
     // ── apply_wbt_coupon ──────────────────────────────────────────────────────
@@ -484,6 +548,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         }
         await prisma.match.update({ where: { id: matchId }, data: { status: 'SCHEDULED', venueBookedAt: new Date(), bookingCode: code } });
         await broadcastInteractEvent(matchId, 'wbt_booking_complete', { bookingCode: code });
+        
+        // Fire match_confirmed notification
+        sendMatchConfirmedOrUpdatedNotification(matchId, false);
+
         return NextResponse.json({ ok: true, bookingCode: code, bothPaid: true });
       }
 
@@ -495,6 +563,80 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   } catch (e: any) {
     console.error('[match PATCH]', e);
     return NextResponse.json({ error: e.message }, { status: 500 });
+  }
+}
+
+async function sendMatchConfirmedOrUpdatedNotification(matchId: string, isUpdate: boolean) {
+  try {
+    const { notify } = await import('@/lib/notificationService');
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: {
+        teamA: { select: { id: true, name: true, ownerId: true } },
+        teamB: { select: { id: true, name: true, ownerId: true } },
+        rosterPicks: { select: { memberId: true } },
+      }
+    });
+
+    if (!match) return;
+
+    // Get all player/user IDs from roster picks
+    const memberIds = match.rosterPicks.map(p => p.memberId);
+    const members = await prisma.teamMember.findMany({
+      where: { id: { in: memberIds } },
+      select: { playerId: true },
+    });
+
+    const userIds = Array.from(new Set([
+      ...members.map(m => m.playerId),
+      match.teamA.ownerId,
+      match.teamB.ownerId,
+    ]));
+
+    const turfName = match.venueType === 'BMT' 
+      ? 'BMT Turf'
+      : (match.wbtTurfName || 'External Turf');
+
+    // Query turf name if BMT
+    let displayTurf = turfName;
+    if (match.venueType === 'BMT' && match.selectedSlotId) {
+      const slot = await prisma.slot.findUnique({
+        where: { id: match.selectedSlotId },
+        include: { ground: { include: { turf: { include: { city: true } } } } }
+      });
+      if (slot) {
+        displayTurf = `${slot.ground.turf.name} (${slot.ground.turf.area || slot.ground.turf.city?.name || ''})`;
+      }
+    } else if (match.venueType === 'OPEN_WBT' && match.wbtTurfId) {
+      const turf = await prisma.wbtTurf.findUnique({
+        where: { id: match.wbtTurfId },
+        include: { division: true, city: true }
+      });
+      if (turf) {
+        displayTurf = `${turf.name} (${turf.city?.name || ''})`;
+      }
+    }
+
+    const matchDateStr = match.matchDate || '';
+    const matchTimeStr = match.venueType === 'BMT' 
+      ? '' 
+      : (match.wbtFrom ? ` ${match.wbtFrom}–${match.wbtTo}` : '');
+
+    const dateTime = `${matchDateStr}${matchTimeStr}`;
+
+    await notify({
+      userIds,
+      type: isUpdate ? 'match_updated' : 'match_confirmed',
+      url: `/interact`,
+      params: {
+        teamAName: match.teamA.name,
+        teamBName: match.teamB.name,
+        dateTime,
+        turfName: displayTurf,
+      }
+    });
+  } catch (err) {
+    console.error('Failed to send match confirmation notification:', err);
   }
 }
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import {
   Users, MapPin, MessageCircle, ChevronLeft, Loader2, Shield,
   Lock, Send, AlertCircle, CheckCircle, Swords, Clock, Search, X, Edit3, ChevronDown, ChevronUp, BarChart2,
@@ -14,12 +15,26 @@ const FUTSAL6_FORMATIONS = ['3-2', '2-3', '2-2-1', '1-3-1', '3-1-1'];
 const MIN_STARTERS: Record<string, number> = { FUTSAL: 5, FUTSAL_5: 5, FUTSAL_6: 6, FUTSAL_7: 7, CRICKET: 7, CRICKET_7: 7, CRICKET_FULL: 11, FOOTBALL: 11, FOOTBALL_FULL: 11 };
 
 export default function InteractionBoardPage() {
+  const trans = useTranslations('Interact');
   const { id: matchId, locale } = useParams() as { id: string; locale: string };
   const router = useRouter();
 
   // Step navigation: 1=roster, 2=venueType, 3a=bmt, 3b=wbt, 4=complete
   const [currentStep, setCurrentStep] = useState(1);
   const [venueTypeLocal, setVenueTypeLocal] = useState<'BMT' | 'OPEN_WBT' | null>(null);
+  
+  // Custom states for Roster & Reminders
+  const [shakeButton, setShakeButton] = useState(false);
+  const [pulseHint, setPulseHint] = useState(false);
+  const [recapExpanded, setRecapExpanded] = useState(false);
+  const [shakeBooking, setShakeBooking] = useState(false);
+
+  // Custom states for Custom External Turf & Booking Presets
+  const [useCustomTurf, setUseCustomTurf] = useState(false);
+  const [customTurfName, setCustomTurfName] = useState('');
+  const [customTurfArea, setCustomTurfArea] = useState('');
+  const [selectedPresetTime, setSelectedPresetTime] = useState<string | null>(null);
+
   // BMT booking state
   const [pendingBmtSlot, setPendingBmtSlot] = useState<{slotId:string;date:string;turfName:string;startTime:string;endTime:string;price:number}|null>(null);
   // WBT state
@@ -476,13 +491,37 @@ export default function InteractionBoardPage() {
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Roster <span className="text-red-400">*</span></p>
+                  {/* Legend line moved under Roster heading */}
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500">{trans('matchSetup.roster')} <span className="text-red-400">*</span></p>
                     <p className="text-[10px] font-bold">
                       <span className={starterCount >= minStarters ? 'text-[#00ff41]' : 'text-amber-400'}>{starterCount}</span>
-                      <span className="text-neutral-500">/{minStarters} starters</span>
+                      <span className="text-neutral-500">/{minStarters} {trans('matchSetup.starters')}</span>
                     </p>
                   </div>
+                  <p className="text-[9px] text-neutral-600 mb-3 italic text-left">Tap: Unselected → Starter → Sub → Remove</p>
+
+                  {/* Guided Progress Chip */}
+                  {(() => {
+                    const rosterValid = starterCount >= minStarters && (!isFutsal || formation);
+                    const showPickFormation = isFutsal && !formation;
+                    return (
+                      <div className={`mb-4 px-3 py-2 rounded-xl text-xs font-black border transition-all flex items-center gap-2 ${
+                        rosterValid 
+                          ? 'bg-[#00ff41]/10 border-[#00ff41]/35 text-[#00ff41] shadow-[0_0_10px_rgba(0,255,65,0.05)]' 
+                          : 'bg-[#00ff41]/5 border-[#00ff41]/20 text-[#00ff41]'
+                      } ${pulseHint ? 'animate-pulse' : ''}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${rosterValid ? 'bg-[#00ff41]' : 'bg-[#00ff41]/50'}`} />
+                        <span>
+                          {showPickFormation 
+                            ? trans('matchSetup.pickFormation') 
+                            : !rosterValid 
+                              ? trans('matchSetup.tapPlayers') 
+                              : trans('matchSetup.startersCounter', { starterCount, minStarters })}
+                        </span>
+                      </div>
+                    );
+                  })()}
 
                   {/* 3-col grid of box cards */}
                   <div className="grid grid-cols-3 gap-2.5">
@@ -549,17 +588,34 @@ export default function InteractionBoardPage() {
                     })}
                   </div>
 
-                  <p className="text-[9px] text-neutral-600 mt-2 mb-4 italic text-center">Tap: Unselected → Starter → Sub → Remove</p>
+                  <div className="mt-4" />
 
                   {isOMC && (
                     <div className="flex flex-col gap-2">
-                      {isFutsal && !formation && <p className="text-xs text-amber-400 font-bold flex items-center gap-1.5"><AlertCircle size={12} /> Select a formation first</p>}
-                      {starterCount < minStarters && <p className="text-xs text-amber-400 font-bold flex items-center gap-1.5"><AlertCircle size={12} /> Need {minStarters - starterCount} more starter{minStarters - starterCount !== 1 ? 's' : ''}</p>}
                       <button
-                        onClick={() => doAction('lock_roster', { picks: Object.entries(picks).map(([memberId, isStarter]) => ({ memberId, isStarter })), formation })}
-                        disabled={saving || starterCount < minStarters || (isFutsal && !formation)}
-                        className="w-full py-3 bg-[#00ff41] hover:bg-[#00dd38] text-black font-black uppercase rounded-2xl flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
-                        {saving ? <Loader2 size={16} className="animate-spin" /> : <><Lock size={16} /> Lock Roster for This Match</>}
+                        onClick={() => {
+                          const rosterValid = starterCount >= minStarters && (!isFutsal || formation);
+                          if (!rosterValid) {
+                            setShakeButton(true);
+                            setPulseHint(true);
+                            setTimeout(() => {
+                              setShakeButton(false);
+                              setPulseHint(false);
+                            }, 500);
+                            return;
+                          }
+                          doAction('lock_roster', { picks: Object.entries(picks).map(([memberId, isStarter]) => ({ memberId, isStarter })), formation });
+                        }}
+                        disabled={saving}
+                        className={`w-full py-3 text-black font-black uppercase rounded-2xl flex items-center justify-center gap-2 transition-all ${
+                          saving ? 'opacity-70' : ''
+                        } ${
+                          (starterCount >= minStarters && (!isFutsal || formation))
+                            ? 'bg-[#00ff41] hover:bg-[#00dd38] shadow-[0_0_15px_rgba(0,255,65,0.2)]'
+                            : 'bg-[#00ff41]/40 opacity-40 cursor-not-allowed shadow-none'
+                        } ${shakeButton ? 'animate-shake' : ''}`}
+                      >
+                        {saving ? <Loader2 size={16} className="animate-spin" /> : <><Lock size={16} /> {trans('matchSetup.lockRoster')}</>}
                       </button>
                     </div>
                   )}
@@ -572,83 +628,130 @@ export default function InteractionBoardPage() {
                 const myStarters   = myLockedPicks.filter((p: any) => p.isStarter);
                 const mySubs       = myLockedPicks.filter((p: any) => !p.isStarter);
                 const myFormation  = isTeamA ? match.formationA : match.formationB;
+
+                // Reminder state calculations
+                const lastSent = match.lastReminderSentAt ? new Date(match.lastReminderSentAt) : null;
+                const canSendReminder = !lastSent || (new Date().getTime() - lastSent.getTime()) > 24 * 60 * 60 * 1000;
+                const hoursLeft = lastSent ? Math.ceil(24 - (new Date().getTime() - lastSent.getTime()) / (1000 * 60 * 60)) : 0;
+
                 return (
                   <div className="mt-1">
                     {!opponentLocked && (
-                      <div className="mb-4 px-3 py-3 bg-[#00ff41]/5 border border-[#00ff41]/20 rounded-2xl flex flex-col items-center justify-center text-center animate-pulse shadow-[0_0_15px_rgba(0,255,65,0.02)]">
-                        <Clock size={18} className="text-[#00ff41] mb-1.5" />
-                        <span className="text-xs font-black text-[#00ff41]">Waiting for {opponent.name}</span>
-                        <span className="text-[10px] text-[#00ff41]/60 font-bold mt-0.5">They need to lock their roster before moving to step 2</span>
+                      <div className="mb-4 p-4 bg-[#00ff41]/5 border border-[#00ff41]/20 rounded-2xl flex flex-col items-center justify-center text-center shadow-[0_0_15px_rgba(0,255,65,0.02)]">
+                        <Clock size={20} className="text-[#00ff41] mb-2 animate-pulse" />
+                        <span className="text-sm font-black text-[#00ff41]">Waiting for {opponent.name}</span>
+                        <span className="text-[10px] text-neutral-400 font-bold mt-1 mb-3">
+                          {trans('matchSetup.waitingOpponentResponse', { name: opponent.name })}
+                        </span>
+                        
+                        {/* Remind button */}
+                        {isOMC && (
+                          <button
+                            onClick={async () => {
+                              if (!canSendReminder) return;
+                              await doAction('send_reminder');
+                            }}
+                            disabled={saving || !canSendReminder}
+                            className={`px-4 py-2 text-xs font-black rounded-xl border flex items-center gap-1.5 transition-all ${
+                              canSendReminder 
+                                ? 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-400 active:scale-95' 
+                                : 'bg-neutral-800/40 border-neutral-700/50 text-neutral-500 cursor-not-allowed'
+                            }`}
+                          >
+                            <Clock size={12} />
+                            {canSendReminder 
+                              ? trans('matchSetup.remindOpponent', { name: opponent.name })
+                              : `${trans('matchSetup.reminderSent')} (${hoursLeft}h left)`}
+                          </button>
+                        )}
                       </div>
                     )}
-                    <div className="flex items-center justify-between mb-3 px-1">
-                      <div className="flex items-center gap-2 text-[#00ff41]">
-                        <CheckCircle size={13} />
-                        <span className="text-xs font-black">Roster Locked ✓</span>
-                      </div>
-                      {myFormation && <span className="text-[10px] font-black text-[#00ff41] bg-[#00ff41]/20 border border-[#00ff41]/30 px-2 py-0.5 rounded-lg">{myFormation}</span>}
+
+                    {/* Collapsible Recap Card of Own Locked Roster */}
+                    <div className="mb-4 bg-neutral-900 border border-white/5 rounded-2xl overflow-hidden">
+                      <button
+                        onClick={() => setRecapExpanded(!recapExpanded)}
+                        className="w-full flex items-center justify-between px-4 py-3 text-left transition-colors active:bg-white/5"
+                      >
+                        <div className="flex items-center gap-2">
+                          <CheckCircle size={14} className="text-[#00ff41]" />
+                          <span className="text-xs font-black">Your Locked Roster</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {myFormation && (
+                            <span className="text-[9px] font-black text-[#00ff41] bg-[#00ff41]/10 border border-[#00ff41]/25 px-2 py-0.5 rounded-lg">
+                              {myFormation}
+                            </span>
+                          )}
+                          {recapExpanded ? <ChevronUp size={14} className="text-neutral-500" /> : <ChevronDown size={14} className="text-neutral-500" />}
+                        </div>
+                      </button>
+
+                      {recapExpanded && (
+                        <div className="p-4 border-t border-white/5">
+                          {myStarters.length > 0 && (
+                            <>
+                              <p className="text-[9px] font-black uppercase tracking-wider text-[#00ff41] mb-2">{trans('matchSetup.starters')}</p>
+                              <div className="grid grid-cols-3 gap-2 mb-4">
+                                {myStarters.map((p: any) => {
+                                  const rank = getRankData(getSportMmr(p.player));
+                                  return (
+                                    <div key={p.id} className="flex flex-col items-center gap-1 pt-2.5 pb-2 px-1 rounded-2xl bg-[#00ff41]/5 border border-[#00ff41]/20 text-center">
+                                      <div className="w-11 h-11 rounded-xl bg-neutral-800 overflow-hidden flex items-center justify-center border-2 border-[#00ff41]/40">
+                                        {p.player?.avatarUrl ? <img src={p.player.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-base font-black text-white/40">{p.player?.fullName?.[0]}</span>}
+                                      </div>
+                                      <p className="text-[11px] font-black text-white truncate w-full px-0.5 leading-tight">{p.player?.fullName ?? 'Player'}</p>
+                                      {(p.sportRole || p.role) && <p className="text-[9px] text-neutral-500 capitalize truncate w-full px-0.5">{p.sportRole || p.role}</p>}
+                                      <div className={`flex items-center justify-center gap-0.5 ${rank.text}`}>
+                                        <img src={rank.icon} className="w-3.5 h-3.5 object-contain" alt="" />
+                                        <span className="text-[8px] font-black">{rank.label}</span>
+                                      </div>
+                                      <span className="text-[8px] text-[#00ff41]/60 font-black">▶ START</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          )}
+
+                          {mySubs.length > 0 && (
+                            <>
+                              <p className="text-[9px] font-black uppercase tracking-wider text-amber-400 mb-2">Substitutes</p>
+                              <div className="grid grid-cols-3 gap-2 mb-3">
+                                {mySubs.map((p: any) => {
+                                  const rank = getRankData(getSportMmr(p.player));
+                                  return (
+                                    <div key={p.id} className="flex flex-col items-center gap-1 pt-2.5 pb-2 px-1 rounded-2xl bg-amber-500/5 border border-amber-500/20 text-center">
+                                      <div className="w-11 h-11 rounded-xl bg-neutral-800 overflow-hidden flex items-center justify-center border-2 border-amber-500/35">
+                                        {p.player?.avatarUrl ? <img src={p.player.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-base font-black text-white/40">{p.player?.fullName?.[0]}</span>}
+                                      </div>
+                                      <p className="text-[11px] font-black text-white truncate w-full px-0.5 leading-tight">{p.player?.fullName ?? 'Player'}</p>
+                                      {(p.sportRole || p.role) && <p className="text-[9px] text-neutral-500 capitalize truncate w-full px-0.5">{p.sportRole || p.role}</p>}
+                                      <div className={`flex items-center justify-center gap-0.5 ${rank.text}`}>
+                                        <img src={rank.icon} className="w-3.5 h-3.5 object-contain" alt="" />
+                                        <span className="text-[8px] font-black">{rank.label}</span>
+                                      </div>
+                                      <span className="text-[8px] text-amber-400/70 font-black">SUB</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
 
-                  {myStarters.length > 0 && (
-                    <>
-                      <p className="text-[9px] font-black uppercase tracking-wider text-[#00ff41] mb-2">Starters</p>
-                      <div className="grid grid-cols-3 gap-2 mb-4">
-                        {myStarters.map((p: any) => {
-                          const rank = getRankData(getSportMmr(p.player));
-                          return (
-                            <div key={p.id} className="flex flex-col items-center gap-1 pt-2.5 pb-2 px-1 rounded-2xl bg-[#00ff41]/5 border border-[#00ff41]/20 text-center">
-                              <div className="w-11 h-11 rounded-xl bg-neutral-800 overflow-hidden flex items-center justify-center border-2 border-[#00ff41]/40">
-                                {p.player?.avatarUrl ? <img src={p.player.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-base font-black text-white/40">{p.player?.fullName?.[0]}</span>}
-                              </div>
-                              <p className="text-[11px] font-black text-white truncate w-full px-0.5 leading-tight">{p.player?.fullName ?? 'Player'}</p>
-                              {(p.sportRole || p.role) && <p className="text-[9px] text-neutral-500 capitalize truncate w-full px-0.5">{p.sportRole || p.role}</p>}
-                              <div className={`flex items-center justify-center gap-0.5 ${rank.text}`}>
-                                <img src={rank.icon} className="w-3 h-3 object-contain" alt="" />
-                                <span className="text-[8px] font-black">{rank.label}</span>
-                              </div>
-                              <span className="text-[8px] text-[#00ff41]/60 font-black">▶ START</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-
-                  {mySubs.length > 0 && (
-                    <>
-                      <p className="text-[9px] font-black uppercase tracking-wider text-amber-400 mb-2">Substitutes</p>
-                      <div className="grid grid-cols-3 gap-2 mb-3">
-                        {mySubs.map((p: any) => {
-                          const rank = getRankData(getSportMmr(p.player));
-                          return (
-                            <div key={p.id} className="flex flex-col items-center gap-1 pt-2.5 pb-2 px-1 rounded-2xl bg-amber-500/5 border border-amber-500/20 text-center">
-                              <div className="w-11 h-11 rounded-xl bg-neutral-800 overflow-hidden flex items-center justify-center border-2 border-amber-500/35">
-                                {p.player?.avatarUrl ? <img src={p.player.avatarUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-base font-black text-white/40">{p.player?.fullName?.[0]}</span>}
-                              </div>
-                              <p className="text-[11px] font-black text-white truncate w-full px-0.5 leading-tight">{p.player?.fullName ?? 'Player'}</p>
-                              {(p.sportRole || p.role) && <p className="text-[9px] text-neutral-500 capitalize truncate w-full px-0.5">{p.sportRole || p.role}</p>}
-                              <div className={`flex items-center justify-center gap-0.5 ${rank.text}`}>
-                                <img src={rank.icon} className="w-3 h-3 object-contain" alt="" />
-                                <span className="text-[8px] font-black">{rank.label}</span>
-                              </div>
-                              <span className="text-[8px] text-amber-400/70 font-black">SUB</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-
-                  {/* Edit Roster button — only before venue confirmed */}
-                  {isOMC && !boardLocked && (
-                    <button onClick={() => doAction('unlock_roster')} disabled={saving}
-                      className="w-full mt-1 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 font-black text-xs rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
-                      <Edit3 size={13} /> Edit Roster
-                    </button>
-                  )}
-                </div>
-              );
-            })()}
+                    {/* Edit Roster button — only before venue confirmed */}
+                    {isOMC && !boardLocked && (
+                      <button onClick={() => doAction('unlock_roster')} disabled={saving}
+                        className="w-full mt-1 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-400 font-black text-xs rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50">
+                        <Edit3 size={13} /> Edit Roster
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
             </>
           )}
 
@@ -812,11 +915,16 @@ export default function InteractionBoardPage() {
                     setSaving(false);
                   }}
                   disabled={saving}
-                  className="relative w-full p-5 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-900/40 to-orange-900/20 text-left hover:border-amber-400/50 transition-all active:scale-[0.98] disabled:opacity-50"
+                  className="relative w-full p-5 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-900/40 to-orange-900/20 text-left hover:border-amber-400/50 hover:from-amber-900/60 active:scale-[0.98] transition-all"
                 >
+                  <span className="absolute top-3 right-3 text-[8px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    {trans('matchSetup.mostFlexible')}
+                  </span>
                   <div className="text-3xl mb-2">📋</div>
                   <p className="text-base font-black text-white">We'll Book Ourselves</p>
-                  <p className="text-xs text-neutral-400 mt-1">Use an external turf. Manage your own booking.</p>
+                  <p className="text-xs text-neutral-400 mt-1">
+                    {trans('matchSetup.externalTurfInfo')}
+                  </p>
                   {saving && <Loader2 size={14} className="absolute bottom-3 right-3 animate-spin text-amber-400" />}
                 </button>
               </div>
@@ -1041,11 +1149,32 @@ export default function InteractionBoardPage() {
 
             {venuesLoading ? (
               <div className="flex justify-center py-16"><Loader2 size={24} className="animate-spin text-[#00ff41]" /></div>
+            ) : turfs.length === 0 ? (
+              <div className="py-12 px-6 text-center bg-neutral-900 border border-white/5 rounded-3xl mt-4">
+                <MapPin size={36} className="mx-auto mb-3 text-amber-500 opacity-80" />
+                <p className="font-black text-sm text-white">{trans('matchSetup.noBmtTurfs')}</p>
+                <p className="text-xs text-neutral-500 mt-1.5 mb-5">We are expanding our BMT managed inventory daily. You can book any external facility right now.</p>
+                <button
+                  onClick={async () => {
+                    setSaving(true); setMsg('');
+                    const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'set_venue_type', venueType:'OPEN_WBT'}) });
+                    const d = await r.json();
+                    if (r.ok) { setVenueTypeLocal('OPEN_WBT'); loadMatch(); }
+                    else setMsg('❌ ' + d.error);
+                    setSaving(false);
+                  }}
+                  disabled={saving}
+                  className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all"
+                >
+                  {saving ? <Loader2 size={13} className="animate-spin" /> : <Building2 size={13} />}
+                  Switch to External Booking
+                </button>
+              </div>
             ) : turfs.filter((t:any) => !venueSearch || t.name.toLowerCase().includes(venueSearch.toLowerCase())).length === 0 ? (
               <div className="py-16 text-center text-neutral-500">
                 <MapPin size={32} className="mx-auto mb-3 opacity-20" />
-                <p className="font-bold text-sm">No turfs available</p>
-                <p className="text-xs mt-1">Try a different date</p>
+                <p className="font-bold text-sm">No turfs match your search</p>
+                <p className="text-xs mt-1">Try a different name or area</p>
               </div>
             ) : (
               turfs.filter((t:any) => !venueSearch || t.name.toLowerCase().includes(venueSearch.toLowerCase())).map((turf: any) => {
@@ -1136,63 +1265,234 @@ export default function InteractionBoardPage() {
 
       {/* ── STEP 3b: OPEN WBT BOOKING ── */}
       {currentStep === 3 && (venueTypeLocal ?? match.venueType) === 'OPEN_WBT' && (() => {
-        const turfSelected = !!match.wbtTurfId;
+        const turfSelected = !!match.wbtTurfId || !!match.wbtTurfName;
+        const wbtTurfSet = selectedWbtTurf || (useCustomTurf && customTurfName.trim());
+        const bookingValid = wbtTurfSet && wbtMatchDate && wbtFrom && wbtTo;
+
+        const datePresets = (() => {
+          const today = new Date();
+          const presets = [
+            { label: 'Today', date: today.toISOString().split('T')[0] }
+          ];
+          const tomorrow = new Date();
+          tomorrow.setDate(today.getDate() + 1);
+          presets.push({ label: 'Tomorrow', date: tomorrow.toISOString().split('T')[0] });
+
+          for (let i = 2; i < 5; i++) {
+            const d = new Date();
+            d.setDate(today.getDate() + i);
+            const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
+            presets.push({ label: weekday, date: d.toISOString().split('T')[0] });
+          }
+          return presets;
+        })();
+
+        const timePresets = [
+          { label: '6–7 AM', from: '06:00', to: '07:00' },
+          { label: '7–8 AM', from: '07:00', to: '08:00' },
+          { label: '6–7 PM', from: '18:00', to: '19:00' },
+          { label: '7–8 PM', from: '19:00', to: '20:00' },
+          { label: '8–9 PM', from: '20:00', to: '21:00' },
+          { label: '9–10 PM', from: '21:00', to: '22:00' }
+        ];
+
+        const handleLockBookingClick = async () => {
+          if (saving) return;
+          if (!bookingValid) {
+            setShakeBooking(true);
+            setTimeout(() => setShakeBooking(false), 500);
+            return;
+          }
+          setSaving(true); setMsg('');
+          const payload = useCustomTurf
+            ? { action: 'select_wbt_turf', customTurfName, customTurfArea, wbtFrom, wbtTo, matchDate: wbtMatchDate }
+            : { action: 'select_wbt_turf', wbtTurfId: selectedWbtTurf.id, wbtFrom, wbtTo, matchDate: wbtMatchDate };
+          
+          const r = await fetch(`/api/interact/match/${matchId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const d = await r.json();
+          if (r.ok) {
+            setMsg('✅ Turf selected! Booking confirmed.');
+            setCurrentStep(4);
+            router.push(`/${locale}/interact`);
+            loadMatch();
+          } else {
+            setMsg('❌ ' + d.error);
+          }
+          setSaving(false);
+        };
+
+        const handleStartTimeChange = (val: string) => {
+          setWbtFrom(val);
+          if (val) {
+            const [h, m] = val.split(':').map(Number);
+            const nextH = (h + 1) % 24;
+            setWbtTo(`${nextH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
+          }
+        };
 
         return (
           <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-20">
             {/* ── Section 1: Turf selection (challenger only) ── */}
             {isTeamA && isOMC && !turfSelected && (
               <div className="mt-3">
-                <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-3">Select Your External Turf</p>
-                <div className="relative mb-3">
-                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
-                  <input value={wbtTurfSearch} onChange={e => setWbtTurfSearch(e.target.value)}
-                    placeholder="Search WBT turfs…"
-                    className="w-full bg-neutral-900 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white outline-none focus:border-fuchsia-500/50 placeholder:text-neutral-600" />
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500">
+                    {useCustomTurf ? 'Enter Custom Turf Details' : 'Select Your External Turf'}
+                  </p>
+                  <button
+                    onClick={() => {
+                      setUseCustomTurf(!useCustomTurf);
+                      setSelectedWbtTurf(null);
+                    }}
+                    className="text-[10px] font-black text-amber-400 hover:underline"
+                  >
+                    {useCustomTurf ? '← Choose registered turf' : 'Enter manually instead'}
+                  </button>
                 </div>
-                <div className="flex flex-col gap-2 mb-4">
-                  {wbtTurfs.filter((t:any) => !wbtTurfSearch || t.name.toLowerCase().includes(wbtTurfSearch.toLowerCase())).map((t:any) => (
-                    <button key={t.id} onClick={() => setSelectedWbtTurf(t)}
-                      className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${selectedWbtTurf?.id === t.id ? 'bg-amber-500/15 border-amber-500/40' : 'bg-neutral-900 border-white/10 hover:border-white/20'}`}>
-                      <Globe size={14} className="text-amber-400 shrink-0" />
-                      <div>
-                        <p className="font-black text-sm">{t.name}</p>
-                        <p className="text-[10px] text-neutral-500">{t.division?.name} · {t.city?.name}</p>
-                      </div>
-                      {selectedWbtTurf?.id === t.id && <CheckCircle size={14} className="text-amber-400 ml-auto shrink-0" />}
-                    </button>
-                  ))}
-                  {wbtTurfs.length === 0 && <p className="text-xs text-neutral-500 py-4 text-center">No WBT turfs registered. Ask admin to add some.</p>}
-                </div>
-                {selectedWbtTurf && (
-                  <div className="flex flex-col gap-3 p-4 bg-neutral-900 border border-white/10 rounded-2xl mb-3">
-                    <p className="text-xs font-black text-amber-400">Set Match Details</p>
-                    <input type="date" value={wbtMatchDate} onChange={e => setWbtMatchDate(e.target.value)}
-                      className="bg-neutral-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-amber-500/50" />
-                    <div className="flex gap-2">
-                      <input type="time" value={wbtFrom} onChange={e => setWbtFrom(e.target.value)}
-                        className="flex-1 bg-neutral-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-amber-500/50" />
-                      <span className="flex items-center text-neutral-500 text-sm">to</span>
-                      <input type="time" value={wbtTo} onChange={e => setWbtTo(e.target.value)}
-                        className="flex-1 bg-neutral-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-amber-500/50" />
+
+                {useCustomTurf ? (
+                  <div className="flex flex-col gap-3 p-4 bg-neutral-900 border border-white/10 rounded-2xl mb-4">
+                    <div>
+                      <label className="text-[9px] font-black uppercase tracking-widest text-neutral-500 block mb-1">Turf Name *</label>
+                      <input
+                        value={customTurfName}
+                        onChange={e => setCustomTurfName(e.target.value)}
+                        placeholder="e.g. Dhanmondi Club Turf"
+                        className="w-full bg-neutral-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-neutral-600 outline-none focus:border-amber-500/50"
+                      />
                     </div>
+                    <div>
+                      <label className="text-[9px] font-black uppercase tracking-widest text-neutral-500 block mb-1">Area / Location</label>
+                      <input
+                        value={customTurfArea}
+                        onChange={e => setCustomTurfArea(e.target.value)}
+                        placeholder="e.g. Dhanmondi, Dhaka"
+                        className="w-full bg-neutral-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-neutral-600 outline-none focus:border-amber-500/50"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative mb-3">
+                      <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
+                      <input value={wbtTurfSearch} onChange={e => setWbtTurfSearch(e.target.value)}
+                        placeholder="Search WBT turfs…"
+                        className="w-full bg-neutral-900 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white outline-none focus:border-amber-500/50 placeholder:text-neutral-600" />
+                    </div>
+                    <div className="flex flex-col gap-2 mb-4">
+                      {wbtTurfs.filter((t:any) => !wbtTurfSearch || t.name.toLowerCase().includes(wbtTurfSearch.toLowerCase())).map((t:any) => (
+                        <button key={t.id} onClick={() => setSelectedWbtTurf(t)}
+                          className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${selectedWbtTurf?.id === t.id ? 'bg-amber-500/15 border-amber-500/40' : 'bg-neutral-900 border-white/10 hover:border-white/20'}`}>
+                          <Globe size={14} className="text-amber-400 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-black text-sm truncate">{t.name}</p>
+                            <p className="text-[10px] text-neutral-500">{t.division?.name} · {t.city?.name}</p>
+                          </div>
+                          {selectedWbtTurf?.id === t.id && <CheckCircle size={14} className="text-amber-400 ml-auto shrink-0" />}
+                        </button>
+                      ))}
+                      {wbtTurfs.length === 0 && <p className="text-xs text-neutral-500 py-4 text-center">No WBT turfs registered. Ask admin to add some.</p>}
+                    </div>
+                  </>
+                )}
+
+                {wbtTurfSet && (
+                  <div className="flex flex-col gap-4 p-4 bg-neutral-900 border border-white/10 rounded-2xl mb-3 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-2">Set Match Date</p>
+                      
+                      {/* Date chips */}
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {datePresets.map(p => (
+                          <button
+                            key={p.date}
+                            onClick={() => setWbtMatchDate(p.date)}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black border transition-all ${
+                              wbtMatchDate === p.date 
+                                ? 'bg-amber-500 border-amber-500 text-black' 
+                                : 'bg-neutral-800 border-white/10 text-neutral-400 hover:border-amber-500/30'
+                            }`}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <input type="date" value={wbtMatchDate} onChange={e => setWbtMatchDate(e.target.value)}
+                        className="w-full bg-neutral-800 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-amber-500/50" />
+                    </div>
+
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-2">Set Time Slot</p>
+                      
+                      {/* Preset Slot Chips */}
+                      <div className="grid grid-cols-4 gap-1.5 mb-3">
+                        {timePresets.map(p => {
+                          const active = wbtFrom === p.from && wbtTo === p.to && selectedPresetTime === p.label;
+                          return (
+                            <button
+                              key={p.label}
+                              onClick={() => {
+                                setWbtFrom(p.from);
+                                setWbtTo(p.to);
+                                setSelectedPresetTime(p.label);
+                              }}
+                              className={`py-1.5 rounded-lg text-[9px] font-black border text-center transition-all ${
+                                active
+                                  ? 'bg-amber-500 border-amber-500 text-black'
+                                  : 'bg-neutral-800 border-white/10 text-neutral-400 hover:border-amber-500/30'
+                              }`}
+                            >
+                              {p.label}
+                            </button>
+                          );
+                        })}
+                        <button
+                          onClick={() => {
+                            setSelectedPresetTime('custom');
+                          }}
+                          className={`py-1.5 rounded-lg text-[9px] font-black border text-center transition-all ${
+                            selectedPresetTime === 'custom'
+                              ? 'bg-amber-500 border-amber-500 text-black'
+                              : 'bg-neutral-800 border-white/10 text-neutral-400 hover:border-amber-500/30'
+                          }`}
+                        >
+                          Custom
+                        </button>
+                      </div>
+
+                      {/* Render custom time dropdowns if "custom" preset is selected */}
+                      {(selectedPresetTime === 'custom' || !selectedPresetTime) && (
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <label className="text-[8px] text-neutral-500 block mb-0.5">Start Time</label>
+                            <input type="time" value={wbtFrom} onChange={e => handleStartTimeChange(e.target.value)}
+                              className="w-full bg-neutral-800 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-amber-500/50" />
+                          </div>
+                          <span className="flex items-center text-neutral-500 text-xs mt-3">to</span>
+                          <div className="flex-1">
+                            <label className="text-[8px] text-neutral-500 block mb-0.5">End Time</label>
+                            <input type="time" value={wbtTo} onChange={e => setWbtTo(e.target.value)}
+                              className="w-full bg-neutral-800 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-amber-500/50" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     <button
-                      onClick={async () => {
-                        if (!wbtFrom || !wbtTo || !wbtMatchDate) { setMsg('❌ Fill in all date/time fields'); return; }
-                        setSaving(true); setMsg('');
-                        const r = await fetch(`/api/interact/match/${matchId}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'select_wbt_turf', wbtTurfId: selectedWbtTurf.id, wbtFrom, wbtTo, matchDate: wbtMatchDate }) });
-                        const d = await r.json();
-                        if (r.ok) { 
-                          setMsg('✅ Turf selected! Booking confirmed.'); 
-                          setCurrentStep(4);
-                          router.push(`/${locale}/interact`);
-                          loadMatch(); 
-                        }
-                        else setMsg('❌ ' + d.error);
-                        setSaving(false);
-                      }}
+                      onClick={handleLockBookingClick}
                       disabled={saving}
-                      className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-black font-black text-sm rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                      className={`w-full py-3.5 text-black font-black text-sm rounded-xl flex items-center justify-center gap-2 transition-all ${
+                        saving ? 'opacity-70' : ''
+                      } ${
+                        bookingValid
+                          ? 'bg-amber-500 hover:bg-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+                          : 'bg-amber-500/40 opacity-40 cursor-not-allowed shadow-none'
+                      } ${shakeBooking ? 'animate-shake' : ''}`}
                     >
                       {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
                       Confirm Turf &amp; Time
@@ -1206,7 +1506,7 @@ export default function InteractionBoardPage() {
             {!isTeamA && !turfSelected && (
               <div className="flex-1 flex items-center justify-center mt-16 text-center text-neutral-500">
                 <div>
-                  <Clock size={36} className="mx-auto mb-3 opacity-20" />
+                  <Clock size={36} className="mx-auto mb-3 opacity-20 animate-pulse" />
                   <p className="font-bold text-sm">Waiting for {match.teamA?.name}</p>
                   <p className="text-xs mt-1">to select the external turf &amp; time…</p>
                 </div>
@@ -1406,6 +1706,16 @@ export default function InteractionBoardPage() {
           </div>
         );
       })()}
+      <style>{`
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          20%, 60% { transform: translateX(-5px); }
+          40%, 80% { transform: translateX(5px); }
+        }
+        .animate-shake {
+          animation: shake 0.3s ease-in-out;
+        }
+      `}</style>
     </>
   );
 }

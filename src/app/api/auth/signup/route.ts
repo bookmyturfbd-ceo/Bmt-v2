@@ -44,11 +44,16 @@ export async function POST(req: NextRequest) {
     const cleanEmail = email.trim().toLowerCase();
     const hashedPassword = await bcrypt.hash(password.trim(), 10);
 
+    const isHttps = req.url.startsWith('https:');
+    const maxAge = 86400 * 30;
+    const expires = new Date(Date.now() + maxAge * 1000);
     const cookieOpts = {
       path: '/',
-      maxAge: 86400 * 30,
+      maxAge,
+      expires,
       sameSite: 'lax' as const,
       httpOnly: false,
+      secure: isHttps,
     };
 
     // ─── 1. PLAYER ROLE ───
@@ -78,7 +83,8 @@ export async function POST(req: NextRequest) {
 
       await prisma.otpVerification.deleteMany({ where: { phone, purpose: 'signup' } });
 
-      const response = NextResponse.json({ ok: true, user: player, redirect: '/en' });
+      const session = { bmt_auth: '1', bmt_role: 'player', bmt_player_id: player.id, bmt_name: player.fullName };
+      const response = NextResponse.json({ ok: true, user: player, redirect: '/en', session });
       response.cookies.set('bmt_auth', '1', cookieOpts);
       response.cookies.set('bmt_role', 'player', cookieOpts);
       response.cookies.set('bmt_player_id', player.id, cookieOpts);
@@ -131,7 +137,8 @@ export async function POST(req: NextRequest) {
 
       await prisma.otpVerification.deleteMany({ where: { phone, purpose: 'signup' } });
 
-      const response = NextResponse.json({ ok: true, user: owner, redirect: '/en/dashboard/coach' });
+      const session = { bmt_auth: '1', bmt_role: 'coach', bmt_owner_id: owner.id, bmt_name: owner.name };
+      const response = NextResponse.json({ ok: true, user: owner, redirect: '/en/dashboard/coach', session });
       response.cookies.set('bmt_auth', '1', cookieOpts);
       response.cookies.set('bmt_role', 'coach', cookieOpts);
       response.cookies.set('bmt_owner_id', owner.id, cookieOpts);
@@ -162,7 +169,8 @@ export async function POST(req: NextRequest) {
       const token = signToken({ id: organizer.id, type: 'ORGANIZER', exp: Date.now() + 7 * 24 * 60 * 60 * 1000 });
       const isHttps = req.url.startsWith('https:');
 
-      const response = NextResponse.json({ ok: true, user: organizer, redirect: '/en/organizer/dashboard' });
+      const session = { bmt_auth: '1', bmt_role: 'organizer', bmt_name: organizer.name, org_token: token };
+      const response = NextResponse.json({ ok: true, user: organizer, redirect: '/en/organizer/dashboard', session });
       response.cookies.set('org_token', token, {
         httpOnly: isHttps,
         secure: isHttps,

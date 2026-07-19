@@ -103,19 +103,72 @@ export async function POST(
 
   // ── MMR calculation ─────────────────────────────────────────────────────────
   const sportType = (match.sportType ?? match.teamA.sportType) as any;
-  const { mmrChangeA, mmrChangeB, mmrField } = calcTeamMMR(match.teamA_Id, match.teamB_Id, winnerId, sportType);
+  const completedMatchesA = await prisma.match.count({
+    where: {
+      OR: [
+        { teamA_Id: match.teamA_Id },
+        { teamB_Id: match.teamA_Id }
+      ],
+      status: 'COMPLETED'
+    }
+  });
+  const completedMatchesB = await prisma.match.count({
+    where: {
+      OR: [
+        { teamA_Id: match.teamB_Id },
+        { teamB_Id: match.teamB_Id }
+      ],
+      status: 'COMPLETED'
+    }
+  });
+  const isProvisional = completedMatchesA < 3 || completedMatchesB < 3;
+
+  const isCricket = sportType.includes('CRICKET');
+  const teamAMmr = isCricket ? match.teamA.cricketMmr : match.teamA.footballMmr;
+  const teamBMmr = isCricket ? match.teamB.cricketMmr : match.teamB.footballMmr;
+
+  const { mmrChangeA, mmrChangeB, mmrField, multA, multB } = calcTeamMMR(
+    match.teamA_Id,
+    match.teamB_Id,
+    winnerId,
+    sportType,
+    teamAMmr,
+    teamBMmr,
+    isProvisional
+  );
 
   // Gather rostered players and apply base player MMR
   const rosterMemberIds = match.rosterPicks.map(r => r.memberId);
   const rosterMembers = await prisma.teamMember.findMany({
     where: { id: { in: rosterMemberIds } },
-    select: { playerId: true, teamId: true },
+    select: { id: true, playerId: true, teamId: true },
   });
+
+  // Find all substitution events to determine played players
+  const subEvents = await prisma.matchEvent.findMany({
+    where: {
+      matchId,
+      type: { in: ['SUBSTITUTION', 'SUB' as any] },
+      status: { not: 'REMOVED' }
+    }
+  });
+  const subOnPlayerIds = subEvents.map(e => e.playerOnId).filter(Boolean) as string[];
+
+  const playedPlayerIds = rosterMembers.filter(m => {
+    const pick = match.rosterPicks.find(p => p.memberId === m.id);
+    const isStarter = pick?.isStarter ?? false;
+    const isSubOn = subOnPlayerIds.includes(m.playerId);
+    return isStarter || isSubOn;
+  }).map(m => m.playerId);
 
   const playerBaseResults = calcPlayerBaseMMR(
     rosterMembers.map(m => ({ playerId: m.playerId, teamId: m.teamId })),
     winnerId,
     sportType,
+    match.teamA_Id,
+    multA,
+    multB,
+    playedPlayerIds,
   );
 
   const statUpserts = rosterMembers.map(m => prisma.playerMatchStat.upsert({
@@ -160,7 +213,7 @@ export async function POST(
   ]);
 
   await broadcastMatchEvent(matchId, 'MATCH_COMPLETE', {
-    winnerId, scoreA, scoreB, mmrChangeA, mmrChangeB,
+    winnerId, scoreA, scoreB, mmrChangeA, mmrChangeB, multA, multB,
     playerResults: playerBaseResults,
     innings1Runs: innings1.totalRuns,
     innings2Runs: innings2.totalRuns,
@@ -169,7 +222,7 @@ export async function POST(
 
   return NextResponse.json({
     ok: true, bothSigned: true,
-    winnerId, scoreA, scoreB, mmrChangeA, mmrChangeB,
+    winnerId, scoreA, scoreB, mmrChangeA, mmrChangeB, multA, multB,
     playerResults: playerBaseResults, victoryString
   });
 }

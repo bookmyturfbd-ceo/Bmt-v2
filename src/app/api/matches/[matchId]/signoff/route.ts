@@ -67,7 +67,40 @@ export async function POST(
                    : null;
 
     const sportType = (match.sportType ?? match.teamA.sportType) as any;
-    const { mmrChangeA, mmrChangeB, mmrField } = calcTeamMMR(match.teamA_Id, match.teamB_Id, winnerId, sportType);
+
+    const completedMatchesA = await prisma.match.count({
+      where: {
+        OR: [
+          { teamA_Id: match.teamA_Id },
+          { teamB_Id: match.teamA_Id }
+        ],
+        status: 'COMPLETED'
+      }
+    });
+    const completedMatchesB = await prisma.match.count({
+      where: {
+        OR: [
+          { teamA_Id: match.teamB_Id },
+          { teamB_Id: match.teamB_Id }
+        ],
+        status: 'COMPLETED'
+      }
+    });
+    const isProvisional = completedMatchesA < 3 || completedMatchesB < 3;
+
+    const isCricket = sportType.includes('CRICKET');
+    const teamAMmr = isCricket ? match.teamA.cricketMmr : match.teamA.footballMmr;
+    const teamBMmr = isCricket ? match.teamB.cricketMmr : match.teamB.footballMmr;
+
+    const { mmrChangeA, mmrChangeB, mmrField, multA, multB } = calcTeamMMR(
+      match.teamA_Id,
+      match.teamB_Id,
+      winnerId,
+      sportType,
+      teamAMmr,
+      teamBMmr,
+      isProvisional
+    );
 
     // MMR cap: max 2 games per week between same teams
     const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -87,14 +120,35 @@ export async function POST(
     const rosterMemberIds = match.rosterPicks.map(r => r.memberId);
     const rosterMembers = await prisma.teamMember.findMany({
       where: { id: { in: rosterMemberIds } },
-      select: { playerId: true, teamId: true },
+      select: { id: true, playerId: true, teamId: true },
     });
+
+    // Find all substitution events to determine played players
+    const subEvents = await prisma.matchEvent.findMany({
+      where: {
+        matchId,
+        type: { in: ['SUBSTITUTION', 'SUB' as any] },
+        status: { not: 'REMOVED' }
+      }
+    });
+    const subOnPlayerIds = subEvents.map(e => e.playerOnId).filter(Boolean) as string[];
+
+    const playedPlayerIds = rosterMembers.filter(m => {
+      const pick = match.rosterPicks.find(p => p.memberId === m.id);
+      const isStarter = pick?.isStarter ?? false;
+      const isSubOn = subOnPlayerIds.includes(m.playerId);
+      return isStarter || isSubOn;
+    }).map(m => m.playerId);
 
     // Calculate base player MMR for every rostered player
     const playerBaseResults = calcPlayerBaseMMR(
       rosterMembers.map(m => ({ playerId: m.playerId, teamId: m.teamId })),
       recentCount >= 2 ? null : winnerId,  // no MMR if capped
       sportType,
+      match.teamA_Id,
+      multA,
+      multB,
+      playedPlayerIds,
     );
 
     // Upsert PlayerMatchStat rows with base MMR (no badge yet)
@@ -137,6 +191,7 @@ export async function POST(
       ok: true, bothSigned: true,
       scoreA, scoreB, winnerId,
       mmrChangeA: effectiveMmrChangeA, mmrChangeB: effectiveMmrChangeB,
+      multA, multB,
       playerResults: playerBaseResults,
     });
   } catch (e: any) {

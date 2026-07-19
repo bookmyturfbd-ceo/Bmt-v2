@@ -41,7 +41,7 @@ export async function GET(
   const ctx = await resolveMatch(matchId, playerId);
   if (!ctx) return NextResponse.json({ error: 'Not found or not in match' }, { status: 404 });
 
-  const [match, scorers, events, signOffs, halfTime] = await Promise.all([
+  const [match, scorers, events, signOffs, halfTime, matchStats] = await Promise.all([
     prisma.match.findUnique({
       where: { id: matchId },
       include: {
@@ -63,7 +63,19 @@ export async function GET(
     prisma.matchEvent.findMany({ where: { matchId }, orderBy: { createdAt: 'asc' } }),
     prisma.matchSignOff.findMany({ where: { matchId } }),
     prisma.matchHalfTime.findUnique({ where: { matchId } }),
+    prisma.playerMatchStat.findMany({ where: { matchId } }),
   ]);
+
+  // Self-heal scoringNegotiationStatus for pre-existing agreed matches
+  let finalStatus = (match as any)?.scoringNegotiationStatus ?? 'negotiating';
+  if (match && match.scoreModeAgreed && (match as any).scoringNegotiationStatus !== 'agreed') {
+    const updated = await prisma.match.update({
+      where: { id: matchId },
+      data: { scoringNegotiationStatus: 'agreed' }
+    });
+    Object.assign(match, updated);
+    finalStatus = 'agreed';
+  }
 
   // Compute scores from CONFIRMED events
   const confirmedGoalEvents = events.filter(e =>
@@ -88,7 +100,7 @@ export async function GET(
   const scorerToken = createCasualScorerToken(matchId);
 
   return NextResponse.json({
-    match, scorers, events, signOffs, halfTime,
+    match, scorers, events, signOffs, halfTime, matchStats,
     scoreA, scoreB,
     myTeamId: ctx.myTeamId, isTeamA: ctx.isA, isOMC: ctx.isOMC,
     currentPlayerId: playerId,
@@ -111,5 +123,20 @@ export async function GET(
     // Accept/dispute state
     agreedByA: match?.agreedByA ?? false,
     agreedByB: match?.agreedByB ?? false,
+    // Server-authoritative negotiation fields
+    ...(() => {
+      const m = match as any;
+      return {
+        scoringNegotiationStatus: finalStatus,
+        teamA_Present: m?.teamA_Present ?? false,
+        teamB_Present: m?.teamB_Present ?? false,
+        proposalA_mode: m?.proposalA_mode ?? null,
+        proposalA_method: m?.proposalA_method ?? null,
+        proposalB_mode: m?.proposalB_mode ?? null,
+        proposalB_method: m?.proposalB_method ?? null,
+        matchStartedAt: m?.matchStartedAt ?? null,
+        scoringAgreedAt: m?.scoringAgreedAt ?? null,
+      };
+    })(),
   });
 }

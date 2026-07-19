@@ -11,7 +11,7 @@ export default function LoginPage() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ credential: '', password: '' });
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
@@ -41,6 +41,16 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) { setServerError(data.error ?? 'Login failed'); setLoading(false); return; }
+      
+      // Store session backup for PWA recovery if rememberMe is checked
+      if (rememberMe && data.session) {
+        localStorage.setItem('bmt_remember_me', 'true');
+        localStorage.setItem('bmt_session_backup', JSON.stringify(data.session));
+      } else {
+        localStorage.removeItem('bmt_remember_me');
+        localStorage.removeItem('bmt_session_backup');
+      }
+
       // Cookies are already set via Set-Cookie response header — navigate now
       window.location.href = window.location.origin + data.redirect;
     } catch {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { broadcastMatchEvent } from '@/lib/supabaseRealtime';
 
 function pid(req: NextRequest) { return req.cookies.get('bmt_player_id')?.value ?? null; }
 
@@ -33,6 +34,34 @@ export async function POST(
     const isOMC = ['owner', 'manager', 'captain'].includes(myRole);
     if (!isOMC) return NextResponse.json({ error: 'Only OMC can call half time' }, { status: 403 });
 
+    const body = await req.json().catch(() => ({}));
+
+    // ── RESUME MATCH ─────────────────────────────────────────────────────────
+    if (body.action === 'resume') {
+      const halfTime = match.halfTime;
+      if (!halfTime || !halfTime.confirmedAt) {
+        return NextResponse.json({ error: 'Match is not at half time' }, { status: 400 });
+      }
+
+      const pauseDuration = Date.now() - new Date(halfTime.confirmedAt).getTime();
+      const currentStart = match.matchStartedAt ? new Date(match.matchStartedAt) : new Date(match.updatedAt);
+      const newStart = new Date(currentStart.getTime() + pauseDuration);
+
+      await prisma.$transaction([
+        prisma.match.update({
+          where: { id: matchId },
+          data: { matchStartedAt: newStart }
+        }),
+        prisma.matchHalfTime.delete({
+          where: { matchId }
+        })
+      ]);
+
+      await broadcastMatchEvent(matchId, 'STATE_REQ_RELOAD', {});
+      return NextResponse.json({ ok: true, resumed: true });
+    }
+
+    // ── CALL HALF TIME ───────────────────────────────────────────────────────
     const updateData = isA
       ? { calledByA: true }
       : { calledByB: true };
@@ -50,12 +79,15 @@ export async function POST(
         data: { confirmedAt: new Date() }
       });
       // Log HALF_TIME event
+      const eventMinute = typeof body.minute === 'number' ? body.minute : 45;
       await prisma.matchEvent.create({
-        data: { matchId, type: 'HALF_TIME', teamId: match.teamA_Id, minute: 45, status: 'CONFIRMED' }
+        data: { matchId, type: 'HALF_TIME', teamId: match.teamA_Id, minute: eventMinute, status: 'CONFIRMED' }
       });
+      await broadcastMatchEvent(matchId, 'STATE_REQ_RELOAD', {});
       return NextResponse.json({ ok: true, halfTimeConfirmed: true });
     }
 
+    await broadcastMatchEvent(matchId, 'STATE_REQ_RELOAD', {});
     return NextResponse.json({ ok: true, halfTimeConfirmed: false, halfTime });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

@@ -752,6 +752,10 @@ export default function OrganizerDashboard() {
 
   const handleLogout = () => {
     document.cookie = 'org_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('bmt_remember_me');
+      localStorage.removeItem('bmt_session_backup');
+    }
     router.push(`/${locale}/login`);
   };
 

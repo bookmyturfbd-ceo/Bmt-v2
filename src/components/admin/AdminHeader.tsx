@@ -24,6 +24,10 @@ export default function AdminHeader({ breadcrumb }: AdminHeaderProps) {
     document.cookie = 'bmt_auth=; Max-Age=0; path=/';
     document.cookie = 'bmt_role=; Max-Age=0; path=/';
     document.cookie = 'bmt_name=; Max-Age=0; path=/';
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('bmt_remember_me');
+      localStorage.removeItem('bmt_session_backup');
+    }
     router.push('/en/login');
   };
 

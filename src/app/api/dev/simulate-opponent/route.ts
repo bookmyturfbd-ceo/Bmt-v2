@@ -244,7 +244,7 @@ export async function POST(req: NextRequest) {
                        : null;
 
         const sportType = (updatedMatch.sportType ?? 'FUTSAL_5') as any;
-        const { mmrChangeA, mmrChangeB, mmrField } = calcTeamMMR('dummy_team_a', 'dummy_team_b', winnerId, sportType);
+        const { mmrChangeA, mmrChangeB, mmrField, multA, multB } = calcTeamMMR('dummy_team_a', 'dummy_team_b', winnerId, sportType, 1000, 1000, true);
 
         const rosterMemberIds = match.rosterPicks.map(r => r.memberId);
         const rosterMembers = await prisma.teamMember.findMany({
@@ -256,6 +256,9 @@ export async function POST(req: NextRequest) {
           rosterMembers.map(m => ({ playerId: m.playerId, teamId: m.teamId })),
           winnerId,
           sportType,
+          'dummy_team_a',
+          multA,
+          multB
         );
 
         const statUpserts = rosterMembers.map(m => prisma.playerMatchStat.upsert({
@@ -321,7 +324,7 @@ export async function POST(req: NextRequest) {
                        : null;
 
         const sportType = (match.sportType ?? 'FUTSAL_5') as any;
-        const { mmrChangeA, mmrChangeB, mmrField } = calcTeamMMR('dummy_team_a', 'dummy_team_b', winnerId, sportType);
+        const { mmrChangeA, mmrChangeB, mmrField, multA, multB } = calcTeamMMR('dummy_team_a', 'dummy_team_b', winnerId, sportType, 1000, 1000, true);
 
         const rosterMemberIds = match.rosterPicks.map(r => r.memberId);
         const rosterMembers = await prisma.teamMember.findMany({
@@ -333,6 +336,9 @@ export async function POST(req: NextRequest) {
           rosterMembers.map(m => ({ playerId: m.playerId, teamId: m.teamId })),
           winnerId,
           sportType,
+          'dummy_team_a',
+          multA,
+          multB
         );
 
         const statUpserts = rosterMembers.map(m => prisma.playerMatchStat.upsert({

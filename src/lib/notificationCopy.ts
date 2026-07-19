@@ -109,4 +109,46 @@ export const NOTIFICATION_EVENTS: Record<string, (params: Record<string, string>
       bn: `💬 ${p.friendName} আপনাকে একটি বার্তা পাঠিয়েছেন`
     }
   }),
+  challenge_reminder: (p) => ({
+    title: { en: 'Match Setup Reminder ⏰', bn: 'ম্যাচ সেটআপ রিমাইন্ডার ⏰' },
+    body: {
+      en: `⏰ ${p.teamName} is waiting for you to set up the match`,
+      bn: `⏰ ${p.teamName} আপনার জন্য ম্যাচটি সেটআপ করার অপেক্ষা করছে`
+    }
+  }),
+  match_confirmed: (p) => ({
+    title: { en: 'Match Confirmed ⚔️', bn: 'ম্যাচ নিশ্চিত হয়েছে ⚔️' },
+    body: {
+      en: `⚔️ Match set: ${p.teamAName} vs ${p.teamBName} · ${p.dateTime} · ${p.turfName}`,
+      bn: `⚔️ ম্যাচ নির্ধারিত হয়েছে: ${p.teamAName} বনাম ${p.teamBName} · ${p.dateTime} · ${p.turfName}`
+    }
+  }),
+  match_updated: (p) => ({
+    title: { en: 'Match Details Updated 📝', bn: 'ম্যাচ বিবরণ আপডেট করা হয়েছে 📝' },
+    body: {
+      en: `📝 Match details updated: ${p.teamAName} vs ${p.teamBName} · ${p.dateTime} · ${p.turfName}`,
+      bn: `📝 ম্যাচের বিবরণ আপডেট করা হয়েছে: ${p.teamAName} বনাম ${p.teamBName} · ${p.dateTime} · ${p.turfName}`
+    }
+  }),
+  scoring_mode_proposed: (p) => ({
+    title: { en: 'Scoring Mode Proposal ⚡', bn: 'স্কোরিং মোড প্রস্তাব ⚡' },
+    body: {
+      en: `⚡ ${p.teamName} proposed ${p.modeName} for your match`,
+      bn: `⚡ ${p.teamName} আপনার ম্যাচের জন্য ${p.modeName} প্রস্তাব করেছে`
+    }
+  }),
+  scoring_mode_agreed: (p) => ({
+    title: { en: 'Scoring Mode Agreed ✅', bn: 'স্কোরিং মোড নির্ধারিত ✅' },
+    body: {
+      en: `✅ Scoring mode set: ${p.modeName}. Match ready!`,
+      bn: `✅ স্কোরিং মোড নির্ধারণ করা হয়েছে: ${p.modeName}। ম্যাচ প্রস্তুত!`
+    }
+  }),
+  match_opponent_joined: (p) => ({
+    title: { en: 'Opponent Joined 🟢', bn: 'প্রতিপক্ষ যোগ দিয়েছে 🟢' },
+    body: {
+      en: `🟢 ${p.teamName} joined the match screen — let's go!`,
+      bn: `🟢 ${p.teamName} ম্যাচ স্ক্রিনে যোগ দিয়েছে — চলুন শুরু করা যাক!`
+    }
+  }),
 };

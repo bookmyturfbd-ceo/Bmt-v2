@@ -93,7 +93,40 @@ export async function POST(
                    : null;
 
     const sportType = (match.sportType ?? match.teamA.sportType) as any;
-    const { mmrChangeA, mmrChangeB, mmrField } = calcTeamMMR(match.teamA_Id, match.teamB_Id, winnerId, sportType);
+
+    const completedMatchesA = await prisma.match.count({
+      where: {
+        OR: [
+          { teamA_Id: match.teamA_Id },
+          { teamB_Id: match.teamA_Id }
+        ],
+        status: 'COMPLETED'
+      }
+    });
+    const completedMatchesB = await prisma.match.count({
+      where: {
+        OR: [
+          { teamA_Id: match.teamB_Id },
+          { teamB_Id: match.teamB_Id }
+        ],
+        status: 'COMPLETED'
+      }
+    });
+    const isProvisional = completedMatchesA < 3 || completedMatchesB < 3;
+
+    const isCricket = sportType.includes('CRICKET');
+    const teamAMmr = isCricket ? match.teamA.cricketMmr : match.teamA.footballMmr;
+    const teamBMmr = isCricket ? match.teamB.cricketMmr : match.teamB.footballMmr;
+
+    const { mmrChangeA, mmrChangeB, mmrField, multA, multB } = calcTeamMMR(
+      match.teamA_Id,
+      match.teamB_Id,
+      winnerId,
+      sportType,
+      teamAMmr,
+      teamBMmr,
+      isProvisional
+    );
 
     const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const recentCount = await prisma.match.count({
@@ -111,13 +144,23 @@ export async function POST(
     const rosterMemberIds = match.rosterPicks.map(r => r.memberId);
     const rosterMembers = await prisma.teamMember.findMany({
       where: { id: { in: rosterMemberIds } },
-      select: { playerId: true, teamId: true },
+      select: { id: true, playerId: true, teamId: true },
     });
+
+    // In SCORE_AFTER, only players with isStarter === true are counted as played
+    const playedPlayerIds = rosterMembers.filter(m => {
+      const pick = match.rosterPicks.find(p => p.memberId === m.id);
+      return pick?.isStarter ?? false;
+    }).map(m => m.playerId);
 
     const playerBaseResults = calcPlayerBaseMMR(
       rosterMembers.map(m => ({ playerId: m.playerId, teamId: m.teamId })),
       recentCount >= 2 ? null : winnerId,
       sportType,
+      match.teamA_Id,
+      multA,
+      multB,
+      playedPlayerIds,
     );
 
     const statUpserts = rosterMembers.map(m => prisma.playerMatchStat.upsert({
@@ -151,7 +194,7 @@ export async function POST(
       ...playerMmrUpdates,
     ]);
 
-    const payload = { scoreA: finalScoreA, scoreB: finalScoreB, winnerId, mmrChangeA: effectiveMmrChangeA, mmrChangeB: effectiveMmrChangeB };
+    const payload = { scoreA: finalScoreA, scoreB: finalScoreB, winnerId, mmrChangeA: effectiveMmrChangeA, mmrChangeB: effectiveMmrChangeB, multA, multB };
     await broadcastMatchEvent(matchId, 'BOTH_AGREED', payload);
     return NextResponse.json({ ok: true, finalized: true, ...payload });
 

@@ -4,18 +4,19 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   Loader2, ChevronLeft, Target, CreditCard, ArrowLeftRight,
   CheckCircle, Clock, Flag, X, Shield,
-  Zap, Search
+  Zap, Search, User
 } from 'lucide-react';
 import { subscribeToMatchChannel, broadcastMatchEvent } from '@/lib/supabaseRealtime';
 import PostMatchStatsModal from '@/components/matches/PostMatchStatsModal';
 import { useMatchResult } from '@/context/MatchResultContext';
+import ShareCard from '@/components/matches/ShareCard';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type MatchEvent = {
   id: string; matchId: string; type: string; teamId: string;
   playerId?: string; assistPlayerId?: string; playerOnId?: string;
   minute: number; status: 'PENDING' | 'CONFIRMED' | 'DISPUTED' | 'REMOVED';
-  disputedByTeamId?: string; createdAt: string;
+  disputedByTeamId?: string; createdAt: string; isEdited?: boolean;
 };
 type MatchSignOff = { id: string; matchId: string; teamId: string };
 type Player = { id: string; fullName: string; avatarUrl?: string; mmr: number };
@@ -40,24 +41,29 @@ const EVENT_META: Record<string, { icon: string; label: string; color: string }>
 // ─── Event Bottom Sheet ──────────────────────────────────────────────────────
 type SheetType = 'GOAL' | 'OWN_GOAL' | 'PENALTY' | 'CARD' | 'SUB' | null;
 
-function EventSheet({ type, myTeam, opponentTeam, isSingleScorer, matchId, currentMinute, rosterPicks, onClose, onSubmit }: {
+function EventSheet({ type, myTeam, opponentTeam, isSingleScorer, matchId, currentMinute, rosterPicks, editEvent, onClose, onSubmit }: {
   type: SheetType; myTeam: Team; opponentTeam: Team; isSingleScorer: boolean;
   matchId: string; currentMinute: number;
   rosterPicks: RosterPick[];
+  editEvent?: MatchEvent | null;
   onClose: () => void; onSubmit: (event: MatchEvent) => void;
 }) {
   const [step, setStep] = useState(0);
-  const [scorerId, setScorerId] = useState<string | null>(null);
-  const [assistId, setAssistId] = useState<string | null>(null);
-  const [playerOffId, setPlayerOffId] = useState<string | null>(null);
-  const [playerOnId2, setPlayerOnId2] = useState<string | null>(null);
-  const [minute, setMinute] = useState(currentMinute);
-  const [cardType, setCardType] = useState<'YELLOW' | 'RED'>('YELLOW');
-  const [penaltyScored, setPenaltyScored] = useState(true);
+  const [isOwnGoal, setIsOwnGoal] = useState(editEvent?.type === 'OWN_GOAL');
+  const [scorerId, setScorerId] = useState<string | null>(editEvent?.playerId || null);
+  const [assistId, setAssistId] = useState<string | null>(editEvent?.assistPlayerId || null);
+  const [playerOffId, setPlayerOffId] = useState<string | null>(editEvent?.playerId || null);
+  const [playerOnId2, setPlayerOnId2] = useState<string | null>(editEvent?.playerOnId || null);
+  const [minute, setMinute] = useState(editEvent ? editEvent.minute : currentMinute);
+  const [cardType, setCardType] = useState<'YELLOW' | 'RED'>(editEvent?.type === 'RED_CARD' ? 'RED' : 'YELLOW');
+  const [penaltyScored, setPenaltyScored] = useState(editEvent?.type === 'PENALTY_SCORED' || editEvent?.type !== 'PENALTY_MISSED');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
+  const [showMinuteStepper, setShowMinuteStepper] = useState(false);
 
-  const [selectedTeamId, setSelectedTeamId] = useState<string>(myTeam.id);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>(
+    editEvent ? editEvent.teamId : myTeam.id
+  );
 
   const activeTeam = isSingleScorer ? (selectedTeamId === myTeam.id ? myTeam : opponentTeam) : myTeam;
 
@@ -74,32 +80,89 @@ function EventSheet({ type, myTeam, opponentTeam, isSingleScorer, matchId, curre
     let eventType = type as string;
     if (type === 'PENALTY') eventType = penaltyScored ? 'PENALTY_SCORED' : 'PENALTY_MISSED';
     if (type === 'CARD') eventType = cardType === 'RED' ? 'RED_CARD' : 'YELLOW_CARD';
+    if (isOwnGoal) eventType = 'OWN_GOAL';
 
     const body: any = { type: eventType, minute, teamId: activeTeam.id };
-    if (type === 'GOAL' || type === 'PENALTY') body.scorerPlayerId = scorerId;
-    if (type === 'GOAL') body.assistPlayerId = assistId;
-    if (type === 'CARD') body.scorerPlayerId = scorerId;
-    if (type === 'SUB') { body.scorerPlayerId = playerOffId; body.playerOnId = playerOnId2; }
+    if (eventType === 'GOAL' || eventType === 'PENALTY_SCORED' || eventType === 'PENALTY_MISSED') body.scorerPlayerId = scorerId;
+    if (eventType === 'GOAL') body.assistPlayerId = assistId;
+    if (eventType === 'CARD' || eventType === 'YELLOW_CARD' || eventType === 'RED_CARD') body.scorerPlayerId = scorerId;
+    if (eventType === 'SUB' || eventType === 'SUBSTITUTION') { body.scorerPlayerId = playerOffId; body.playerOnId = playerOnId2; }
+    if (eventType === 'OWN_GOAL') body.scorerPlayerId = scorerId; // conceding opponent player
 
-    const r = await fetch(`/api/matches/${matchId}/events`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    let r, d;
+    if (editEvent) {
+      // Edit mode
+      r = await fetch(`/api/matches/${matchId}/events/${editEvent.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'edit',
+          minute,
+          scorerPlayerId: body.scorerPlayerId,
+          assistPlayerId: body.assistPlayerId,
+          playerOnId: body.playerOnId,
+        })
+      });
+      d = await r.json();
+      if (r.ok) {
+        await broadcastMatchEvent(matchId, 'EVENT_UPDATED', { event: d.event });
+        onSubmit(d.event);
+        onClose();
+      } else setErr(d.error || 'Failed to edit');
+    } else {
+      // Create mode
+      r = await fetch(`/api/matches/${matchId}/events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      d = await r.json();
+      if (r.ok) {
+        await broadcastMatchEvent(matchId, 'EVENT_CREATED', { event: d.event });
+        onSubmit(d.event);
+        onClose();
+      } else setErr(d.error || 'Failed');
+    }
+    setLoading(false);
+  };
+
+  const handleDelete = async () => {
+    if (!editEvent) return;
+    setLoading(true); setErr('');
+    const r = await fetch(`/api/matches/${matchId}/events/${editEvent.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete' })
     });
     const d = await r.json();
     if (r.ok) {
-      await broadcastMatchEvent(matchId, 'EVENT_CREATED', { event: d.event });
+      await broadcastMatchEvent(matchId, 'EVENT_UPDATED', { event: d.event });
       onSubmit(d.event);
       onClose();
-    } else setErr(d.error || 'Failed');
+    } else setErr(d.error || 'Failed to delete');
     setLoading(false);
   };
 
   // PlayerList — NO internal scroll. The parent body div owns all scrolling.
-  const PlayerList = ({ members, selected, onSelect, label }: {
+  const PlayerList = ({ members, selected, onSelect, label, showOwnGoalOption, onSelectOwnGoal }: {
     members: Member[]; selected: string | null; onSelect: (id: string) => void; label: string;
+    showOwnGoalOption?: boolean; onSelectOwnGoal?: () => void;
   }) => (
     <div className="flex flex-col gap-2">
       {label ? <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-1">{label}</p> : null}
-      {members.length === 0 && (
+      
+      {showOwnGoalOption && (
+        <button onClick={onSelectOwnGoal}
+          className="flex items-center gap-3 p-3 rounded-xl border border-red-500/20 bg-red-500/5 text-red-400 active:scale-[0.98] transition-all mb-1 hover:bg-red-500/10">
+          <span className="text-xl">⚽</span>
+          <div className="text-left flex-1 min-w-0">
+            <p className="text-sm font-black truncate">Own Goal (conceded by opponent)</p>
+            <p className="text-[10px] text-red-500/60 font-bold uppercase">Log own goal</p>
+          </div>
+        </button>
+      )}
+
+      {members.length === 0 && !showOwnGoalOption && (
         <p className="text-xs text-neutral-600 italic py-3 text-center">No players in this group</p>
       )}
       {members.map(m => (
@@ -127,48 +190,50 @@ function EventSheet({ type, myTeam, opponentTeam, isSingleScorer, matchId, curre
 
   // Compact minute selector — buttons hug the number, always thumb-reachable
   const MinuteInput = () => (
-    <div>
-      <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-3">Minute</p>
+    <div className="w-full flex flex-col items-center">
+      <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-2">Minute</p>
       <div className="flex items-center justify-center gap-3">
         <button
           onClick={() => setMinute(m => Math.max(0, m - 1))}
-          className="w-14 h-14 rounded-2xl bg-neutral-800 border border-white/10 text-2xl font-black text-white flex items-center justify-center active:scale-90 shrink-0"
+          className="w-10 h-10 rounded-xl bg-neutral-800 border border-white/10 text-lg font-black text-white flex items-center justify-center active:scale-90 shrink-0"
         >−</button>
         <input
           type="number"
           value={minute}
           onChange={e => setMinute(Number(e.target.value))}
-          className="w-20 text-center text-4xl font-black text-white bg-transparent outline-none"
+          className="w-16 text-center text-2xl font-black text-white bg-transparent outline-none"
           style={{ MozAppearance: 'textfield' }}
         />
         <button
           onClick={() => setMinute(m => m + 1)}
-          className="w-14 h-14 rounded-2xl bg-[#00ff41]/20 border border-[#00ff41]/40 text-2xl font-black text-[#00ff41] flex items-center justify-center active:scale-90 shrink-0"
+          className="w-10 h-10 rounded-xl bg-[#00ff41]/20 border border-[#00ff41]/40 text-lg font-black text-[#00ff41] flex items-center justify-center active:scale-90 shrink-0"
         >+</button>
       </div>
     </div>
   );
 
-  const title = type === 'GOAL' ? ['Who scored?', 'Assist?', 'Minute?'][step]
+  const title = isOwnGoal
+    ? ['Who conceded?', 'Who conceded?'][step]
+    : type === 'GOAL' ? ['Who scored?', 'Assist?'][step]
     : type === 'PENALTY' ? 'Penalty'
     : type === 'CARD' ? 'Card Event'
-    : type === 'SUB' ? ['Player Off?', 'Player On?', 'Minute?'][step]
+    : type === 'SUB' ? ['Player Off?', 'Player On?'][step]
     : 'Own Goal';
 
-  const canNext = type === 'GOAL'
+  const canNext = isOwnGoal ? true : (type === 'GOAL'
     ? step === 0 ? !!scorerId : true
     : type === 'SUB'
-    ? step === 0 ? !!playerOffId : step === 1 ? !!playerOnId2 : true
-    : true;
+    ? step === 0 ? !!playerOffId : true
+    : true);
 
-  const canSubmit = type === 'GOAL'
-    ? step === 2 && !!scorerId
+  const canSubmit = isOwnGoal ? true : (type === 'GOAL'
+    ? step === 1 && !!scorerId
     : type === 'CARD' ? !!scorerId
     : type === 'PENALTY' ? (penaltyScored ? !!scorerId : true)
-    : type === 'SUB' ? step === 2 && !!playerOffId && !!playerOnId2
-    : true;
+    : type === 'SUB' ? step === 1 && !!playerOffId && !!playerOnId2
+    : true);
 
-  const totalSteps = type === 'GOAL' ? 3 : type === 'SUB' ? 3 : 1;
+  const totalSteps = isOwnGoal ? 1 : (type === 'GOAL' ? 2 : type === 'SUB' ? 2 : 1);
 
   return (
     <div className="fixed inset-0 z-[150] flex flex-col justify-end">
@@ -187,7 +252,7 @@ function EventSheet({ type, myTeam, opponentTeam, isSingleScorer, matchId, curre
               <X size={16} className="text-neutral-400" />
             </button>
           </div>
-          {isSingleScorer && (
+          {isSingleScorer && !isOwnGoal && (
             <div className="flex bg-[#000] p-1 rounded-2xl w-full">
               <button onClick={() => { setSelectedTeamId(myTeam.id); setScorerId(null); setAssistId(null); setPlayerOffId(null); setPlayerOnId2(null); }}
                 className={`flex-1 py-2.5 text-xs font-black rounded-xl transition-all truncate px-2 ${selectedTeamId === myTeam.id ? 'bg-[#00ff41] text-black' : 'text-neutral-500 hover:text-white'}`}>{myTeam.name}</button>
@@ -197,17 +262,20 @@ function EventSheet({ type, myTeam, opponentTeam, isSingleScorer, matchId, curre
           )}
         </div>
 
-        {/*
-          Body: the ONE and ONLY scrollable container.
-          flex-1 min-h-0 = takes remaining height without overflowing.
-          overscrollBehavior contain = momentum stays here, never reaches the backdrop.
-        */}
         <div
           className="flex-1 min-h-0 overflow-y-auto px-5 py-4 flex flex-col gap-4"
           style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}
         >
-          {type === 'GOAL' && step === 0 && <PlayerList members={myMembers} selected={scorerId} onSelect={setScorerId} label="Goalscorer" />}
-          {type === 'GOAL' && step === 1 && (
+          {/* Own Goal concessions list */}
+          {isOwnGoal && (
+            <div>
+              <button onClick={() => { setScorerId(null); submit(); }} className={`w-full py-3 px-4 rounded-xl border mb-3 font-black text-sm transition-all bg-neutral-900 border-white/5 text-neutral-400`}>Skip / No Player</button>
+              <PlayerList members={opponentTeam.members} selected={scorerId} onSelect={setScorerId} label="Select opponent player who conceded" />
+            </div>
+          )}
+
+          {!isOwnGoal && type === 'GOAL' && step === 0 && <PlayerList members={myMembers} selected={scorerId} onSelect={setScorerId} label="Goalscorer" showOwnGoalOption={true} onSelectOwnGoal={() => setIsOwnGoal(true)} />}
+          {!isOwnGoal && type === 'GOAL' && step === 1 && (
             <div>
               <button onClick={() => setAssistId(null)} className={`w-full py-3 px-4 rounded-xl border mb-3 font-black text-sm transition-all ${assistId === null ? 'bg-neutral-700 border-white/30 text-white' : 'bg-neutral-900 border-white/5 text-neutral-400'}`}>No Assist</button>
               {myMembers.filter((m: Member) => m.playerId !== scorerId).map((m: Member) => (
@@ -219,7 +287,6 @@ function EventSheet({ type, myTeam, opponentTeam, isSingleScorer, matchId, curre
               ))}
             </div>
           )}
-          {type === 'GOAL' && step === 2 && <MinuteInput />}
 
           {type === 'PENALTY' && (
             <div className="flex flex-col gap-4">
@@ -228,7 +295,6 @@ function EventSheet({ type, myTeam, opponentTeam, isSingleScorer, matchId, curre
                 <button onClick={() => setPenaltyScored(false)} className={`flex-1 py-3 rounded-xl font-black text-sm border transition-all ${!penaltyScored ? 'bg-red-500/10 border-red-500/40 text-red-400' : 'bg-neutral-900 border-white/5 text-neutral-400'}`}>Missed</button>
               </div>
               {penaltyScored && <PlayerList members={myMembers} selected={scorerId} onSelect={setScorerId} label="Penalty Taker" />}
-              <MinuteInput />
             </div>
           )}
 
@@ -239,11 +305,9 @@ function EventSheet({ type, myTeam, opponentTeam, isSingleScorer, matchId, curre
                 <button onClick={() => setCardType('RED')} className={`flex-1 py-3 rounded-xl font-black text-sm border transition-all ${cardType === 'RED' ? 'bg-red-500/10 border-red-500/40 text-red-400' : 'bg-neutral-900 border-white/5 text-neutral-400'}`}>🟥 Red</button>
               </div>
               <PlayerList members={myMembers} selected={scorerId} onSelect={setScorerId} label="Player Booked" />
-              <MinuteInput />
             </div>
           )}
 
-          {/* SUB — starters come off, subs come on */}
           {type === 'SUB' && step === 0 && (
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500 mb-2">Player Coming OFF (starters)</p>
@@ -262,31 +326,53 @@ function EventSheet({ type, myTeam, opponentTeam, isSingleScorer, matchId, curre
               }
             </div>
           )}
-          {type === 'SUB' && step === 2 && <MinuteInput />}
 
           {type === 'OWN_GOAL' && (
             <div className="flex flex-col gap-4">
               <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-2xl">
                 <p className="text-sm font-bold text-orange-400">⚠️ Own Goal — will add 1 goal to <strong>{opponentTeam.name}</strong></p>
               </div>
-              <MinuteInput />
             </div>
           )}
+
+          {/* Editable Minute Chip on final step */}
+          {(totalSteps === 1 || step === totalSteps - 1) && (
+            <div className="flex flex-col items-center justify-center my-4 shrink-0">
+              {!showMinuteStepper ? (
+                <button
+                  type="button"
+                  onClick={() => setShowMinuteStepper(true)}
+                  className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-full border border-white/10 text-sm font-black flex items-center gap-1.5 active:scale-95 transition-all"
+                >
+                  ⏱ {minute}' <span className="text-neutral-400 text-xs">✎</span>
+                </button>
+              ) : (
+                <MinuteInput />
+              )}
+            </div>
+          )}
+
           {err && <p className="text-red-400 text-xs font-bold">{err}</p>}
         </div>
 
-        {/* Footer — always visible, never scrolls away */}
         <div className="px-5 pb-8 pt-3 border-t border-[#1e2028] shrink-0 flex gap-2">
+          {editEvent && (
+            <button onClick={handleDelete} disabled={loading}
+              className="px-5 py-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 font-black text-sm transition-all active:scale-[0.98]">
+              Delete
+            </button>
+          )}
+
           {totalSteps > 1 && step < totalSteps - 1 && (
             <button onClick={() => setStep(s => s + 1)} disabled={!canNext}
-              className="flex-1 py-4 rounded-2xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-black text-sm disabled:opacity-40 transition-all">
+              className="flex-1 py-4 rounded-2xl bg-[#00ff41] hover:bg-[#00e038] text-black font-black text-sm disabled:opacity-40 transition-all">
               Next →
             </button>
           )}
           {(totalSteps === 1 || step === totalSteps - 1) && (
             <button onClick={submit} disabled={!canSubmit || loading}
-              className="flex-1 py-4 rounded-2xl bg-[#00ff41] text-black font-black text-sm disabled:opacity-40 flex items-center justify-center gap-2 transition-all active:scale-[0.98]">
-              {loading ? <Loader2 size={16} className="animate-spin" /> : 'Submit ✓'}
+              className="flex-1 py-4 rounded-2xl bg-[#00ff41] hover:bg-[#00e038] text-black font-black text-sm disabled:opacity-40 flex items-center justify-center gap-2 transition-all active:scale-[0.98]">
+              {loading ? <Loader2 size={16} className="animate-spin" /> : (editEvent ? 'Save ✓' : 'Submit ✓')}
             </button>
           )}
         </div>
@@ -418,6 +504,8 @@ export default function LiveScoringPage() {
     winnerId: string | null;
     mmrChangeA: number; mmrChangeB: number;
     victoryString?: string;
+    multA?: number;
+    multB?: number;
   } | null>(null);
 
   // ── Score After Match state ────────────────────────────────────────────────
@@ -426,6 +514,15 @@ export default function LiveScoringPage() {
   const [scoreModeRequest, setScoreModeRequest]   = useState<{ mode: string; fromTeamId: string; singleScorerId?: string } | null>(null);
   const [showModeGate, setShowModeGate]           = useState(false);
   const [modeGateLoading, setModeGateLoading]     = useState(false);
+  // Server-authoritative negotiation state
+  const [negStatus, setNegStatus]           = useState<'negotiating' | 'agreed'>('negotiating');
+  const [teamAPresent, setTeamAPresent]     = useState(false);
+  const [teamBPresent, setTeamBPresent]     = useState(false);
+  const [proposalA, setProposalA]           = useState<{ mode: string; method?: string } | null>(null);
+  const [proposalB, setProposalB]           = useState<{ mode: string; method?: string } | null>(null);
+  const [isSuggestingInstead, setIsSuggestingInstead] = useState(false);
+  const [timeoutPromptVisible, setTimeoutPromptVisible] = useState(false);
+  const [matchServerStartMs, setMatchServerStartMs] = useState<number | null>(null);
   // End-game dual-confirm
   const [myEndedGame, setMyEndedGame]             = useState(false);
   const [opponentEndedGame, setOpponentEndedGame] = useState(false);
@@ -437,6 +534,7 @@ export default function LiveScoringPage() {
   const [scoreEntryUs, setScoreEntryUs]           = useState(0);
   const [scoreEntryThem, setScoreEntryThem]       = useState(0);
   const [scoreSubmitting, setScoreSubmitting]     = useState(false);
+  const [playedMemberIds, setPlayedMemberIds]     = useState<string[]>([]);
   // Score comparison (after both submit)
   const [scoresRevealed, setScoresRevealed]       = useState<{ scoreA: number; scoreB: number } | null>(null);
   const [myAccepted, setMyAccepted]               = useState(false);
@@ -444,6 +542,21 @@ export default function LiveScoringPage() {
   const [acceptLoading, setAcceptLoading]         = useState(false);
   // Post-match stats modal (Score After only)
   const [showStatsModal, setShowStatsModal]       = useState(false);
+  const [matchStats, setMatchStats]               = useState<any[]>([]);
+  const [badgesDismissed, setBadgesDismissed]     = useState(false);
+  const [showShareCard, setShowShareCard]         = useState(false);
+  const [sharedBadges, setSharedBadges]           = useState<any[]>([]);
+
+  // Undo/Edit states
+  const [undoToast, setUndoToast] = useState<{ id: string; msg: string } | null>(null);
+  const [undoTimer, setUndoTimer] = useState<number>(5);
+  const [selectedEventToEdit, setSelectedEventToEdit] = useState<any | null>(null);
+  const [isHalfTimeConfirmed, setIsHalfTimeConfirmed] = useState(false);
+
+  // Quick-Log States
+  const [showQuickLogTeamPicker, setShowQuickLogTeamPicker] = useState(false);
+  const [longPressed, setLongPressed] = useState(false);
+  const longPressTimerRef = useRef<any>(null);
 
   // Single Scorer Mode State
   const [liveScoringSubMenu, setLiveScoringSubMenu] = useState(false);
@@ -451,14 +564,19 @@ export default function LiveScoringPage() {
 
   const loadState = useCallback(async () => {
     const r = await fetch(`/api/matches/${matchId}/state`);
-    const d = await r.json();
     if (!r.ok) { router.push(`/${locale}/interact`); return; }
+    const d = await r.json();
     setState(d);
     setEvents(d.events || []);
     setSignOffs(d.signOffs || []);
+    setMatchStats(d.matchStats || []);
+    setIsHalfTimeConfirmed(!!(d.halfTime?.calledByA && d.halfTime?.calledByB));
     setScoreA(d.scoreA ?? 0);
     setScoreB(d.scoreB ?? 0);
     setHalfTime(d.halfTime || null);
+    const myPicks = d.match.rosterPicks?.filter((p: any) => p.teamId === d.myTeamId) || [];
+    const myStarters = myPicks.filter((p: any) => p.isStarter);
+    setPlayedMemberIds(prev => prev.length > 0 ? prev : myStarters.map((s: any) => s.memberId));
     // Scoring mode
     setScoringMode(d.scoringMode ?? 'LIVE');
     setScoreModeAgreed(d.scoreModeAgreed ?? false);
@@ -490,15 +608,41 @@ export default function LiveScoringPage() {
       setScoreModeRequest(null);
       setShowModeGate(false);
     }
+    // Hydrate server-authoritative negotiation fields
+    const neg = d.match;
+    if (neg) {
+      const isAgreed = neg.scoringNegotiationStatus === 'agreed' || d.scoreModeAgreed;
+      setNegStatus(isAgreed ? 'agreed' : 'negotiating');
+      setTeamAPresent(neg.teamA_Present ?? false);
+      setTeamBPresent(neg.teamB_Present ?? false);
+      setProposalA(neg.proposalA_mode ? { mode: neg.proposalA_mode, method: neg.proposalA_method } : null);
+      setProposalB(neg.proposalB_mode ? { mode: neg.proposalB_mode, method: neg.proposalB_method } : null);
+      if (neg.matchStartedAt) setMatchServerStartMs(new Date(neg.matchStartedAt).getTime());
+    }
     setLoading(false);
 
     if (d.match?.status === 'LIVE') {
-      const startMs = new Date(d.match.updatedAt).getTime();
-      const now = Date.now();
       const isHalfTimeConfirmed = d.halfTime?.calledByA && d.halfTime?.calledByB;
+      const isHTProposedOrConfirmed = !!d.halfTime;
+
+      // Use server matchStartedAt if available, fall back to updatedAt
+      const startMs = d.match.matchStartedAt
+        ? new Date(d.match.matchStartedAt).getTime()
+        : new Date(d.match.updatedAt).getTime();
+      const now = Date.now();
 
       setTimerSecs(prev => {
-        if (isHalfTimeConfirmed) return 2700; // Freeze at 45 minutes
+        if (isHalfTimeConfirmed) {
+          const htEvent = (d.events || []).find((e: any) => e.type === 'HALF_TIME');
+          return htEvent ? htEvent.minute * 60 : 2700;
+        }
+        if (isHTProposedOrConfirmed) {
+          // Pause local clock calculations
+          return prev > 0 ? prev : Math.max(0, Math.floor((now - startMs) / 1000));
+        }
+        // Only count if negotiation is agreed
+        const isAgreedLocal = d.match.scoringNegotiationStatus === 'agreed' || d.scoreModeAgreed;
+        if (!d.match.matchStartedAt && !isAgreedLocal) return 0;
         let elapsed = Math.floor((now - startMs) / 1000);
         if (d.events?.length > 0) {
           const maxMin = Math.max(...d.events.map((e: any) => e.minute));
@@ -506,9 +650,11 @@ export default function LiveScoringPage() {
         }
         return Math.max(0, elapsed);
       });
-      setTimerRunning(!isHalfTimeConfirmed);
+      // Only run timer when agreed and not proposed or confirmed halftime
+      const isAgreed = d.match.scoringNegotiationStatus === 'agreed' || d.scoreModeAgreed;
+      setTimerRunning(isAgreed && !isHTProposedOrConfirmed);
       // Show mode gate only if: OMC, no mode agreed, and no pending proposal from anyone
-      if (d.isOMC && !d.scoreModeAgreed && !d.scoreModeRequestedBy) {
+      if (d.isOMC && d.match.scoringNegotiationStatus !== 'agreed' && !d.scoreModeRequestedBy) {
         setShowModeGate(true);
       }
     }
@@ -523,6 +669,33 @@ export default function LiveScoringPage() {
 
   useEffect(() => { loadState(); }, [loadState]);
 
+  // Undo countdown timer
+  useEffect(() => {
+    if (!undoToast) return;
+    setUndoTimer(5);
+    const interval = setInterval(() => {
+      setUndoTimer(t => {
+        if (t <= 1) {
+          clearInterval(interval);
+          setUndoToast(null);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [undoToast]);
+
+  // Auto post-match stats modal open
+  useEffect(() => {
+    if (!state) return;
+    const isCompleted = state.match?.status === 'COMPLETED';
+    const badgesDistributed = matchStats.some(s => s.teamId === state.myTeamId && s.badge !== 'NONE');
+    if (isCompleted && state.isOMC && !badgesDistributed && !badgesDismissed && !showStatsModal) {
+      setShowStatsModal(true);
+    }
+  }, [state, matchStats, badgesDismissed, showStatsModal]);
+
   // Supabase Realtime
   useEffect(() => {
     if (!matchId) return;
@@ -536,6 +709,9 @@ export default function LiveScoringPage() {
       if (event === 'EVENT_UPDATED') {
         setEvents(prev => prev.map(e => e.id === data.event.id ? data.event : e));
       }
+      if (event === 'EVENT_DELETED') {
+        setEvents(prev => prev.filter(e => e.id !== data.eventId));
+      }
       if (event === 'SCORE_UPDATE') {
         setScoreA(data.scoreA); setScoreB(data.scoreB);
       }
@@ -547,24 +723,35 @@ export default function LiveScoringPage() {
       if (event === 'SIGN_OFF' || event === 'STATE_REQ_RELOAD') { loadState(); }
 
       if (event === 'SCORE_MODE_REQUEST') {
-        // Show accept/reject modal only to the opponent
-        if (data.fromTeamId !== stateRef.current?.myTeamId) {
-          setScoreModeRequest({ mode: data.mode, fromTeamId: data.fromTeamId, singleScorerId: data.singleScorerId });
-          setShowModeGate(false);
-          loadState();
-        }
+        // Reload full state to hydrate proposal fields from server
+        loadState();
       }
       if (event === 'SCORE_MODE_AGREED') {
-        setScoringMode(data.mode);
-        setScoreModeAgreed(true);
+        const m = data.match;
+        if (m) {
+          setScoringMode(m.scoringMode ?? 'LIVE');
+          setScoreModeAgreed(true);
+          setNegStatus('agreed');
+          if (m.matchStartedAt) {
+            setMatchServerStartMs(new Date(m.matchStartedAt).getTime());
+            setTimerRunning(true);
+          }
+        }
         setScoreModeRequest(null);
         setShowModeGate(false);
       }
-      if (event === 'SCORE_MODE_REJECTED') {
-        setScoringMode('LIVE');
-        setScoreModeAgreed(false);
-        setScoreModeRequest(null);
-        setMsg('⚠️ Mode rejected — defaulting to Live Scoring.');
+      if (event === 'PRESENCE_UPDATE' || event === 'MATCH_STARTED') {
+        const m = data.match;
+        if (m) {
+          setTeamAPresent(m.teamA_Present ?? false);
+          setTeamBPresent(m.teamB_Present ?? false);
+          if (event === 'MATCH_STARTED' && m.matchStartedAt) {
+            setMatchServerStartMs(new Date(m.matchStartedAt).getTime());
+            setNegStatus('agreed');
+            setScoreModeAgreed(true);
+            setTimerRunning(true);
+          }
+        }
       }
       if (event === 'SCORE_ENTRY_OPEN') {
         setShowScoreEntry(true);
@@ -603,18 +790,86 @@ export default function LiveScoringPage() {
     return () => { channel?.unsubscribe?.(); };
   }, [matchId, loadState]);
 
-  // Timer
+  // Presence heartbeat — ping every 8 seconds while on screen
   useEffect(() => {
-    if (timerRunning) {
-      timerRef.current = setInterval(() => setTimerSecs(s => s + 1), 1000);
-    } else {
-      clearInterval(timerRef.current);
+    if (!matchId) return;
+    const sendHeartbeat = async () => {
+      try {
+        const r = await fetch(`/api/matches/${matchId}/presence`, { method: 'POST' });
+        if (r.ok) {
+          const d = await r.json();
+          if (d.match) {
+            setTeamAPresent(d.match.teamA_Present ?? false);
+            setTeamBPresent(d.match.teamB_Present ?? false);
+            if (d.match.scoringNegotiationStatus === 'agreed' && d.match.matchStartedAt) {
+              // Functional setter avoids stale closure — only update if not already set
+              setMatchServerStartMs(prev => prev ?? new Date(d.match.matchStartedAt).getTime());
+              setNegStatus('agreed');
+              setScoreModeAgreed(true);
+            }
+          }
+        }
+      } catch {}
+    };
+    sendHeartbeat();
+    const interval = setInterval(sendHeartbeat, 8000);
+    return () => clearInterval(interval);
+  }, [matchId]); // matchId only — interval should run for the full page lifetime
+
+  // Timer (Server-authoritative calculation on each tick)
+  useEffect(() => {
+    if (!timerRunning || !matchServerStartMs) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
     }
-    return () => clearInterval(timerRef.current);
-  }, [timerRunning]);
+
+    const tick = () => {
+      const now = Date.now();
+      const elapsed = Math.floor((now - matchServerStartMs) / 1000);
+      setTimerSecs(Math.max(0, elapsed));
+    };
+
+    tick(); // Run immediately
+    timerRef.current = setInterval(tick, 1000);
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [timerRunning, matchServerStartMs]);
+
+  // Auto-sync state on tab focus / phone unlock
+  useEffect(() => {
+    const handleSync = () => {
+      if (document.visibilityState === 'visible') {
+        loadState();
+      }
+    };
+    window.addEventListener('visibilitychange', handleSync);
+    window.addEventListener('focus', handleSync);
+    return () => {
+      window.removeEventListener('visibilitychange', handleSync);
+      window.removeEventListener('focus', handleSync);
+    };
+  }, [loadState]);
 
   const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
   const currentMinute = Math.floor(timerSecs / 60);
+
+  // 10-minute negotiation timeout fallback
+  useEffect(() => {
+    if (negStatus === 'agreed') return;
+    const timer = setTimeout(() => {
+      // Both present but no agreement after 10 minutes
+      setTimeoutPromptVisible(true);
+    }, 10 * 60 * 1000);
+    return () => clearTimeout(timer);
+  }, [negStatus]);
 
   // ── Trigger global rank modal when match result lands ──────────────────────────
   useEffect(() => {
@@ -658,6 +913,9 @@ export default function LiveScoringPage() {
       currentMmr,
       matchId       : m.id,
       onDismissPath,
+      multA         : matchResult.multA,
+      multB         : matchResult.multB,
+      myMultiplier  : amA ? matchResult.multA : matchResult.multB,
     });
   }, [matchResult, state, showMatchResult, scoringMode, locale, matchId]);
 
@@ -690,7 +948,13 @@ export default function LiveScoringPage() {
 
   const signedOff     = signOffs.some(s => s.teamId === myTeamId);
   const bothSignedOff = signOffs.length >= 2;
-  const visibleEvents = events.filter(e => e.status !== 'REMOVED');
+  const visibleEvents = events.filter(e => {
+    if (e.status === 'REMOVED') {
+      const isMyEvent = (e.type !== 'OWN_GOAL' && e.teamId === myTeamId) || (e.type === 'OWN_GOAL' && e.teamId !== myTeamId);
+      return !isMyEvent;
+    }
+    return true;
+  });
   const disputedEvents = events.filter(e => e.status === 'DISPUTED');
 
   const getPlayerName = (playerId?: string | null) => {
@@ -731,7 +995,11 @@ export default function LiveScoringPage() {
   };
 
   const handleHalfTime = async () => {
-    const r = await fetch(`/api/matches/${matchId}/halftime`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const r = await fetch(`/api/matches/${matchId}/halftime`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ minute: currentMinute })
+    });
     const d = await r.json();
     if (d.halfTimeConfirmed) { setMsg('⏸ Half time confirmed!'); setTimerRunning(false); }
     else setMsg('Waiting for opponent to confirm half time...');
@@ -762,52 +1030,74 @@ export default function LiveScoringPage() {
     loadState();
   };
 
-  const handleProposeMode = async (mode: 'LIVE' | 'LIVE_SINGLE' | 'SCORE_AFTER', singleScorerId?: string) => {
+  // proposedMode: 'live' | 'after_match'; proposedMethod: 'individual' | 'single_scorer'
+  const handleProposeMode = async (proposedMode: string, proposedMethod?: string, singleScorerId?: string) => {
     setModeGateLoading(true);
     const r = await fetch(`/api/matches/${matchId}/mode`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode, singleScorerId }),
+      body: JSON.stringify({ proposedMode, proposedMethod: proposedMethod ?? 'individual', singleScorerId }),
     });
     if (r.ok) {
-      setScoringMode(mode);
-      setShowModeGate(false);
-      // Optimistically reflect that WE are the proposer — shows the waiting banner
-      setState((prev: any) => prev ? { ...prev, scoreModeRequestedBy: prev.myTeamId } : prev);
-    } else {
       const d = await r.json();
-      // If already agreed (another edge case), silently refresh
-      if (r.status === 200) { loadState(); }
-      else setMsg('❌ ' + d.error);
+      // Hydrate updated proposals from server
+      const m = d.match;
+      if (m) {
+        setProposalA(m.proposalA_mode ? { mode: m.proposalA_mode, method: m.proposalA_method } : null);
+        setProposalB(m.proposalB_mode ? { mode: m.proposalB_mode, method: m.proposalB_method } : null);
+      }
+      setShowModeGate(false);
+      setIsSuggestingInstead(false);
+    } else {
+      const d = await r.json().catch(() => ({}));
+      setMsg('❌ ' + (d.error ?? 'Failed to propose mode'));
     }
     setModeGateLoading(false);
   };
 
-  const handleRespondMode = async (accept: boolean) => {
+  const handleAcceptOpponentProposal = async () => {
+    setModeGateLoading(true);
     const r = await fetch(`/api/matches/${matchId}/mode`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accept }),
+      body: JSON.stringify({}),
     });
     if (r.ok) {
       const d = await r.json();
-      if (d.agreed) {
-        setScoringMode(d.mode);
+      const m = d.match;
+      if (m) {
+        setScoringMode(m.scoringMode ?? 'LIVE');
         setScoreModeAgreed(true);
-        await broadcastMatchEvent(matchId, 'SCORE_MODE_AGREED', { mode: d.mode });
-      } else {
-        await broadcastMatchEvent(matchId, 'SCORE_MODE_REJECTED', { fromTeamId: myTeamId });
+        setNegStatus('agreed');
+        if (m.matchStartedAt) {
+          setMatchServerStartMs(new Date(m.matchStartedAt).getTime());
+          setTimerRunning(true);
+        }
       }
       setScoreModeRequest(null);
+      setShowModeGate(false);
+      setIsSuggestingInstead(false);
     } else {
-      const d = await r.json();
-      setMsg('❌ ' + d.error);
+      const d = await r.json().catch(() => ({}));
+      setMsg('❌ ' + (d.error ?? 'Failed to accept'));
     }
+    setModeGateLoading(false);
+  };
+
+  // Legacy compat (used from old SCORE_AFTER reject path)
+  const handleRespondMode = async (accept: boolean) => {
+    if (accept) { return handleAcceptOpponentProposal(); }
+    // Suggest instead — open sub-menu
+    setIsSuggestingInstead(true);
   };
 
   const handleSubmitScore = async () => {
     setScoreSubmitting(true);
     const r = await fetch(`/api/matches/${matchId}/submit-score`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scoreForUs: scoreEntryUs, scoreForThem: scoreEntryThem }),
+      body: JSON.stringify({
+        scoreForUs: scoreEntryUs,
+        scoreForThem: scoreEntryThem,
+        playedMemberIds: playedMemberIds
+      }),
     });
     const d = await r.json();
     if (r.ok) {
@@ -835,7 +1125,15 @@ export default function LiveScoringPage() {
         setMyAccepted(true);
         if (d.finalized) {
           // Both accepted — result fires via BOTH_AGREED but set directly too
-          setMatchResult({ scoreA: d.scoreA, scoreB: d.scoreB, winnerId: d.winnerId, mmrChangeA: d.mmrChangeA, mmrChangeB: d.mmrChangeB });
+          setMatchResult({
+            scoreA: d.scoreA,
+            scoreB: d.scoreB,
+            winnerId: d.winnerId,
+            mmrChangeA: d.mmrChangeA,
+            mmrChangeB: d.mmrChangeB,
+            multA: d.multA,
+            multB: d.multB,
+          });
           setShowScoreEntry(false); setScoresRevealed(null);
         }
         // else wait for opponent — SCORE_ACCEPTED WS will update opponentAccepted
@@ -844,6 +1142,72 @@ export default function LiveScoringPage() {
       setMsg('❌ ' + d.error);
     }
     setAcceptLoading(false);
+  };
+
+  const startGoalPress = () => {
+    setLongPressed(false);
+    longPressTimerRef.current = setTimeout(() => {
+      setLongPressed(true);
+      setShowQuickLogTeamPicker(true);
+    }, 500);
+  };
+
+  const endGoalPress = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handleGoalClick = () => {
+    if (longPressed) {
+      setLongPressed(false);
+      return;
+    }
+    setSheetType('GOAL');
+  };
+
+  const handleUndo = async () => {
+    if (!undoToast) return;
+    const eventId = undoToast.id;
+    setUndoToast(null);
+    const r = await fetch(`/api/matches/${matchId}/events/${eventId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (r.ok) {
+      setEvents(prev => prev.filter(e => e.id !== eventId));
+      await broadcastMatchEvent(matchId, 'EVENT_DELETED', { eventId });
+      setMsg('Goal undone and removed.');
+    } else {
+      const d = await r.json();
+      setMsg('❌ Failed to undo: ' + d.error);
+    }
+  };
+
+  const handleQuickLog = async (teamId: string) => {
+    setShowQuickLogTeamPicker(false);
+    setMsg('Logging quick goal...');
+    const body = {
+      type: 'GOAL',
+      minute: currentMinute,
+      scorerPlayerId: null, // anonymous
+      teamId,
+    };
+    const r = await fetch(`/api/matches/${matchId}/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (r.ok) {
+      setEvents(prev => [...prev, d.event]);
+      await broadcastMatchEvent(matchId, 'EVENT_CREATED', { event: d.event });
+      setUndoToast({ id: d.event.id, msg: 'Quick goal logged' });
+      setMsg('Quick goal logged! Tap "+ Add Scorer" to backfill details.');
+    } else {
+      setMsg('❌ Failed: ' + d.error);
+    }
   };
 
   const handleSignOff = async () => {
@@ -920,8 +1284,21 @@ export default function LiveScoringPage() {
 
         {/* Timer */}
         {match.status === 'LIVE' && (
-          <div className="flex items-center justify-center pb-3">
-            <span className="text-sm font-black text-neutral-400 font-mono">{formatTime(timerSecs)}'</span>
+          <div className="flex items-center justify-center pb-3 flex-col gap-1">
+            {negStatus === 'agreed' ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-black text-neutral-400 font-mono">{formatTime(timerSecs)}'</span>
+                {isHalfTimeConfirmed && (
+                  <span className="text-[10px] font-black uppercase text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 shadow-[0_0_8px_rgba(59,130,246,0.2)] animate-pulse">
+                    HT
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span className="text-xs font-bold text-neutral-500 animate-pulse">
+                {!teamAPresent || !teamBPresent ? '⏳ Waiting for both teams' : '⚙️ Agree on scoring mode to start'}
+              </span>
+            )}
           </div>
         )}
 
@@ -956,19 +1333,39 @@ export default function LiveScoringPage() {
             {visibleEvents.length === 0 && (
               <div className="py-16 text-center text-neutral-600">
                 <Zap size={28} className="mx-auto mb-2 opacity-30" />
-                <p className="text-sm">No events yet. First goal incoming!</p>
+                <p className="text-sm">{negStatus === 'agreed' ? 'No events yet. First goal incoming!' : 'Agree on scoring mode to begin'}</p>
               </div>
             )}
             {[...visibleEvents].reverse().map(ev => {
               const meta       = EVENT_META[ev.type] || { icon: '•', label: ev.type, color: '#94a3b8' };
               const isMyTeam   = ev.teamId === myTeamId;
-              const playerName = getPlayerName(ev.playerId);
-              const assistName = getPlayerName(ev.assistPlayerId);
+              const isOwnGoal  = ev.type === 'OWN_GOAL';
+              
+              // Conceding team is the one that logged the own goal
+              const eventOwnerIsUs = (!isOwnGoal && isMyTeam) || (isOwnGoal && !isMyTeam);
+              
+              const playerName = ev.playerId ? getPlayerName(ev.playerId) : null;
+              const assistName = ev.assistPlayerId ? getPlayerName(ev.assistPlayerId) : null;
               const isPending  = ev.status === 'PENDING';
               const isDisputed = ev.status === 'DISPUTED';
               const isConfirmed = ev.status === 'CONFIRMED';
+              const isRemoved  = ev.status === 'REMOVED';
               const canAct     = !isMyTeam && (isOMC || isScorer) && isPending;
               const canDispute = !isMyTeam && (isOMC || isScorer) && isConfirmed;
+
+              // Long press handlers
+              let pressTimer: any = null;
+              const startPress = () => {
+                const isAuthorized = scoringMode === 'LIVE_SINGLE' ? isSingleScorer : (isOMC || isScorer);
+                if (!eventOwnerIsUs || !isAuthorized || isRemoved) return;
+                pressTimer = setTimeout(() => {
+                  setSelectedEventToEdit(ev);
+                  setSheetType((ev.type === 'YELLOW_CARD' || ev.type === 'RED_CARD' ? 'CARD' : ev.type === 'PENALTY_SCORED' || ev.type === 'PENALTY_MISSED' ? 'PENALTY' : ev.type) as any);
+                }, 500);
+              };
+              const endPress = () => {
+                if (pressTimer) clearTimeout(pressTimer);
+              };
 
               return (
                 <div key={ev.id}
@@ -981,23 +1378,33 @@ export default function LiveScoringPage() {
                   </p>
 
                   {/* Bubble */}
-                  <div className={`max-w-[78%] px-3.5 py-2.5 rounded-2xl flex flex-col gap-0.5 ${
-                    isMyTeam
-                      ? isDisputed ? 'bg-orange-500/10 border border-orange-500/30 rounded-tl-sm'
-                        : isPending ? 'bg-amber-500/8 border border-amber-500/25 border-dashed rounded-tl-sm'
-                        : 'bg-[#00ff41]/10 border border-[#00ff41]/20 rounded-tl-sm'
-                      : isDisputed ? 'bg-orange-500/10 border border-orange-500/30 rounded-tr-sm'
-                        : isPending ? 'bg-neutral-800/80 border border-white/10 border-dashed rounded-tr-sm'
-                        : 'bg-[#1a1d24] border border-white/8 rounded-tr-sm'
-                  }`}>
+                  <div
+                    onMouseDown={startPress}
+                    onMouseUp={endPress}
+                    onTouchStart={startPress}
+                    onTouchEnd={endPress}
+                    className={`max-w-[78%] px-3.5 py-2.5 rounded-2xl flex flex-col gap-0.5 select-none active:scale-[0.98] transition-transform ${
+                      isRemoved ? 'bg-red-500/5 border border-red-500/10 opacity-50 line-through'
+                      : isMyTeam
+                        ? isDisputed ? 'bg-orange-500/10 border border-orange-500/30 rounded-tl-sm'
+                          : isPending ? 'bg-amber-500/8 border border-amber-500/25 border-dashed rounded-tl-sm'
+                          : 'bg-[#00ff41]/10 border border-[#00ff41]/20 rounded-tl-sm'
+                        : isDisputed ? 'bg-orange-500/10 border border-orange-500/30 rounded-tr-sm'
+                          : isPending ? 'bg-neutral-800/80 border border-white/10 border-dashed rounded-tr-sm'
+                          : 'bg-[#1a1d24] border border-white/8 rounded-tr-sm'
+                    }`}
+                  >
                     {/* Event type row */}
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-base leading-none">{meta.icon}</span>
                       <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: meta.color }}>
-                        {meta.label}
+                        {isRemoved ? 'Removed Goal' : meta.label}
                       </span>
+                      {ev.isEdited && !isRemoved && (
+                        <span className="text-[8px] text-neutral-500 font-bold ml-1">(edited)</span>
+                      )}
                       {isPending && (
-                        <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-black ${isMyTeam ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                        <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-black bg-amber-500/20 text-amber-400`}>
                           PENDING
                         </span>
                       )}
@@ -1006,24 +1413,50 @@ export default function LiveScoringPage() {
                           DISPUTED
                         </span>
                       )}
-                      {isConfirmed && (
+                      {isConfirmed && !isRemoved && (
                         <span className="text-[8px] px-1.5 py-0.5 rounded-full font-black bg-[#00ff41]/15 text-[#00ff41]">
                           ✓
+                        </span>
+                      )}
+                      {isRemoved && (
+                        <span className="text-[8px] px-1.5 py-0.5 rounded-full font-black bg-red-500/20 text-red-400">
+                          REMOVED
                         </span>
                       )}
                     </div>
 
                     {/* Player */}
-                    {playerName && (
-                      <p className="text-sm font-black text-white leading-tight">{playerName}</p>
-                    )}
-                    {assistName && (
-                      <p className="text-[10px] text-neutral-500">⚡ {assistName}</p>
+                    {isRemoved ? (
+                      <p className="text-xs text-neutral-500 italic">This event was deleted by opponent</p>
+                    ) : (
+                      <>
+                        {['GOAL', 'PENALTY_SCORED'].includes(ev.type) && !ev.playerId ? (
+                          <div className="flex flex-col gap-1 mt-1 items-start">
+                            <span className="text-xs text-neutral-400 italic">Scorer Details Pending</span>
+                            {eventOwnerIsUs && (
+                              <button
+                                onClick={() => {
+                                  setSelectedEventToEdit(ev);
+                                  setSheetType('GOAL');
+                                }}
+                                className="px-2 py-1 rounded bg-[#00ff41]/10 border border-[#00ff41]/30 text-[#00ff41] text-[9px] font-black uppercase tracking-wider active:scale-95 transition-transform"
+                              >
+                                + Add Scorer
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          playerName && <p className="text-sm font-black text-white leading-tight">{playerName}</p>
+                        )}
+                        {assistName && (
+                          <p className="text-[10px] text-neutral-500">⚡ {assistName}</p>
+                        )}
+                      </>
                     )}
                   </div>
 
                   {/* Dispute — only for opponent confirmed events */}
-                  {canDispute && (
+                  {canDispute && !isRemoved && (
                     <div className="flex gap-2 max-w-[78%] w-full">
                       <button onClick={() => handleEventAction(ev.id, 'dispute')}
                         className="flex-1 py-1.5 rounded-xl bg-orange-500/10 border border-orange-500/30 text-orange-400 font-black text-xs flex items-center justify-center gap-1 active:scale-95 transition-all">
@@ -1102,6 +1535,24 @@ export default function LiveScoringPage() {
                 <p className="text-orange-300/70 text-xs">Resolve all disputes before signing off.</p>
               </div>
             )}
+            {(() => {
+              const anonGoals = events.filter(e => ['GOAL', 'PENALTY_SCORED'].includes(e.type) && !e.playerId && e.status === 'CONFIRMED');
+              if (anonGoals.length > 0 && isOMC) {
+                return (
+                  <button
+                    onClick={() => {
+                      setSelectedEventToEdit(anonGoals[0]);
+                      setSheetType('GOAL');
+                    }}
+                    className="mb-4 w-full bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-2xl p-4 text-xs font-black text-center flex flex-col gap-1 active:scale-95 transition-all"
+                  >
+                    <span>⚠️ {anonGoals.length === 1 ? '1 goal missing scorer details — add now?' : `${anonGoals.length} goals missing scorer details — add now?`}</span>
+                    <span className="text-[10px] text-amber-400/60 font-bold underline">Tap to add details now</span>
+                  </button>
+                );
+              }
+              return null;
+            })()}
             <div className="mb-4 p-4 bg-[#111318] border border-[#1e2028] rounded-2xl">
               <p className="text-xs text-neutral-500 font-bold mb-2">Sign-Off Status</p>
               <div className="flex gap-3">
@@ -1129,34 +1580,67 @@ export default function LiveScoringPage() {
       {/* ── Action Bar (OMC only, LIVE only) ── */}
       {match.status === 'LIVE' && (scoringMode === 'LIVE_SINGLE' ? isSingleScorer : (isOMC || isScorer)) && (
         <div className="fixed bottom-0 left-0 right-0 z-[100] bg-[#0d0e14]/95 backdrop-blur-md border-t border-[#1e2028]">
-          <div className="flex gap-2 px-4 pt-4 pb-6">
-            <button onClick={() => setSheetType('GOAL')}
-              className="flex-1 h-14 rounded-2xl bg-[#00ff41]/10 border border-[#00ff41]/30 text-[#00ff41] font-black text-sm flex flex-col items-center justify-center gap-0.5 active:scale-95 transition-transform">
+          {/* Locked overlay when negotiation not yet agreed */}
+          {negStatus !== 'agreed' && (
+            <div className="absolute inset-0 z-10 bg-black/60 flex items-center justify-center rounded-none cursor-not-allowed">
+              <p className="text-xs font-bold text-neutral-400">Agree on scoring mode to unlock</p>
+            </div>
+          )}
+          <div className={`flex gap-2 px-4 pt-4 pb-6 ${negStatus !== 'agreed' ? 'opacity-40 pointer-events-none' : ''}`}>
+            <button
+              onMouseDown={startGoalPress}
+              onMouseUp={endGoalPress}
+              onTouchStart={startGoalPress}
+              onTouchEnd={endGoalPress}
+              onClick={handleGoalClick}
+              className="flex-1 h-14 rounded-2xl bg-[#00ff41]/10 border border-[#00ff41]/30 text-[#00ff41] font-black text-sm flex flex-col items-center justify-center gap-0.5 active:scale-95 transition-all select-none">
               <Target size={18} /><span className="text-[10px]">Goal</span>
             </button>
             <button onClick={() => setSheetType('CARD')}
-              className="flex-1 h-14 rounded-2xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 font-black text-sm flex flex-col items-center justify-center gap-0.5 active:scale-95 transition-transform">
+              className="flex-1 h-14 rounded-2xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 font-black text-sm flex flex-col items-center justify-center gap-0.5 active:scale-95 transition-all">
               <CreditCard size={18} /><span className="text-[10px]">Card</span>
             </button>
             <button onClick={() => setSheetType('SUB')}
-              className="flex-1 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-purple-400 font-black text-sm flex flex-col items-center justify-center gap-0.5 active:scale-95 transition-transform">
+              className="flex-1 h-14 rounded-2xl bg-neutral-900 border border-[#00ff41]/20 text-[#00ff41] font-black text-sm flex flex-col items-center justify-center gap-0.5 active:scale-95 transition-all">
               <ArrowLeftRight size={18} /><span className="text-[10px]">Sub</span>
             </button>
             <button onClick={() => setSheetType('PENALTY')}
-              className="flex-1 h-14 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-blue-400 font-black text-sm flex flex-col items-center justify-center gap-0.5 active:scale-95 transition-transform">
+              className="flex-1 h-14 rounded-2xl bg-neutral-900 border border-[#00ff41]/20 text-[#00ff41] font-black text-sm flex flex-col items-center justify-center gap-0.5 active:scale-95 transition-all">
               <Zap size={18} /><span className="text-[10px]">Penalty</span>
             </button>
             <button onClick={() => setShowMoreMenu(s => !s)}
-              className="w-14 h-14 rounded-2xl bg-neutral-900 border border-white/10 text-neutral-400 font-black flex items-center justify-center active:scale-95 transition-transform">
+              className="w-14 h-14 rounded-2xl bg-neutral-900 border border-white/10 text-neutral-400 font-black flex items-center justify-center active:scale-95 transition-all">
               •••
             </button>
           </div>
           {showMoreMenu && (
             <div className="absolute bottom-[90px] right-4 mb-2 bg-[#1a1b24] border border-[#1e2028] rounded-2xl overflow-hidden shadow-2xl flex flex-col min-w-[160px]">
-              <button onClick={() => { handleHalfTime(); setShowMoreMenu(false); }}
-                className="flex items-center gap-3 px-5 py-3.5 text-sm font-bold text-blue-400 hover:bg-white/5 border-b border-white/5 text-left">
-                ⏸ Half Time{halfTime?.calledByA || halfTime?.calledByB ? ' (pending)' : ''}
-              </button>
+              {isHalfTimeConfirmed ? (
+                <button onClick={async () => {
+                  const r = await fetch(`/api/matches/${matchId}/halftime`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'resume' })
+                  });
+                  if (r.ok) {
+                    setMsg('▶ Match resumed! Second half started.');
+                    await broadcastMatchEvent(matchId, 'STATE_REQ_RELOAD', {});
+                    loadState();
+                  } else {
+                    const d = await r.json();
+                    setMsg('❌ ' + d.error);
+                  }
+                  setShowMoreMenu(false);
+                }}
+                  className="flex items-center gap-3 px-5 py-3.5 text-sm font-bold text-green-400 hover:bg-white/5 border-b border-white/5 text-left w-full">
+                  ▶ Resume Match
+                </button>
+              ) : (
+                <button onClick={() => { handleHalfTime(); setShowMoreMenu(false); }}
+                  className="flex items-center gap-3 px-5 py-3.5 text-sm font-bold text-blue-400 hover:bg-white/5 border-b border-white/5 text-left w-full">
+                  ⏸ Half Time{halfTime?.calledByA || halfTime?.calledByB ? ' (pending)' : ''}
+                </button>
+              )}
               <button onClick={() => { handleFullTime(); setShowMoreMenu(false); }}
                 className="flex items-center gap-3 px-5 py-3.5 text-sm font-bold text-amber-400 hover:bg-white/5 border-b border-white/5 text-left">
                 🏁 Full Time
@@ -1293,104 +1777,146 @@ export default function LiveScoringPage() {
         />
       )}
 
-      {/* ── Mode Selection Gate (OMC picks mode before first action) ── */}
-      {showModeGate && isOMC && match.status === 'LIVE' && (
-        <div className="fixed inset-0 z-[350] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center px-6">
-          <div className="w-full max-w-sm" style={{ animation: 'fadeInResult 0.3s ease-out' }}>
-            {!liveScoringSubMenu ? (
-              <>
-                <div className="text-center mb-8">
-                  <div className="text-5xl mb-3">⚙️</div>
-                  <h2 className="text-2xl font-black text-white mb-1">Choose Scoring Mode</h2>
-                  <p className="text-sm text-neutral-500">This must be agreed by both teams. Choose one to propose it.</p>
-                </div>
-                <div className="flex flex-col gap-3">
-                  <button onClick={() => setLiveScoringSubMenu(true)} disabled={modeGateLoading}
-                    className="w-full p-5 rounded-2xl bg-[#00ff41]/10 border border-[#00ff41]/30 text-left active:scale-[0.98] transition-all disabled:opacity-50">
-                    <p className="text-[#00ff41] font-black text-base mb-1">⚡ Live Scoring</p>
-                    <p className="text-neutral-400 text-xs">Log goals, cards and subs in real-time as they happen.</p>
-                  </button>
-                  <button onClick={() => handleProposeMode('SCORE_AFTER')} disabled={modeGateLoading}
-                    className="w-full p-5 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-left active:scale-[0.98] transition-all disabled:opacity-50">
-                    <p className="text-blue-400 font-black text-base mb-1">📋 Score After Match</p>
-                    <p className="text-neutral-400 text-xs">Both captains submit the final score and player stats after the match ends.</p>
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="text-center mb-8 relative">
-                  <button onClick={() => setLiveScoringSubMenu(false)} className="absolute left-0 top-1 text-neutral-400 hover:text-white">
-                    <ChevronLeft size={24} />
-                  </button>
-                  <div className="text-5xl mb-3">⚡</div>
-                  <h2 className="text-2xl font-black text-white mb-1">Live Scoring Method</h2>
-                  <p className="text-sm text-neutral-500">How would you like to log events?</p>
-                </div>
-                <div className="flex flex-col gap-3">
-                  <button onClick={() => handleProposeMode('LIVE')} disabled={modeGateLoading}
-                    className="w-full p-5 rounded-2xl bg-neutral-800/80 border border-white/10 text-left active:scale-[0.98] transition-all disabled:opacity-50">
-                    <p className="text-white font-black text-base mb-1">Individual Scoring</p>
-                    <p className="text-neutral-400 text-xs">Both teams individually score for themselves on their own phones.</p>
-                  </button>
-                  <button onClick={() => { setShowScorerSearch(true); setShowModeGate(false); }} disabled={modeGateLoading}
-                    className="w-full p-5 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-left active:scale-[0.98] transition-all disabled:opacity-50">
-                    <p className="text-purple-400 font-black text-base mb-1">Single Scorer</p>
-                    <p className="text-neutral-400 text-xs">Instantly generate a secure, login-free scoring link to share with anyone to score for both teams.</p>
-                  </button>
-                </div>
-              </>
-            )}
-            {modeGateLoading && <p className="text-center text-neutral-500 text-xs mt-4">Sending proposal...</p>}
-          </div>
-        </div>
-      )}
+      {/* ══════════════════════════════════════════════════════════════
+           SHARED SCORING MODE NEGOTIATION SCREEN
+           Shown to BOTH teams simultaneously until agreed
+      ══════════════════════════════════════════════════════════════ */}
+      {negStatus !== 'agreed' && match.status === 'LIVE' && isOMC && (
+        <div className="fixed inset-0 z-[350] bg-black/92 backdrop-blur-md flex flex-col" style={{ animation: 'fadeInResult 0.3s ease-out' }}>
+          <div className="flex-1 flex flex-col px-5 pt-8 pb-4 overflow-y-auto">
 
-      {/* ── Proposer "waiting" banner (shown after proposing, instead of mode gate) ── */}
-      {!showModeGate && !scoreModeAgreed && state?.scoreModeRequestedBy && state.scoreModeRequestedBy === state?.myTeamId && match.status === 'LIVE' && isOMC && (
-        <div className="fixed bottom-28 left-4 right-4 z-[200] pointer-events-none">
-          <div className="w-full bg-[#111318]/95 border border-[#00ff41]/20 rounded-2xl px-5 py-4 flex items-center gap-3 backdrop-blur-md shadow-2xl">
-            <div className="w-8 h-8 rounded-full bg-[#00ff41]/10 border border-[#00ff41]/30 flex items-center justify-center shrink-0">
-              <span className="text-lg animate-pulse">⏳</span>
-            </div>
-            <div>
-              <p className="text-xs font-black text-[#00ff41]">Proposal Sent</p>
-              <p className="text-[10px] text-neutral-400">Waiting for opponent to accept scoring mode...</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Mode Request Notification (opponent receives proposal) ── */}
-      {scoreModeRequest && !showModeGate && isOMC && scoreModeRequest.fromTeamId !== state?.myTeamId && (
-        <div className="fixed inset-0 z-[350] bg-black/85 backdrop-blur-md flex items-end justify-center p-4">
-          <div className="w-full max-w-sm bg-[#111318] border border-[#1e2028] rounded-3xl p-6 mb-4"
-            style={{ animation: 'slideUpSheet 0.25s cubic-bezier(0.34,1.56,0.64,1) forwards' }}>
-            <div className="text-center mb-5">
-              <div className="text-4xl mb-3">
-                {scoreModeRequest.mode === 'SCORE_AFTER' ? '📋' : scoreModeRequest.mode === 'LIVE_SINGLE' ? '👤' : '⚡'}
+            {/* ── Presence Strip ── */}
+            <div className="flex gap-3 mb-6">
+              <div className={`flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border ${teamAPresent ? 'bg-[#00ff41]/10 border-[#00ff41]/30' : 'bg-neutral-900 border-white/10'}`}>
+                <span className={`w-2 h-2 rounded-full ${teamAPresent ? 'bg-[#00ff41] animate-pulse' : 'bg-neutral-600'}`} />
+                <div className="min-w-0">
+                  <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider">Team A</p>
+                  <p className={`text-xs font-black truncate ${teamAPresent ? 'text-[#00ff41]' : 'text-neutral-500'}`}>
+                    {teamAPresent ? `🟢 ${match.teamA.name}` : `⏳ Waiting...`}
+                  </p>
+                </div>
               </div>
-              <h3 className="text-xl font-black text-white mb-1">Mode Proposed</h3>
-              <p className="text-sm text-neutral-400">
-                {scoreModeRequest.mode === 'LIVE_SINGLE' ? (
-                  <>Opponent wants to invite <strong className="text-white">{state?.match?.proposedSingleScorer?.fullName || 'a Single Scorer'}</strong> to score for both teams.</>
-                ) : (
-                  <>Opponent wants to use <strong className="text-white">
-                    {scoreModeRequest.mode === 'SCORE_AFTER' ? 'Score After Match' : 'Live Scoring'}
-                  </strong></>
-                )}
-              </p>
+              <div className={`flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border ${teamBPresent ? 'bg-[#00ff41]/10 border-[#00ff41]/30' : 'bg-neutral-900 border-white/10'}`}>
+                <span className={`w-2 h-2 rounded-full ${teamBPresent ? 'bg-[#00ff41] animate-pulse' : 'bg-neutral-600'}`} />
+                <div className="min-w-0">
+                  <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider">Team B</p>
+                  <p className={`text-xs font-black truncate ${teamBPresent ? 'text-[#00ff41]' : 'text-neutral-500'}`}>
+                    {teamBPresent ? `🟢 ${match.teamB.name}` : `⏳ Waiting...`}
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="flex gap-3">
-              <button onClick={() => handleRespondMode(true)}
-                className="flex-1 py-4 rounded-2xl bg-[#00ff41] text-black font-black text-sm active:scale-95 transition-all">
-                ✓ Accept
-              </button>
-              <button onClick={() => handleRespondMode(false)}
-                className="flex-1 py-4 rounded-2xl bg-neutral-800 border border-white/10 text-neutral-300 font-black text-sm active:scale-95 transition-all">
-                ✕ Reject
-              </button>
+
+            {/* ── Header ── */}
+            <div className="text-center mb-6">
+              <div className="text-4xl mb-2">⚙️</div>
+              <h2 className="text-xl font-black text-white mb-1">Choose Scoring Mode</h2>
+              <p className="text-sm text-neutral-500">This must be agreed by both teams. Tap to propose.</p>
             </div>
+
+            {/* ── Conflict View: both proposals visible ── */}
+            {proposalA && proposalB && proposalA.mode !== proposalB.mode && (
+              <div className="mb-4 bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4">
+                <p className="text-yellow-400 text-xs font-black mb-1">⚡ Both teams proposed different modes</p>
+                <div className="flex gap-2 text-xs text-neutral-400">
+                  <span>{match.teamA.name}: <strong className="text-white">{proposalA.mode === 'after_match' ? 'Score After' : 'Live'}</strong></span>
+                  <span>·</span>
+                  <span>{match.teamB.name}: <strong className="text-white">{proposalB.mode === 'after_match' ? 'Score After' : 'Live'}</strong></span>
+                </div>
+                <p className="text-[10px] text-neutral-500 mt-1">Accept either proposal below to resolve.</p>
+              </div>
+            )}
+
+            {/* ── Opponent's proposal: accept / suggest instead ── */}
+            {(() => {
+              const myProposal = state?.isTeamA ? proposalA : proposalB;
+              const oppProposal = state?.isTeamA ? proposalB : proposalA;
+              const oppTeamName = state?.isTeamA ? match.teamB.name : match.teamA.name;
+              if (oppProposal && !isSuggestingInstead) {
+                return (
+                  <div className="mb-4 bg-[#111318] border border-[#00ff41]/20 rounded-2xl p-5" style={{ animation: 'slideUpSheet 0.2s ease-out' }}>
+                    <p className="text-[10px] text-[#00ff41] font-black uppercase tracking-wider mb-3">{oppTeamName} proposed</p>
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="text-2xl">{oppProposal.mode === 'after_match' ? '📋' : '⚡'}</span>
+                      <div>
+                        <p className="text-white font-black text-sm">{oppProposal.mode === 'after_match' ? 'Score After Match' : oppProposal.method === 'single_scorer' ? 'Live — Single Scorer' : 'Live — Individual'}</p>
+                        <p className="text-neutral-400 text-xs">{oppProposal.mode === 'after_match' ? 'Both captains submit final scores after the match.' : oppProposal.method === 'single_scorer' ? 'One shared scorer logs events for both teams.' : 'Both teams log events individually on their devices.'}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <button onClick={handleAcceptOpponentProposal} disabled={modeGateLoading}
+                        className="flex-1 py-3.5 rounded-2xl bg-[#00ff41] text-black font-black text-sm active:scale-95 transition-all disabled:opacity-50">
+                        {modeGateLoading ? '...' : '✓ Accept'}
+                      </button>
+                      <button onClick={() => setIsSuggestingInstead(true)} disabled={modeGateLoading}
+                        className="flex-1 py-3.5 rounded-2xl bg-neutral-800 border border-white/10 text-neutral-300 font-black text-sm active:scale-95 transition-all">
+                        Suggest instead ▾
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+              if (myProposal && !isSuggestingInstead) {
+                return (
+                  <div className="mb-4 bg-[#111318] border border-[#00ff41]/30 rounded-2xl p-4">
+                    <p className="text-xs text-[#00ff41] font-black">⏳ Proposal sent — waiting for {oppTeamName}</p>
+                    <p className="text-[10px] text-neutral-500 mt-1">You proposed: {myProposal.mode === 'after_match' ? 'Score After Match' : myProposal.method === 'single_scorer' ? 'Live — Single Scorer' : 'Live — Individual'}</p>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            {/* ── Mode Cards (always visible; collapsed if waiting, expanded if suggesting instead) ── */}
+            {(!proposalA || !proposalB || isSuggestingInstead) && !liveScoringSubMenu && (
+              <div className="flex flex-col gap-3">
+                <button onClick={() => setLiveScoringSubMenu(true)} disabled={modeGateLoading}
+                  className="w-full p-5 rounded-2xl bg-[#111318] border border-white/10 text-left active:scale-[0.98] transition-all disabled:opacity-50 relative overflow-hidden">
+                  <span className="absolute top-3 right-3 text-[9px] font-black text-[#00ff41] border border-[#00ff41]/40 rounded px-1.5 py-0.5">REAL-TIME</span>
+                  <p className="text-white font-black text-base mb-1">⚡ Live Scoring</p>
+                  <p className="text-neutral-400 text-xs">Goals, cards and subs logged in real-time.</p>
+                </button>
+                <button onClick={() => handleProposeMode('after_match', undefined)} disabled={modeGateLoading}
+                  className="w-full p-5 rounded-2xl bg-[#111318] border border-white/10 text-left active:scale-[0.98] transition-all disabled:opacity-50">
+                  <p className="text-white font-black text-base mb-1">📋 Score After Match</p>
+                  <p className="text-neutral-400 text-xs">Both captains submit final scores and stats after the match ends.</p>
+                </button>
+              </div>
+            )}
+
+            {/* ── Live Scoring Sub-menu ── */}
+            {liveScoringSubMenu && (
+              <div className="flex flex-col gap-3">
+                <button onClick={() => setLiveScoringSubMenu(false)} className="flex items-center gap-2 text-neutral-400 mb-2">
+                  <ChevronLeft size={18} /><span className="text-sm">Back</span>
+                </button>
+                <p className="text-xs font-black text-neutral-400 uppercase tracking-wider mb-1">Choose live method</p>
+                <button onClick={() => { handleProposeMode('live', 'individual'); setLiveScoringSubMenu(false); }} disabled={modeGateLoading}
+                  className="w-full p-5 rounded-2xl bg-[#111318] border border-white/10 text-left active:scale-[0.98] transition-all disabled:opacity-50">
+                  <p className="text-white font-black text-base mb-1">🏃 Individual Scoring</p>
+                  <p className="text-neutral-400 text-xs">Both teams log events independently on their own devices.</p>
+                </button>
+                <button onClick={() => { setShowScorerSearch(true); setShowModeGate(false); setLiveScoringSubMenu(false); }} disabled={modeGateLoading}
+                  className="w-full p-5 rounded-2xl bg-[#111318] border border-white/10 text-left active:scale-[0.98] transition-all disabled:opacity-50">
+                  <p className="text-white font-black text-base mb-1">👤 Single Scorer</p>
+                  <p className="text-neutral-400 text-xs">Share a secure link — one person scores for both teams.</p>
+                </button>
+              </div>
+            )}
+
+            {modeGateLoading && <p className="text-center text-neutral-500 text-xs mt-4 animate-pulse">Sending proposal...</p>}
+
+            {/* ── 10-min timeout fallback ── */}
+            {timeoutPromptVisible && (
+              <div className="mt-6 bg-orange-500/10 border border-orange-500/30 rounded-2xl p-4">
+                <p className="text-orange-400 text-xs font-black mb-2">⏱ No agreement yet — default to Score After Match?</p>
+                <button onClick={() => handleProposeMode('after_match', undefined)}
+                  className="w-full py-3 rounded-xl bg-orange-500 text-white font-black text-sm active:scale-95 transition-all">
+                  Yes, use Score After Match
+                </button>
+              </div>
+            )}
+
           </div>
         </div>
       )}
@@ -1493,6 +2019,55 @@ export default function LiveScoringPage() {
                     </div>
                   </div>
                 </div>
+                {/* Who Played Checklist */}
+                <div className="w-full flex flex-col gap-2 bg-neutral-900 border border-white/5 p-4 rounded-2xl">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-neutral-400 mb-1">
+                    👥 Who Played? (MMR Gating)
+                  </p>
+                  <p className="text-[9px] text-neutral-500 mb-2 leading-snug">
+                    Checked players will receive player MMR change. Unchecked bench players will receive ±0 MMR.
+                  </p>
+                  <div className="flex flex-col gap-1.5 max-h-[200px] overflow-y-auto pr-1">
+                    {(() => {
+                      const myPicksList = match.rosterPicks?.filter((p: any) => p.teamId === myTeam.id) || [];
+                      return myPicksList.map((pick: any) => {
+                        const member = myTeam.members.find((m: any) => m.id === pick.memberId);
+                        if (!member || !member.player) return null;
+                        const isChecked = playedMemberIds.includes(pick.memberId);
+                        return (
+                          <label key={pick.id} className="flex items-center gap-2.5 py-1.5 px-2 rounded-xl bg-neutral-950/40 border border-white/[0.03] select-none cursor-pointer active:scale-[0.99] transition-all">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setPlayedMemberIds(prev => [...prev, pick.memberId]);
+                                } else {
+                                  setPlayedMemberIds(prev => prev.filter(id => id !== pick.memberId));
+                                }
+                              }}
+                              className="w-3.5 h-3.5 accent-[#00ff41] rounded bg-neutral-800 border-white/10"
+                            />
+                            <div className="flex items-center gap-2">
+                              {member.player.avatarUrl ? (
+                                <img src={member.player.avatarUrl} className="w-5 h-5 rounded-full object-cover shrink-0" />
+                              ) : (
+                                <div className="w-5 h-5 rounded-full bg-neutral-800 flex items-center justify-center shrink-0">
+                                  <User size={10} className="text-neutral-500" />
+                                </div>
+                              )}
+                              <span className="text-xs font-bold text-white line-clamp-1">{member.player.fullName}</span>
+                              {pick.isStarter && (
+                                <span className="px-1 py-0.2 bg-neutral-800 border border-white/10 text-[8px] font-black text-neutral-400 uppercase rounded tracking-wider">Start</span>
+                              )}
+                            </div>
+                          </label>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+
                 <button onClick={handleSubmitScore} disabled={scoreSubmitting}
                   className="w-full py-4 rounded-2xl bg-[#00ff41] text-black font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-50">
                   {scoreSubmitting ? <Loader2 size={16} className="animate-spin" /> : '✓ Submit Score'}
@@ -1501,6 +2076,196 @@ export default function LiveScoringPage() {
             ) : (
               <p className="text-neutral-500 text-sm text-center">Waiting for your OMC to submit the score…</p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Undo Toast ── */}
+      {undoToast && (
+        <div className="fixed bottom-[96px] left-4 right-4 z-[200] bg-[#1a1c23]/95 border border-[#00ff41]/30 backdrop-blur-md rounded-2xl p-4 flex items-center justify-between shadow-[0_0_20px_rgba(0,255,65,0.15)] animate-[slideUpSheet_0.2s_ease-out_forwards]">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#00ff41] animate-pulse" />
+            <p className="text-xs font-black text-white">{undoToast.msg} · {undoTimer}s</p>
+          </div>
+          <button onClick={handleUndo} className="px-3.5 py-1.5 rounded-xl bg-[#00ff41]/20 border border-[#00ff41]/40 text-[#00ff41] text-xs font-black uppercase tracking-wider active:scale-95 transition-all">
+            Undo
+          </button>
+        </div>
+      )}
+
+      {/* ── Quick Log Team Picker ── */}
+      {showQuickLogTeamPicker && (
+        <div className="fixed inset-0 z-[250] flex items-end justify-center">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowQuickLogTeamPicker(false)} />
+          <div className="relative bg-[#111318] rounded-t-3xl border-t border-[#1e2028] w-full max-w-md p-5 pb-10"
+            style={{ animation: 'slideUpSheet 0.25s cubic-bezier(0.34,1.56,0.64,1) forwards' }}>
+            <h3 className="text-base font-black text-white mb-1">Quick Log Goal</h3>
+            <p className="text-xs text-neutral-500 mb-4">Select team that scored. Details can be backfilled later.</p>
+            <div className="flex flex-col gap-2">
+              <button onClick={() => handleQuickLog(match.teamA_Id)}
+                className="w-full py-3.5 rounded-2xl bg-neutral-900 border border-white/5 text-white font-black text-xs uppercase tracking-wider active:scale-[0.98] transition-all">
+                ⚽ {match.teamA.name}
+              </button>
+              <button onClick={() => handleQuickLog(match.teamB_Id)}
+                className="w-full py-3.5 rounded-2xl bg-neutral-900 border border-white/5 text-white font-black text-xs uppercase tracking-wider active:scale-[0.98] transition-all">
+                ⚽ {match.teamB.name}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Post Match Stats & Badges Modal ── */}
+      {showStatsModal && state && (
+        <PostMatchStatsModal
+          matchId={matchId}
+          myTeam={myTeam}
+          opponentTeam={opponentTeam}
+          agreedScore={state.isTeamA ? scoreA : scoreB}
+          playedPlayerIds={(() => {
+            const picks = match?.rosterPicks || [];
+            const starters = picks.filter((p: any) => p.isStarter).map((p: any) => p.memberId);
+            const startersPlayerIds = [
+              ...myTeam.members.filter((m: any) => starters.includes(m.id)).map((m: any) => m.playerId),
+              ...opponentTeam.members.filter((m: any) => starters.includes(m.id)).map((m: any) => m.playerId)
+            ];
+            const subEvents = events?.filter((e: any) => e.status === 'CONFIRMED' && (e.type === 'SUB' || e.type === 'SUBSTITUTION')) || [];
+            const subOnIds = subEvents.map((e: any) => e.playerOnId).filter(Boolean) as string[];
+            return Array.from(new Set([...startersPlayerIds, ...subOnIds]));
+          })()}
+          onDone={(statsPayload) => {
+            setShowStatsModal(false);
+            setBadgesDismissed(true);
+            loadState();
+            if (statsPayload) {
+              const earnedBadges = statsPayload
+                .filter((s: any) => s.badgeKey && s.badgeKey !== 'NONE')
+                .map((s: any) => ({ playerId: s.playerId, badgeKey: s.badgeKey }));
+              setSharedBadges(earnedBadges);
+              setShowShareCard(true);
+            }
+          }}
+        />
+      )}
+
+      {/* ── Share Summary Card Modal ── */}
+      {showShareCard && state && (
+        <ShareCard
+          match={match}
+          scoreA={scoreA}
+          scoreB={scoreB}
+          events={events}
+          players={[...myTeam.members, ...opponentTeam.members]}
+          badges={sharedBadges.length > 0 ? sharedBadges : matchStats.filter(s => s.badge !== 'NONE').map(s => ({ playerId: s.playerId, badgeKey: s.badge }))}
+          onClose={() => setShowShareCard(false)}
+        />
+      )}
+
+      {/* ── Completed Match continuous flow footer ── */}
+      {match.status === 'COMPLETED' && (
+        <div className="fixed bottom-0 left-0 right-0 z-[100] bg-[#0d0e14]/95 backdrop-blur-md border-t border-[#1e2028] px-4 pt-4 pb-8 flex flex-col gap-2">
+          {isOMC && !matchStats.some(s => s.teamId === myTeamId && s.badge !== 'NONE') && (
+            <button onClick={() => setShowStatsModal(true)}
+              className="w-full py-4 rounded-2xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 transition-all shadow-[0_0_15px_rgba(219,39,119,0.2)]">
+              🏅 Award Badges & Stats
+            </button>
+          )}
+          <button onClick={() => setShowShareCard(true)}
+            className="w-full py-4 rounded-2xl bg-[#00ff41] hover:bg-[#00e038] text-black font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 transition-all shadow-[0_0_15px_rgba(0,255,65,0.2)]">
+            📁 Share Summary Card
+          </button>
+        </div>
+      )}
+
+      {/* ── Opponent Proposed Half Time Modal ── */}
+      {(() => {
+        const opponentCalledHT = halfTime && (
+          (state?.isTeamA && halfTime.calledByB && !halfTime.calledByA) ||
+          (!state?.isTeamA && halfTime.calledByA && !halfTime.calledByB)
+        );
+        if (!opponentCalledHT || !isOMC) return null;
+        return (
+          <div className="fixed inset-0 z-[290] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <div className="relative bg-[#111318] rounded-3xl border border-[#1e2028] w-full max-w-sm p-6 text-center shadow-2xl animate-[slideUpSheet_0.2s_ease-out_forwards]">
+              <div className="text-4xl mb-3">⏸</div>
+              <h3 className="text-lg font-black text-white mb-2">Half Time Proposed</h3>
+              <p className="text-xs text-neutral-400 mb-6">
+                Opponent team has proposed calling Half Time. Confirm to pause the match.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    const r = await fetch(`/api/matches/${matchId}/halftime`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ minute: currentMinute })
+                    });
+                    if (r.ok) {
+                      setMsg('⏸ Half time confirmed!');
+                      await broadcastMatchEvent(matchId, 'STATE_REQ_RELOAD', {});
+                      loadState();
+                    } else {
+                      const d = await r.json();
+                      setMsg('❌ ' + d.error);
+                    }
+                  }}
+                  className="flex-1 py-3.5 rounded-2xl bg-[#00ff41] text-black font-black text-xs uppercase tracking-wider active:scale-95 transition-all shadow-[0_0_15px_rgba(0,255,65,0.2)]"
+                >
+                  Confirm HT
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Opponent Proposed Full Time Modal ── */}
+      {opponentEndedGame && !myEndedGame && isOMC && match.status === 'LIVE' && (
+        <div className="fixed inset-0 z-[290] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative bg-[#111318] rounded-3xl border border-[#1e2028] w-full max-w-sm p-6 text-center shadow-2xl animate-[slideUpSheet_0.2s_ease-out_forwards]">
+            <div className="text-4xl mb-3">🏁</div>
+            <h3 className="text-lg font-black text-white mb-2">Full Time Proposed</h3>
+            <p className="text-xs text-neutral-400 mb-6">
+              Opponent team has proposed calling Full Time. Confirm to end the match at the current score.
+            </p>
+            <div className="flex gap-3">
+              <button
+                disabled={endGameLoading}
+                onClick={async () => {
+                  setEndGameLoading(true);
+                  const r = await fetch(`/api/matches/${matchId}/fulltime`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: '{}'
+                  });
+                  const d = await r.json();
+                  if (r.ok) {
+                    setMyEndedGame(true);
+                    if (d.fullTimeConfirmed) {
+                      setTimerRunning(false);
+                      if (d.scoreAfterMode) {
+                        setShowScoreEntry(true);
+                        await broadcastMatchEvent(matchId, 'SCORE_ENTRY_OPEN', {});
+                      } else {
+                        setScoreA(d.scoreA); setScoreB(d.scoreB);
+                        setShowSignOff(true);
+                        await broadcastMatchEvent(matchId, 'FULL_TIME', { scoreA: d.scoreA, scoreB: d.scoreB });
+                      }
+                      loadState();
+                    }
+                  } else {
+                    setMsg('❌ ' + d.error);
+                  }
+                  setEndGameLoading(false);
+                }}
+                className="flex-1 py-3.5 rounded-2xl bg-[#00ff41] text-black font-black text-xs uppercase tracking-wider active:scale-95 transition-all shadow-[0_0_15px_rgba(0,255,65,0.2)] disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {endGameLoading && <Loader2 size={12} className="animate-spin" />}
+                Accept Full Time
+              </button>
+            </div>
           </div>
         </div>
       )}

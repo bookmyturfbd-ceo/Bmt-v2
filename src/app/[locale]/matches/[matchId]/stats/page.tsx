@@ -33,6 +33,7 @@ export default function PlayerStatsPage() {
   const [stats, setStats] = useState<Record<string, any>>({});
   // Badge assignments: { playerId: badgeKey | null }
   const [badges, setBadges] = useState<Record<string, string | null>>({});
+  const [playedPlayerIds, setPlayedPlayerIds] = useState<string[]>([]);
 
   // Modal State
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
@@ -85,6 +86,18 @@ export default function PlayerStatsPage() {
         initialBadges[member.playerId] = null;
       }
     });
+
+    const starters = myPicks.filter((p: any) => p.isStarter).map((p: any) => p.memberId);
+    const subEvents = d.events?.filter((e: any) =>
+      e.status === 'CONFIRMED' && (e.type === 'SUBSTITUTION' || e.type === 'SUB')
+    ) || [];
+    const subOnPlayerIds = subEvents.map((e: any) => e.playerOnId).filter(Boolean);
+    const startersPlayerIds = mt.members
+      .filter((m: any) => starters.includes(m.id))
+      .map((m: any) => m.playerId);
+    const playedIds = Array.from(new Set([...startersPlayerIds, ...subOnPlayerIds]));
+    setPlayedPlayerIds(playedIds);
+
     setStats(initial);
     setBadges(initialBadges);
     setLoading(false);
@@ -312,37 +325,44 @@ export default function PlayerStatsPage() {
               {/* Badges Section */}
               <div>
                 <h4 className="text-xs font-black text-white uppercase tracking-widest mb-3">Award Badge</h4>
-                <div className="grid grid-cols-2 gap-2">
-                  {allowedBadges.map(b => {
-                    const isSelected = pBadge === b.key;
-                    // Check if badge is assigned to someone else
-                    const assignedToOtherId = Object.keys(badges).find(pid => badges[pid] === b.key && pid !== selectedPlayerId);
-                    const assignedToOther = assignedToOtherId ? rosteredPlayers.find(m => m.playerId === assignedToOtherId) : null;
-                    
-                    return (
-                      <button
-                        key={b.key}
-                        onClick={() => {
-                          if (!selectedPlayerId) return;
-                          if (isSelected) setBadge(selectedPlayerId, null);
-                          else setBadge(selectedPlayerId, b.key);
-                        }}
-                        className={`p-3 rounded-xl border flex flex-col items-start gap-1 transition-all active:scale-95 text-left ${isSelected ? 'bg-white/10 border-white/30' : 'bg-neutral-900/50 border-white/5 hover:bg-white/5'}`}
-                      >
-                        <div className="flex items-center gap-2 w-full">
-                          <span className="text-xl">{b.emoji}</span>
-                          <span className={`text-xs font-black flex-1 ${isSelected ? 'text-white' : 'text-neutral-400'}`}>{b.label}</span>
-                          {isSelected && <CheckCircle size={14} className="text-[#00ff41]" />}
-                        </div>
-                        {assignedToOther ? (
-                          <p className="text-[9px] font-bold text-amber-500 truncate w-full">Currently with {assignedToOther.player.fullName.split(' ')[0]}</p>
-                        ) : (
-                          <p className={`text-[9px] font-bold truncate w-full ${isSelected ? 'text-neutral-300' : 'text-neutral-600'}`}>+{b.bonus} MMR Bonus</p>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+                {!playedPlayerIds.includes(selectedPlayerId || '') ? (
+                  <div className="p-4 rounded-xl border border-red-500/20 bg-red-500/5 text-center">
+                    <p className="text-xs font-black text-red-400">🚫 Badge Locked</p>
+                    <p className="text-[10px] text-neutral-500 font-bold mt-1">This player did not play in the match and is not eligible for badge MMR.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {allowedBadges.map(b => {
+                      const isSelected = pBadge === b.key;
+                      // Check if badge is assigned to someone else
+                      const assignedToOtherId = Object.keys(badges).find(pid => badges[pid] === b.key && pid !== selectedPlayerId);
+                      const assignedToOther = assignedToOtherId ? rosteredPlayers.find(m => m.playerId === assignedToOtherId) : null;
+                      
+                      return (
+                        <button
+                          key={b.key}
+                          onClick={() => {
+                            if (!selectedPlayerId) return;
+                            if (isSelected) setBadge(selectedPlayerId, null);
+                            else setBadge(selectedPlayerId, b.key);
+                          }}
+                          className={`p-3 rounded-xl border flex flex-col items-start gap-1 transition-all active:scale-95 text-left ${isSelected ? 'bg-white/10 border-white/30' : 'bg-neutral-900/50 border-white/5 hover:bg-white/5'}`}
+                        >
+                          <div className="flex items-center gap-2 w-full">
+                            <span className="text-xl">{b.emoji}</span>
+                            <span className={`text-xs font-black flex-1 ${isSelected ? 'text-white' : 'text-neutral-400'}`}>{b.label}</span>
+                            {isSelected && <CheckCircle size={14} className="text-[#00ff41]" />}
+                          </div>
+                          {assignedToOther ? (
+                            <p className="text-[9px] font-bold text-amber-500 truncate w-full">Currently with {assignedToOther.player.fullName.split(' ')[0]}</p>
+                          ) : (
+                            <p className={`text-[9px] font-bold truncate w-full ${isSelected ? 'text-neutral-300' : 'text-neutral-600'}`}>+{b.bonus} MMR Bonus</p>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Stats Section (Editable only if Score After) */}

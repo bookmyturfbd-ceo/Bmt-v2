@@ -31,17 +31,22 @@ export async function POST(request: NextRequest) {
 
   // Cookie lifetime: 30 days if "remember me", otherwise 1 day
   const maxAge = rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60;
+  const expires = new Date(Date.now() + maxAge * 1000);
+  const isHttps = request.url.startsWith('https:');
 
   const cookieOpts = {
     path: '/',
     maxAge,
+    expires,
     sameSite: 'lax' as const,
     httpOnly: false,
+    secure: isHttps,
   };
 
   // ── Super Admin ──────────────────────────────────────────────────────────────
   if (cred === 'admin@bmt.com' && pw === 'Pass11408812#$') {
-    const response = NextResponse.json({ ok: true, redirect: '/en/admin' });
+    const session = { bmt_auth: '1', bmt_role: 'admin', bmt_name: 'Admin' };
+    const response = NextResponse.json({ ok: true, redirect: '/en/admin', session });
     response.cookies.set('bmt_auth',  '1',     cookieOpts);
     response.cookies.set('bmt_role',  'admin', cookieOpts);
     response.cookies.set('bmt_name',  'Admin', cookieOpts);
@@ -50,7 +55,8 @@ export async function POST(request: NextRequest) {
 
   // ── Shop Manager (Sub Admin) ──────────────────────────────────────────────────
   if (cred === 'sm@bmt.com' && pw === 'Cristianoronaldo01!$') {
-    const response = NextResponse.json({ ok: true, redirect: '/en/admin' });
+    const session = { bmt_auth: '1', bmt_role: 'shop_manager', bmt_name: 'Shop Manager' };
+    const response = NextResponse.json({ ok: true, redirect: '/en/admin', session });
     response.cookies.set('bmt_auth',  '1',            cookieOpts);
     response.cookies.set('bmt_role',  'shop_manager', cookieOpts);
     response.cookies.set('bmt_name',  'Shop Manager', cookieOpts);
@@ -95,7 +101,8 @@ export async function POST(request: NextRequest) {
     const redirectPath = isCoach ? '/en/dashboard/coach' : '/en/dashboard/owner';
     const roleCookie = isCoach ? 'coach' : 'owner';
     
-    const response = NextResponse.json({ ok: true, redirect: redirectPath });
+    const session = { bmt_auth: '1', bmt_role: roleCookie, bmt_owner_id: owner.id, bmt_name: name };
+    const response = NextResponse.json({ ok: true, redirect: redirectPath, session });
     response.cookies.set('bmt_auth',     '1',        cookieOpts);
     response.cookies.set('bmt_role',     roleCookie, cookieOpts);
     response.cookies.set('bmt_owner_id', owner.id,   cookieOpts);
@@ -136,7 +143,8 @@ export async function POST(request: NextRequest) {
     }
 
     const token = signToken({ id: organizer.id, type: 'ORGANIZER', exp: Date.now() + 7 * 24 * 60 * 60 * 1000 });
-    const response = NextResponse.json({ ok: true, redirect: '/en/organizer/dashboard' });
+    const session = { bmt_auth: '1', bmt_role: 'organizer', bmt_name: organizer.name, org_token: token };
+    const response = NextResponse.json({ ok: true, redirect: '/en/organizer/dashboard', session });
     
     // Set the secure JWT for the organizer portal
     const isHttps = request.url.startsWith('https:');
@@ -212,7 +220,8 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Success ──────────────────────────────────────────────────────────────────
-  const response = NextResponse.json({ ok: true, redirect: '/en' });
+  const session = { bmt_auth: '1', bmt_role: 'player', bmt_player_id: player.id, bmt_name: player.fullName };
+  const response = NextResponse.json({ ok: true, redirect: '/en', session });
   response.cookies.set('bmt_auth',      '1',            cookieOpts);
   response.cookies.set('bmt_role',      'player',       cookieOpts);
   response.cookies.set('bmt_player_id', player.id,      cookieOpts);

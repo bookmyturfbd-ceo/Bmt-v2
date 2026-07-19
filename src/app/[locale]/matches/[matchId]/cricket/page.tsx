@@ -1912,6 +1912,9 @@ export default function CricketScoringPage() {
       mmrDelta,
       currentMmr,
       matchId       : m.id,
+      multA         : matchResult.multA,
+      multB         : matchResult.multB,
+      myMultiplier  : amA ? matchResult.multA : matchResult.multB,
     });
   }, [matchResult, state, showMatchResult]); // Include dependencies to ensure it's up to date
 

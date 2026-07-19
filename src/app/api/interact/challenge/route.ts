@@ -256,8 +256,8 @@ export async function GET(req: NextRequest) {
     const myTeamIds = myTeams.map(t => t.id);
 
     const matchInclude = {
-      teamA: { select: { id: true, name: true, logoUrl: true, sportType: true, teamMmr: true } },
-      teamB: { select: { id: true, name: true, logoUrl: true, sportType: true, teamMmr: true } },
+      teamA: { select: { id: true, name: true, logoUrl: true, sportType: true, teamMmr: true, completedCount: true } },
+      teamB: { select: { id: true, name: true, logoUrl: true, sportType: true, teamMmr: true, completedCount: true } },
       playerStats: { where: { teamId: { in: myTeamIds } }, select: { id: true, badge: true } },
       scorers: true,
     };

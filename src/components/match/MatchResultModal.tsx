@@ -259,7 +259,7 @@ export default function MatchResultModal() {
           style={{ animation: phase === 'mmr' ? 'bmt-slide-up 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards' : 'none', opacity: phase === 'mmr' ? 1 : 0 }}>
 
           {/* MMR Delta pill */}
-          <div className="flex justify-center mb-4">
+          <div className="flex flex-col items-center justify-center mb-4">
             <div className="flex items-center gap-2 px-5 py-2 rounded-full border"
               style={{
                 background: `rgba(${mmrDelta > 0 ? '0,255,65' : mmrDelta < 0 ? '239,68,68' : '59,130,246'},0.12)`,
@@ -271,6 +271,23 @@ export default function MatchResultModal() {
               </span>
               <span className="text-[10px] font-black uppercase tracking-widest text-white/40">MMR</span>
             </div>
+            
+            {/* MMR Math Breakdown */}
+            {result.myMultiplier !== undefined && (
+              <p className="text-[10px] font-bold text-neutral-500 mt-2 text-center select-none">
+                {(() => {
+                  const base = outcome === 'draw' ? 0 : outcome === 'win' ? 80 : -40;
+                  const mult = outcome === 'draw' ? 1.0 : result.myMultiplier;
+                  const multLabel = mult > 1.0 ? 'stronger opponent' : mult < 1.0 ? 'lower-rated opponent' : 'balanced rating';
+                  const baseSign = base >= 0 ? '+' : '';
+                  const totalSign = mmrDelta >= 0 ? '+' : '';
+                  if (outcome === 'draw') {
+                    return `±0 (Draw flat split)`;
+                  }
+                  return `${baseSign}${base} base × ${mult.toFixed(1)} (${multLabel}) = ${totalSign}${mmrDelta} MMR`;
+                })()}
+              </p>
+            )}
           </div>
 
           {/* Rank badge card */}

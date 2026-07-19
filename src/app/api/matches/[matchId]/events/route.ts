@@ -95,6 +95,13 @@ export async function POST(
       isA = ctx.isA;
     }
 
+    const rawMatch = match as any;
+    const isAgreed = rawMatch.scoringNegotiationStatus === 'agreed' || rawMatch.scoreModeAgreed;
+    const isStarted = rawMatch.matchStartedAt || rawMatch.status === 'LIVE';
+    if (!isAgreed || !isStarted) {
+      return NextResponse.json({ error: 'Scoring mode negotiation must be agreed and match started to log events' }, { status: 400 });
+    }
+
     if (!['LIVE'].includes(match.status))
       return NextResponse.json({ error: 'Match must be LIVE to log events' }, { status: 400 });
 
