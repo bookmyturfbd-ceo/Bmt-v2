@@ -593,11 +593,38 @@ model Slot {
   price        Float
   status       SlotStatus   @default(available)
   slotType     String       @default("ONE_ON_ONE")
+  admissionFee Float?       @default(0)
+  monthlyFee   Float?       @default(0)
+  pricingType  String?      @default("PACKAGE")
 
   ground   Ground    @relation(fields: [groundId], references: [id], onDelete: Cascade)
   bookings Booking[]
 
   @@map("slots")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CUSTOM SLOT REQUESTS — Player → Coach custom slot requests
+// ─────────────────────────────────────────────────────────────────────────────
+
+model CustomSlotRequest {
+  id            String   @id @default(cuid())
+  turfId        String
+  coachOwnerId  String
+  playerId      String
+  playerName    String
+  playerPhone   String?
+  serviceName   String?
+  preferredDate String
+  startTime     String
+  endTime       String
+  proposedPrice Float
+  notes         String?
+  status        String   @default("pending")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("custom_slot_requests")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

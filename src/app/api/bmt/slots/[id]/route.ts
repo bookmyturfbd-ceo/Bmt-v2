@@ -20,6 +20,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Params }) {
   const { id: _id, turfId: _turfId, groundId: _groundId, ...patch } = body;
 
   if (patch.price !== undefined) patch.price = Number(patch.price);
+  if (patch.admissionFee !== undefined) patch.admissionFee = Number(patch.admissionFee);
+  if (patch.monthlyFee !== undefined) patch.monthlyFee = Number(patch.monthlyFee);
   if (patch.days !== undefined && !Array.isArray(patch.days)) patch.days = [];
   if (patch.sports !== undefined && !Array.isArray(patch.sports)) patch.sports = [];
 

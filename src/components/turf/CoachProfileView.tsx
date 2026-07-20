@@ -5,8 +5,9 @@ import {
   Clock, Dumbbell, Award, Share2, ShieldCheck, CheckCircle2, AlertTriangle, BadgeDollarSign, Heart
 } from 'lucide-react';
 import { useRouter } from '@/i18n/routing';
-import { useTranslations } from 'next-intl';
+import { useRouter as useNextRouter } from 'next/navigation';
 import { getCookie } from '@/lib/cookies';
+import RequestCustomSlotModal from '@/components/shared/RequestCustomSlotModal';
 import OpenMap from '../shared/OpenMap';
 import { getSupabaseClient } from '@/lib/supabaseRealtime';
 
@@ -61,6 +62,7 @@ interface CoachProfileViewProps {
     lng?: number;
     mapLink?: string;
     coachType: string;
+    ownerId?: string;
   };
   slots: Slot[];
   bookings: Booking[];
@@ -342,6 +344,7 @@ export default function CoachProfileView({ pro, slots = [], bookings = [], groun
   // Booking states
   const [confirmingSlot, setConfirmingSlot] = useState<Slot | null>(null);
   const [receiptData, setReceiptData] = useState<any | null>(null);
+  const [showCustomSlotModal, setShowCustomSlotModal] = useState(false);
 
   // Default active service
   useEffect(() => {
@@ -479,11 +482,18 @@ export default function CoachProfileView({ pro, slots = [], bookings = [], groun
         </div>
 
         {/* ── Services Offered (Grounds) ── */}
-        {grounds.length > 0 && (
-          <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
             <h3 className="text-xs font-black uppercase tracking-widest text-neutral-400 flex items-center gap-1.5">
               <Dumbbell size={14} className="text-blue-400" /> Services & Formats
             </h3>
+            <button
+              onClick={() => setShowCustomSlotModal(true)}
+              className="text-[10px] font-black uppercase tracking-wider bg-blue-500/10 border border-blue-500/25 text-blue-400 px-3 py-1.5 rounded-xl hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1 active:scale-95"
+            >
+              ⚡ Request Custom Slot
+            </button>
+          </div>
             <div className="flex flex-col gap-2.5">
               {grounds.map((g) => {
                 const isSelected = selectedGroundId === g.id;
@@ -522,7 +532,6 @@ export default function CoachProfileView({ pro, slots = [], bookings = [], groun
               })}
             </div>
           </div>
-        )}
 
         {/* ── Date Selection ── */}
         {selectedGroundId && (
@@ -781,6 +790,15 @@ export default function CoachProfileView({ pro, slots = [], bookings = [], groun
           }}
         />
       )}
+
+      <RequestCustomSlotModal
+        open={showCustomSlotModal}
+        turfId={pro.id}
+        coachOwnerId={pro.ownerId || ''}
+        coachName={pro.name}
+        services={grounds.map(g => g.name)}
+        onClose={() => setShowCustomSlotModal(false)}
+      />
     </div>
   );
 }
