@@ -12,7 +12,7 @@ interface Division { id: string; name: string; }
 interface Turf {
   id: string; name: string; ownerId: string; status: string;
   cityId: string; divisionId: string; area?: string; imageUrls: string[];
-  isCoachProfile: boolean; coachType: string; professions?: string[];
+  isCoachProfile: boolean; coachType: string; professions?: string[]; isVerified?: boolean;
   rules?: string;
 }
 
@@ -315,9 +315,9 @@ export default function CoachProfilePanel() {
         <div className="flex-1 flex flex-col items-center sm:items-start text-center sm:text-left min-w-0">
            <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none">{name || myProfile.name}</h2>
-             {myProfile.status === 'published' && (
+             {myProfile.isVerified && (
                <span className="text-[8px] font-black uppercase tracking-wider text-blue-400 bg-blue-500/10 border border-blue-500/25 px-2 py-0.5 rounded-full flex items-center gap-0.5">
-                 <ShieldCheck size={9} /> Verified
+                 <ShieldCheck size={9} className="fill-current" /> Verified
                </span>
              )}
            </div>

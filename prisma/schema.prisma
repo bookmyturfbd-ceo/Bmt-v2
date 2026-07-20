@@ -482,6 +482,7 @@ model Turf {
   coachType      String?
   professions    String[] @default([])
   displayOrder   Int      @default(999)
+  isVerified     Boolean  @default(false)
 
   // Map coordinates
   lat        Float?

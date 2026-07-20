@@ -16,6 +16,7 @@ interface Turf {
   coachType?: string | null;
   professions?: string[];
   displayOrder?: number;
+  isVerified?: boolean;
 }
 
 interface City { id: string; name: string; divisionId: string; }
@@ -147,18 +148,19 @@ export default function BookProsClient({ coaches, cities, divisions, professions
             >
               <div>
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="relative w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-blue-500 to-cyan-400 shrink-0">
+                  <div className="relative w-20 h-20 rounded-full p-[2.5px] bg-gradient-to-tr from-blue-500 via-cyan-400 to-blue-600 shrink-0 shadow-md">
                     <div className="w-full h-full rounded-full bg-neutral-950 overflow-hidden flex items-center justify-center">
                       {coach.imageUrls?.[0] ? (
-                        <img src={coach.imageUrls[0]} alt={coach.name} className="w-full h-full object-cover" />
+                        <img src={coach.imageUrls[0]} alt={coach.name} className="w-full h-full object-cover object-top" />
                       ) : (
-                        <UserCircle size={32} className="text-blue-500 opacity-50" />
+                        <UserCircle size={36} className="text-blue-500 opacity-50" />
                       )}
                     </div>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="font-black text-base text-white truncate group-hover:text-blue-400 transition-colors">
-                      {coach.name}
+                    <h3 className="font-black text-base text-white truncate group-hover:text-blue-400 transition-colors flex items-center gap-1">
+                      <span className="truncate">{coach.name}</span>
+                      {coach.isVerified && <ShieldCheck size={14} className="text-blue-400 fill-current shrink-0" />}
                     </h3>
                     <p className="text-xs font-bold text-blue-400 tracking-wider uppercase truncate mt-0.5">
                       {coach.coachType || 'Professional'}

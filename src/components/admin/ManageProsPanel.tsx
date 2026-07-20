@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   UserCircle2, Sparkles, Check, X,
   Loader2, ChevronDown, ChevronUp, TrendingUp, Banknote, Clock,
-  KeyRound, Search, Eye, EyeOff, CheckCircle2, RefreshCw, User, Percent, MapPin
+  KeyRound, Search, Eye, EyeOff, CheckCircle2, RefreshCw, User, Percent, MapPin, ShieldCheck
 } from 'lucide-react';
 import { useApiEntity } from '@/hooks/useApiEntity';
 import GenerateInviteCard from './GenerateInviteCard';
@@ -18,7 +18,7 @@ interface Turf  {
   revenueModel?: { type: 'percentage' | 'monthly'; value: number };
   revenueModelType?: string; revenueModelValue?: number;
   createdAt?: string; isCoachProfile?: boolean; coachType?: string;
-  professions?: string[]; displayOrder?: number;
+  professions?: string[]; displayOrder?: number; isVerified?: boolean;
 }
 interface Sport   { id: string; name: string; }
 interface City    { id: string; name: string; }
@@ -318,6 +318,28 @@ function ProCard({ owner, turfs, cities, bookings, slots, onReload }: {
                               turf.status === 'pending'   ? 'bg-orange-500/10 border-orange-500/30 text-orange-400' :
                               'bg-red-500/10 border-red-500/30 text-red-400'
                             }`}>{turf.status}</span>
+
+                            {/* Super Admin Verified (Blue Tick) Toggle */}
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const nextVal = !turf.isVerified;
+                                await fetch(`/api/bmt/turfs/${turf.id}`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ isVerified: nextVal }),
+                                });
+                                onReload();
+                              }}
+                              className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border transition-all flex items-center gap-1 active:scale-95 ${
+                                turf.isVerified
+                                  ? 'bg-blue-500 text-white border-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.35)]'
+                                  : 'bg-white/5 border-white/10 text-neutral-400 hover:text-white hover:border-white/20'
+                              }`}
+                            >
+                              <ShieldCheck size={11} className={turf.isVerified ? 'fill-current text-white' : ''} />
+                              {turf.isVerified ? '✓ Verified (Blue Tick)' : 'Grant Blue Tick'}
+                            </button>
                           </div>
                           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                             {Array.isArray(turf.professions) && turf.professions.length > 0 ? (

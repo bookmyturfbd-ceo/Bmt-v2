@@ -79,16 +79,16 @@ export default function ProfessionalsSection({ initialProfessionals }: Professio
 
       {/* Professional Type Filter Pills */}
       {availableTypes.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1.5 snap-x">
+        <div className="flex gap-2.5 overflow-x-auto hide-scrollbar pb-2 snap-x py-1">
           <button
             onClick={() => setSelectedType('ALL')}
-            className={`px-3 py-1.5 rounded-xl text-[11px] font-black shrink-0 transition-all border snap-start whitespace-nowrap
+            className={`px-4 py-2 rounded-2xl text-xs font-black shrink-0 transition-all border-2 snap-start whitespace-nowrap active:scale-95
               ${selectedType === 'ALL'
-                ? 'bg-accent text-black border-accent shadow-[0_0_12px_rgba(0,255,65,0.3)]'
-                : 'bg-[var(--panel-bg)] border-[var(--panel-border)] text-[var(--muted)] hover:border-accent/40'
+                ? 'bg-blue-500 text-white border-blue-400 shadow-[0_0_16px_rgba(59,130,246,0.4)] scale-[1.02]'
+                : 'bg-neutral-900/90 border-blue-500/20 text-blue-300 hover:border-blue-400 hover:text-white shadow-sm'
               }`}
           >
-            All
+            All Professionals
           </button>
           {availableTypes.map(type => {
             const isActive = selectedType === type;
@@ -96,10 +96,10 @@ export default function ProfessionalsSection({ initialProfessionals }: Professio
               <button
                 key={type}
                 onClick={() => setSelectedType(type)}
-                className={`px-3 py-1.5 rounded-xl text-[11px] font-black shrink-0 transition-all border snap-start whitespace-nowrap
+                className={`px-4 py-2 rounded-2xl text-xs font-black shrink-0 transition-all border-2 snap-start whitespace-nowrap active:scale-95
                   ${isActive
-                    ? 'bg-accent text-black border-accent shadow-[0_0_12px_rgba(0,255,65,0.3)]'
-                    : 'bg-[var(--panel-bg)] border-[var(--panel-border)] text-[var(--muted)] hover:border-accent/40'
+                    ? 'bg-blue-500 text-white border-blue-400 shadow-[0_0_16px_rgba(59,130,246,0.4)] scale-[1.02]'
+                    : 'bg-neutral-900/90 border-blue-500/20 text-blue-300 hover:border-blue-400 hover:text-white shadow-sm'
                   }`}
               >
                 {type}
@@ -124,16 +124,16 @@ export default function ProfessionalsSection({ initialProfessionals }: Professio
                 <div className="absolute inset-0 bg-gradient-to-r from-accent/0 to-accent/[0.02] group-hover:to-accent/[0.04] transition-all duration-300 pointer-events-none" />
                 
                 {/* Avatar Container */}
-                <div className="relative w-12 h-12 rounded-full p-[2px] bg-gradient-to-tr from-[#00ff41]/50 to-emerald-400/50 shrink-0 shadow-sm">
+                <div className="relative w-14 h-14 rounded-full p-[2px] bg-gradient-to-tr from-blue-500 via-cyan-400 to-blue-600 shrink-0 shadow-md">
                   <div className="w-full h-full rounded-full bg-neutral-950 overflow-hidden flex items-center justify-center">
                     {img ? (
                       <img
                         src={img}
                         alt={pro.name}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover object-top"
                       />
                     ) : (
-                      <span className="text-xs font-black text-accent">
+                      <span className="text-xs font-black text-blue-400">
                         {getInitials(pro.name)}
                       </span>
                     )}

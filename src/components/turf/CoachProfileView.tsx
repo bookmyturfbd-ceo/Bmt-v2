@@ -56,6 +56,7 @@ interface CoachProfileViewProps {
     coachType: string;
     professions?: string[];
     ownerId?: string;
+    isVerified?: boolean;
   };
   slots: Slot[];
   bookings: Booking[];
@@ -424,10 +425,16 @@ export default function CoachProfileView({ pro, slots = [], bookings = [], groun
         >
           <ArrowLeft size={18} />
         </button>
-        <div className="flex items-center gap-1.5">
-          <ShieldCheck size={16} className="text-blue-400" />
-          <span className="text-xs font-black uppercase tracking-wider text-neutral-300">Verified Professional</span>
-        </div>
+        {pro.isVerified ? (
+          <div className="flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/25 px-3 py-1 rounded-full text-blue-400">
+            <ShieldCheck size={14} className="fill-current" />
+            <span className="text-[10px] font-black uppercase tracking-wider">Verified Pro</span>
+          </div>
+        ) : (
+          <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+            {pro.coachType || 'Professional'}
+          </div>
+        )}
         <button 
           onClick={() => setIsLiked(!isLiked)}
           className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all ${
