@@ -241,13 +241,13 @@ export async function GET(req: NextRequest) {
   if (!playerId) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
 
   try {
-    // Get all teams the user is OMC of
+    // Get all teams the user belongs to (any role) — so all members see challenges
     const myTeams = await prisma.team.findMany({
       where: {
         teamType: 'REGULAR',
         OR: [
           { ownerId: playerId },
-          { members: { some: { playerId, role: { in: ['owner', 'manager', 'captain'] } } } },
+          { members: { some: { playerId } } },
         ],
       },
       select: { id: true },
