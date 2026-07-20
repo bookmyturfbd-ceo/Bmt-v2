@@ -3,10 +3,11 @@ import { useState, useEffect, useRef } from 'react';
 import { getCookie } from '@/lib/cookies';
 import { Bell, User, KeyRound, Eye, EyeOff, X, Loader2, CheckCircle2, LogOut } from 'lucide-react';
 import ThemeToggle from '@/components/ui/ThemeToggle';
+import NotificationCenter from '@/components/layout/NotificationCenter';
 import { useRouter } from 'next/navigation';
 
 /* ─── Profile / Change Password Modal ─── */
-function ProfileModal({ onClose }: { onClose: () => void }) {
+export function ProfileModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [tab, setTab] = useState<'profile' | 'password'>('profile');
 
@@ -238,11 +239,7 @@ export default function OwnerHeader() {
 
         <div className="flex items-center gap-2.5">
           <ThemeToggle />
-
-          <button className="relative w-9 h-9 glass-panel rounded-xl flex items-center justify-center hover:border-accent/30 transition-colors">
-            <Bell size={16} className="text-[var(--muted)]" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-background" />
-          </button>
+          <NotificationCenter />
 
           {/* Owner profile avatar — initials, no fake photo */}
           <button onClick={() => setShowProfile(s => !s)}

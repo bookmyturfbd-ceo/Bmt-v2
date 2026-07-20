@@ -1,7 +1,13 @@
 'use client';
-import { usePathname } from '@/i18n/routing';
+
+import { useState, useEffect } from 'react';
+import { usePathname, useRouter } from '@/i18n/routing';
 import { Link } from '@/i18n/routing';
-import { Home, Calendar, ShoppingBag, Swords, Wallet } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import {
+  Home, Calendar, ShoppingBag, Swords, Wallet,
+  UserCircle, Dumbbell, CheckSquare, CalendarDays
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 const leftItems  = [
@@ -14,12 +20,65 @@ const rightItems = [
   { id: 'wallet', href: '/wallet', icon: Wallet,      label: 'Wallet' },
 ] as const;
 
+const PRO_ITEMS = [
+  { key: 'myProfile',      icon: UserCircle,   label: 'Profile' },
+  { key: 'manageServices', icon: Dumbbell,     label: 'Services' },
+  { key: 'training',       icon: CheckSquare,  label: 'Training' },
+  { key: 'bookings',       icon: CalendarDays, label: 'Bookings' },
+  { key: 'finance',        icon: Wallet,       label: 'Finance' },
+] as const;
+
 export default function BottomNav() {
   const t = useTranslations('Home');
   const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  if (pathname.includes('/admin') || pathname.includes('/owner') || pathname.includes('/login') || pathname.includes('/register') || pathname.includes('/organizer')) return null;
+  const isProDashboard = pathname.includes('/dashboard/coach') || pathname.includes('/coach');
+  const currentProTab = (searchParams.get('tab') as string) || 'myProfile';
 
+  if (
+    pathname.includes('/admin') ||
+    pathname.includes('/owner') ||
+    pathname.includes('/login') ||
+    pathname.includes('/register') ||
+    pathname.includes('/organizer')
+  ) {
+    return null;
+  }
+
+  // ─── Professional Dashboard Bottom Nav ──────────────────────────────────────
+  if (isProDashboard) {
+    return (
+      <nav className="fixed bottom-0 w-full z-50 glass-light dark:glass pb-safe pt-1 border-t border-blue-500/20 bg-[#07080e]/95 backdrop-blur-xl">
+        <div className="flex items-center justify-around px-2 py-1">
+          {PRO_ITEMS.map((item) => {
+            const IconObj = item.icon;
+            const active = currentProTab === item.key;
+            return (
+              <button
+                key={item.key}
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('bmt_coach_nav', { detail: item.key }));
+                  router.push(`/dashboard/coach?tab=${item.key}` as any);
+                }}
+                className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 rounded-2xl transition-all active:scale-95 ${
+                  active ? 'text-blue-400 font-black' : 'text-neutral-500 hover:text-white font-medium'
+                }`}
+              >
+                <div className={`p-1.5 rounded-xl ${active ? 'bg-blue-500/15 border border-blue-500/30' : ''}`}>
+                  <IconObj size={20} className={active ? 'stroke-[2.5]' : 'stroke-2'} />
+                </div>
+                <span className="text-[10px] tracking-tight">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+    );
+  }
+
+  // ─── Standard Player Bottom Nav ─────────────────────────────────────────────
   const isActive = (id: string, href: string) =>
     id === 'arena'
       ? (pathname.startsWith('/arena') || pathname.startsWith('/interact') || pathname.startsWith('/teams') || pathname.startsWith('/tourney') || pathname.startsWith('/leaderboard') || pathname.startsWith('/play'))
