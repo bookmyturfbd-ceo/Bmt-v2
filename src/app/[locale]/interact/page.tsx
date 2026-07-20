@@ -525,7 +525,12 @@ export default function MarketPage() {
           s.add(showChallengeModal.id);
           return s;
         });
-        setTimeout(() => { setShowChallengeModal(null); setChalMsg(''); loadChallenges(); }, 2000);
+        setTimeout(() => {
+          setShowChallengeModal(null);
+          setChalMsg('');
+          loadChallenges();
+          setMasterTab('active'); // ← Auto-switch to Active tab
+        }, 1500);
       } else {
         setChalMsg(`❌ ${data.error}`);
       }
