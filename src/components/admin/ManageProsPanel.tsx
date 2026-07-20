@@ -584,16 +584,26 @@ export default function ManageProsPanel() {
   const [selectedProfession, setSelectedProfession] = useState('ALL');
   const [professions, setProfessions] = useState<string[]>([]);
 
+  const [customRequests, setCustomRequests] = useState<any[]>([]);
+
+  const reloadCustomRequests = useCallback(() => {
+    fetch('/api/bmt/custom-slot-requests?all=true')
+      .then(r => r.json())
+      .then(d => setCustomRequests(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     fetch('/api/bmt/bookings').then(r => r.json()).then(d => setBookings(Array.isArray(d) ? d : []));
     fetch('/api/bmt/slots').then(r => r.json()).then(d => setSlots(Array.isArray(d) ? d : []));
+    reloadCustomRequests();
     fetch('/api/admin/turf-service-setting')
       .then(r => r.json())
       .then(d => {
         if (Array.isArray(d.professionTypes)) setProfessions(d.professionTypes);
       })
       .catch(() => {});
-  }, []);
+  }, [reloadCustomRequests]);
 
   const loading = allOwners.loading || turfs.loading;
   
@@ -656,6 +666,82 @@ export default function ManageProsPanel() {
       {/* Pros tab */}
       {subTab === 'pros' && (
         <div className="flex flex-col gap-4">
+          {/* Custom Slot Requests from Players across all Pros */}
+          {customRequests.length > 0 && (
+            <div className="glass-panel border border-blue-500/30 rounded-3xl p-5 flex flex-col gap-4 shadow-xl bg-blue-500/5">
+              <div className="flex items-center justify-between">
+                <h3 className="font-black text-white text-sm flex items-center gap-2">
+                  <span className="text-base">⚡</span> Player Custom Slot Requests ({customRequests.filter(r => r.status === 'pending').length} Pending)
+                </h3>
+                <span className="text-[10px] font-black uppercase text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-full">
+                  Super Admin View
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {customRequests.map(req => {
+                  const targetPro = turfs.items.find(t => t.id === req.turfId);
+                  return (
+                    <div key={req.id} className="bg-black/40 p-4 rounded-2xl border border-white/10 flex flex-col justify-between gap-2 relative">
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h4 className="text-xs font-black text-white">{req.playerName}</h4>
+                            <p className="text-[10px] text-blue-400 font-bold mt-0.5">Target Pro: {targetPro?.name || 'Coach'}</p>
+                          </div>
+                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
+                            req.status === 'accepted' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                            req.status === 'declined' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                            'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                          }`}>
+                            {req.status}
+                          </span>
+                        </div>
+
+                        <div className="text-xs font-semibold text-neutral-300 mt-2">
+                          <p className="font-bold text-blue-300">{req.serviceName || 'Custom Slot'}</p>
+                          <p className="text-[11px] text-neutral-400 mt-0.5 font-mono">📅 {req.preferredDate} ({req.startTime} - {req.endTime})</p>
+                          <p className="text-sm font-black text-emerald-400 mt-1">Offer: ৳{req.proposedPrice}</p>
+                          {req.notes && <p className="text-[10px] text-neutral-400 italic mt-1 bg-white/5 p-2 rounded-lg">"{req.notes}"</p>}
+                        </div>
+                      </div>
+
+                      {req.status === 'pending' && (
+                        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-white/5">
+                          <button
+                            onClick={async () => {
+                              await fetch('/api/bmt/custom-slot-requests', {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: req.id, status: 'accepted' }),
+                              });
+                              reloadCustomRequests();
+                            }}
+                            className="flex-1 py-1.5 rounded-xl bg-emerald-500 hover:brightness-110 text-black font-black text-[11px] transition-all"
+                          >
+                            ✓ Accept
+                          </button>
+                          <button
+                            onClick={async () => {
+                              await fetch('/api/bmt/custom-slot-requests', {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: req.id, status: 'declined' }),
+                              });
+                              reloadCustomRequests();
+                            }}
+                            className="flex-1 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500 hover:text-white border border-red-500/30 text-red-400 font-black text-[11px] transition-all"
+                          >
+                            ✕ Decline
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {/* Search and Sport/Profession Filters */}
           <div className="flex flex-col gap-4 bg-[var(--panel-bg)] p-5 rounded-3xl border border-[var(--panel-border)] shadow-md">
             <div className="relative flex-1">

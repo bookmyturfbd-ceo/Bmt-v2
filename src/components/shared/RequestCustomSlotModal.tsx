@@ -205,28 +205,16 @@ export default function RequestCustomSlotModal({
                 </div>
               </div>
 
-              {/* Contact Info */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Your Name</label>
-                  <input
-                    type="text"
-                    value={playerName}
-                    onChange={e => setPlayerName(e.target.value)}
-                    placeholder="Full Name"
-                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-bold text-white outline-none"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Phone Number</label>
-                  <input
-                    type="text"
-                    value={playerPhone}
-                    onChange={e => setPlayerPhone(e.target.value)}
-                    placeholder="017XXXXXXXX"
-                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-bold text-white outline-none"
-                  />
-                </div>
+              {/* Player Name */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Your Name</label>
+                <input
+                  type="text"
+                  value={playerName}
+                  onChange={e => setPlayerName(e.target.value)}
+                  placeholder="Full Name"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-bold text-white outline-none"
+                />
               </div>
 
               {/* Special Notes */}

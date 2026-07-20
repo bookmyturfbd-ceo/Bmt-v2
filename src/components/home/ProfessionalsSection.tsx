@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles, MapPin } from 'lucide-react';
+import { Sparkles, MapPin, ShieldCheck } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 
 interface Professional {
@@ -13,6 +13,7 @@ interface Professional {
   coachType?: string | null;
   professions?: string[];
   displayOrder?: number;
+  isVerified?: boolean;
 }
 
 interface ProfessionalsSectionProps {
@@ -142,8 +143,9 @@ export default function ProfessionalsSection({ initialProfessionals }: Professio
 
                 {/* Details */}
                 <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-                  <h4 className="text-xs font-black truncate text-white group-hover:text-accent transition-colors leading-snug">
-                    {pro.name}
+                  <h4 className="text-xs font-black truncate text-white group-hover:text-blue-400 transition-colors leading-snug flex items-center gap-1">
+                    <span className="truncate">{pro.name}</span>
+                    {pro.isVerified && <ShieldCheck size={12} className="text-blue-400 fill-current shrink-0" />}
                   </h4>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="inline-block text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-[#00ff41]/10 border border-[#00ff41]/20 text-accent">

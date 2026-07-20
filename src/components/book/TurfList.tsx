@@ -1,5 +1,5 @@
 import { useTranslations } from 'next-intl';
-import { Building2, Users } from 'lucide-react';
+import { Building2, Users, ShieldCheck } from 'lucide-react';
 import { useParams } from 'next/navigation';
 
 export default function TurfList({
@@ -46,13 +46,52 @@ export default function TurfList({
         const cityName = cities.find(c => c.id === turf.cityId)?.name || t('local');
         const locationString = turf.area ? `${turf.area}, ${cityName}` : cityName;
         const coverImage = turf.imageUrls?.[0] || turf.logoUrl || "https://images.unsplash.com/photo-1518605368461-1ee18cd30f6b?auto=format&fit=crop&q=80";
-        // Append groupId to the turf URL so TurfBookingClient enters group mode
         const href = groupId ? `/${locale}/turf/${turf.id}?groupId=${groupId}` : `/${locale}/turf/${turf.id}`;
 
         const isCoach = turf.isCoachProfile;
         const badgeLabel = isCoach ? turf.coachType || t('professional') : sportName;
         const callToAction = isCoach ? t('tapBookSession') : t('tapBookSlot');
 
+        // Dedicated Pro Card Layout for Coaches (no facial clipping!)
+        if (isCoach) {
+          return (
+            <a href={href} key={turf.id} className="block active:scale-[0.98] transition-transform">
+              <div className="glass rounded-3xl overflow-hidden flex flex-col border border-blue-500/20 bg-gradient-to-b from-blue-950/20 via-neutral-900/90 to-neutral-950 p-5 shadow-lg relative">
+                {/* Badge Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <span className="bg-blue-500/15 border border-blue-500/25 px-2.5 py-0.5 rounded-md text-[9px] font-black tracking-widest uppercase text-blue-400">
+                    {badgeLabel}
+                  </span>
+                  <span className="text-[11px] font-bold text-white flex items-center gap-1">
+                    ⭐ 5.0
+                  </span>
+                </div>
+
+                {/* Avatar & Info Container */}
+                <div className="flex items-center gap-4">
+                  <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full p-[2.5px] bg-gradient-to-tr from-blue-500 via-cyan-400 to-blue-600 shrink-0 shadow-md">
+                    <div className="w-full h-full rounded-full bg-neutral-950 overflow-hidden flex items-center justify-center">
+                      <img src={coverImage} alt={turf.name} className="w-full h-full object-cover object-top" />
+                    </div>
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-black text-white tracking-tight flex items-center gap-1.5">
+                      <span className="truncate">{turf.name}</span>
+                      {turf.isVerified && <ShieldCheck size={16} className="text-blue-400 fill-current shrink-0" />}
+                    </h3>
+                    <p className="text-xs text-neutral-400 font-semibold mt-0.5 truncate">{locationString}</p>
+                    <span className="inline-block text-[11px] font-black text-blue-400 mt-2 hover:underline">
+                      {callToAction} →
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </a>
+          );
+        }
+
+        // Standard Turf Card Layout
         return (
           <a href={href} key={turf.id} className="block active:scale-[0.98] transition-transform">
             <div className="glass rounded-3xl overflow-hidden flex flex-col border border-white/5 shadow-md">

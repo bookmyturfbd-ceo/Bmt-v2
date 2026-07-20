@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import BookToggle from './BookToggle';
 import SearchCard from './SearchCard';
+import ProSearchCard from './ProSearchCard';
 import SportsFilter from './SportsFilter';
 import TurfList from './TurfList';
 import PlayerBookingHistory from './PlayerBookingHistory';
@@ -26,8 +27,8 @@ export default function BookEngine({
   const [selectedCityId, setSelectedCityId] = useState<string>('all');
   const [searchDate, setSearchDate] = useState<string>('');
   const [searchTime, setSearchTime] = useState<string>('');
-  
   const [activeTab, setActiveTab] = useState<'turf'|'pros'|'history'>(initialTab);
+  const [proSearchQuery, setProSearchQuery] = useState('');
 
   const availableProfessions = useMemo(() => {
     const set = new Set<string>([
@@ -58,6 +59,20 @@ export default function BookEngine({
       // 0. Filter by Profile Type (Turf vs Pro)
       if (activeTab === 'turf' && turf.isCoachProfile) return false;
       if (activeTab === 'pros' && !turf.isCoachProfile) return false;
+
+      // Search Query filter for Pros (name, email, phone, sport type)
+      if (activeTab === 'pros' && proSearchQuery.trim()) {
+        const q = proSearchQuery.toLowerCase();
+        const matchName = turf.name.toLowerCase().includes(q);
+        const matchCoachType = turf.coachType?.toLowerCase()?.includes(q) || false;
+        const matchProfessions = Array.isArray(turf.professions) && turf.professions.some((p: string) => p.toLowerCase().includes(q));
+        const matchArea = turf.area?.toLowerCase()?.includes(q) || false;
+        const matchEmail = turf.owner?.email?.toLowerCase()?.includes(q) || false;
+        const matchPhone = turf.owner?.phone?.toLowerCase()?.includes(q) || false;
+        if (!matchName && !matchCoachType && !matchProfessions && !matchArea && !matchEmail && !matchPhone) {
+          return false;
+        }
+      }
 
       // 1. Sport Match (via Category bridging) - Only for standard turfs
       if (activeTab === 'turf' && selectedCategory !== 'all') {
@@ -127,16 +142,7 @@ export default function BookEngine({
         <PlayerBookingHistory />
       ) : activeTab === 'pros' ? (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 flex flex-col gap-4">
-          <SearchCard 
-             cities={cities} 
-             turfs={turfs.filter(t => t.isCoachProfile)}
-             selectedCityId={selectedCityId}
-             setSelectedCityId={setSelectedCityId}
-             searchDate={searchDate}
-             setSearchDate={setSearchDate}
-             searchTime={searchTime}
-             setSearchTime={setSearchTime}
-          />
+          <ProSearchCard searchQuery={proSearchQuery} setSearchQuery={setProSearchQuery} />
           
           {availableProfessions.length > 0 && (
             <div className="flex overflow-x-auto gap-2 pb-1 snap-x hide-scrollbar [&::-webkit-scrollbar]:hidden px-1">

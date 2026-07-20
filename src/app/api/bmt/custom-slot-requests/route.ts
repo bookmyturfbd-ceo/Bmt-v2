@@ -13,10 +13,11 @@ function oid(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const playerId = pid(req);
   const ownerId = oid(req);
+  const isAll = req.nextUrl.searchParams.get('all') === 'true' || req.cookies.get('bmt_role')?.value === 'admin';
 
   try {
     const requests = await prisma.customSlotRequest.findMany({
-      where: {
+      where: isAll ? {} : {
         OR: [
           ownerId ? { coachOwnerId: ownerId } : {},
           playerId ? { playerId: playerId } : {},
