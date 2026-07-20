@@ -560,7 +560,7 @@ export default function MarketPage() {
     }
   };
 
-  const respondChallenge = async (matchId: string, action: 'accept' | 'decline' | 'start') => {
+  const respondChallenge = async (matchId: string, action: 'accept' | 'decline' | 'cancel' | 'start') => {
     try {
       if (action === 'accept') {
         const match = challenges.received.find(m => m.id === matchId);
@@ -576,7 +576,7 @@ export default function MarketPage() {
           }
         }
       }
-      if (action === 'accept' || action === 'decline') {
+      if (['accept', 'decline', 'cancel'].includes(action)) {
         const res = await fetch('/api/interact/challenge', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -1190,7 +1190,11 @@ export default function MarketPage() {
                 const t = item.data;
                 const isProv = (t.completedCount ?? 0) < 3;
                 const rank = getRankData(t.teamMmr ?? 1000);
-                const isChallenged = challengedTeamIds.has(t.id);
+                const isChallenged = (challenges.sent || []).some((m: any) =>
+                  (scout ? m.teamA_Id === scout.id : true) &&
+                  (m.teamB_Id === t.id || m.teamB?.id === t.id) &&
+                  ['PENDING', 'INTERACTION', 'SCHEDULED', 'LIVE', 'SCORE_ENTRY'].includes(m.status)
+                );
                 
                 const w = t.history?.filter((h: any) => h.outcome === 'W').length ?? 0;
                 const d = t.history?.filter((h: any) => h.outcome === 'D').length ?? 0;
@@ -1530,26 +1534,44 @@ export default function MarketPage() {
 
             // ── Card 4: PENDING sent / waiting ──
             if (_cardType === 'sent_pending' || _cardType === 'waiting_score') {
+              const myTeam = m.teamA;
               const oppTeam = _cardType === 'sent_pending' ? m.teamB : (amA ? m.teamB : m.teamA);
               return (
-                <div key={m.id} className="bg-[#0d0d0d] border border-white/8 rounded-3xl p-5 opacity-60">
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-full px-3 py-1.5 flex items-center gap-1.5">
-                      <Clock size={10} className="text-amber-400" />
-                      <span className="text-[10px] font-black text-amber-400/80 tracking-wider">PENDING</span>
+                <div key={m.id} className="relative bg-[#0d140e] border border-amber-500/30 rounded-3xl p-5 shadow-[0_0_20px_rgba(245,158,11,0.04)] overflow-hidden">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="bg-amber-500/10 border border-amber-500/25 rounded-full px-3 py-1.5 flex items-center gap-1.5">
+                      <Clock size={11} className="text-amber-400" />
+                      <span className="text-[10px] font-black text-amber-400 tracking-wider">CHALLENGE PENDING</span>
                     </div>
+                    {m.createdAt && (
+                      <span className="text-[9px] text-neutral-500 font-bold">
+                        {new Date(m.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-9 h-9 rounded-xl bg-neutral-800 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
-                      {oppTeam?.logoUrl ? <img src={oppTeam.logoUrl} className="w-full h-full object-cover" /> : <Shield size={14} className="text-neutral-500" />}
+
+                  <div className="flex items-center gap-3 mb-4">
+                    <TeamAvatar team={myTeam || m.teamA} accent="green" />
+                    <div className="flex-1 text-center">
+                      <p className="text-sm font-black text-amber-400/80">⚔️ VS</p>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-black text-sm truncate">{oppTeam?.name || 'Unknown team'}</p>
-                    </div>
+                    <TeamAvatar team={oppTeam} accent="green" flip />
                   </div>
-                  <p className="text-xs text-neutral-600 italic">
-                    {_cardType === 'sent_pending' ? `Waiting for ${oppTeam?.name || 'opponent'} to accept your challenge…` : 'Waiting for opponent to submit their score…'}
+
+                  <p className="text-xs text-neutral-400 mb-4 text-center italic">
+                    {_cardType === 'sent_pending'
+                      ? `Waiting for ${oppTeam?.name || 'opponent'} to accept your challenge…`
+                      : 'Waiting for opponent to submit their score…'}
                   </p>
+
+                  {_cardType === 'sent_pending' && (
+                    <button
+                      onClick={() => respondChallenge(m.id, 'cancel')}
+                      className="w-full py-2.5 bg-red-500/10 border border-red-500/20 text-red-400 font-black text-xs rounded-xl flex items-center justify-center gap-1.5 hover:bg-red-500/20 transition-colors cursor-pointer"
+                    >
+                      <XCircle size={14} /> Withdraw Challenge
+                    </button>
+                  )}
                 </div>
               );
             }

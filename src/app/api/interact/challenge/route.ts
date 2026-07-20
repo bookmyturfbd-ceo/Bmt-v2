@@ -152,30 +152,32 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PATCH: Accept or Decline a pending challenge
+// PATCH: Accept, Decline, or Cancel a pending challenge
 export async function PATCH(req: NextRequest) {
   const playerId = req.cookies.get('bmt_player_id')?.value;
   if (!playerId) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
 
   try {
-    const { matchId, action } = await req.json(); // action: 'accept' | 'decline'
+    const { matchId, action } = await req.json(); // action: 'accept' | 'decline' | 'cancel' | 'withdraw'
     if (!matchId || !action) return NextResponse.json({ error: 'Missing matchId or action' }, { status: 400 });
 
     const match = await prisma.match.findUnique({
       where: { id: matchId },
       include: {
-        teamA: { select: { id: true, name: true, ownerId: true } },
+        teamA: {
+          select: {
+            id: true,
+            name: true,
+            ownerId: true,
+            members: { select: { playerId: true, role: true } },
+          }
+        },
         teamB: {
           select: {
             id: true,
             name: true,
             ownerId: true,
-            members: {
-              select: {
-                playerId: true,
-                role: true
-              }
-            }
+            members: { select: { playerId: true, role: true } },
           }
         },
       },
@@ -184,13 +186,25 @@ export async function PATCH(req: NextRequest) {
     if (!match) return NextResponse.json({ error: 'Match not found' }, { status: 404 });
     if (match.status !== 'PENDING') return NextResponse.json({ error: 'Match is not pending' }, { status: 400 });
 
-    // Only the receiving team (teamB) can accept/decline
+    const teamA = match.teamA;
     const teamB = match.teamB;
-    const myMembership = teamB.members.find(m => m.playerId === playerId)
-      ?? (teamB.ownerId === playerId ? { role: 'owner' } : null);
 
-    if (!myMembership || !['owner', 'manager', 'captain'].includes(myMembership.role as string)) {
-      return NextResponse.json({ error: 'Only the receiving team captain can respond to challenges' }, { status: 403 });
+    const isTeamA_OMC = teamA.ownerId === playerId || teamA.members.some(m => m.playerId === playerId && ['owner', 'manager', 'captain'].includes(m.role));
+    const isTeamB_OMC = teamB.ownerId === playerId || teamB.members.some(m => m.playerId === playerId && ['owner', 'manager', 'captain'].includes(m.role));
+
+    if (action === 'cancel' || action === 'withdraw') {
+      if (!isTeamA_OMC && !isTeamB_OMC) {
+        return NextResponse.json({ error: 'Only team leaders can cancel this challenge' }, { status: 403 });
+      }
+      await prisma.match.update({
+        where: { id: matchId },
+        data: { status: 'CANCELLED' },
+      });
+      return NextResponse.json({ ok: true, message: 'Challenge cancelled' });
+    }
+
+    if (!isTeamB_OMC) {
+      return NextResponse.json({ error: 'Only the receiving team captain can accept/decline challenges' }, { status: 403 });
     }
 
     if (action === 'accept') {
