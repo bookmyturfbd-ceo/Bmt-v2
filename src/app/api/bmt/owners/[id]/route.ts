@@ -77,6 +77,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Params }) {
         pendingBmtCut: true,
       },
     });
+    if (patch.name) {
+      await prisma.turf.updateMany({
+        where: { ownerId: id, isCoachProfile: true },
+        data: { name: patch.name.trim() }
+      }).catch(() => {});
+    }
     return NextResponse.json(updated);
   } catch {
     return NextResponse.json({ error: 'Owner not found' }, { status: 404 });

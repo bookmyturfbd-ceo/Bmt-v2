@@ -61,6 +61,9 @@ export function ProfileModal({ onClose }: { onClose: () => void }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: name.trim() }),
     });
+    document.cookie = `bmt_name=${encodeURIComponent(name.trim())}; path=/; max-age=604800`;
+    document.cookie = `bmt_owner_name=${encodeURIComponent(name.trim())}; path=/; max-age=604800`;
+    window.dispatchEvent(new Event('bmt_name_changed'));
     setSavingName(false); setNameSaved(true);
     setTimeout(() => setNameSaved(false), 2000);
   };

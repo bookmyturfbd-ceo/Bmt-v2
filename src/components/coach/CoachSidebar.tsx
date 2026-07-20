@@ -27,8 +27,13 @@ export default function CoachSidebar({ activePage, onNavigate }: CoachSidebarPro
   const [ownerName, setOwnerName]   = useState('Coach Portal');
 
   useEffect(() => {
-    const name = getCookie('bmt_name') || getCookie('bmt_owner_name') || 'Coach Portal';
-    setOwnerName(name);
+    const syncName = () => {
+      const name = getCookie('bmt_name') || getCookie('bmt_owner_name') || 'Coach Portal';
+      setOwnerName(name);
+    };
+    syncName();
+    window.addEventListener('bmt_name_changed', syncName);
+    return () => window.removeEventListener('bmt_name_changed', syncName);
   }, []);
 
   const SidebarContent = () => (

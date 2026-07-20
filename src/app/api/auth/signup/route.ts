@@ -122,15 +122,18 @@ export async function POST(req: NextRequest) {
       const city = await prisma.city.findFirst();
 
       if (division && city) {
+        const selectedProfessions = Array.isArray(professions) ? professions : [];
+        const primaryCoachType = selectedProfessions[0] || 'Professional';
         await prisma.turf.create({
           data: {
-            name: fullName.trim() + ' Profile',
+            name: fullName.trim(),
             ownerId: owner.id,
             divisionId: division.id,
             cityId: city.id,
             isCoachProfile: true,
+            coachType: primaryCoachType,
             status: 'published',
-            professions: Array.isArray(professions) ? professions : [],
+            professions: selectedProfessions,
           }
         });
       }

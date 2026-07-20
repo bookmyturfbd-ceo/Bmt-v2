@@ -26,9 +26,14 @@ export default function CoachHeader({ activePage = 'myProfile' }: CoachHeaderPro
   const [initials, setInitials]       = useState('PC');
 
   useEffect(() => {
-    const name = getCookie('bmt_name') || getCookie('bmt_owner_name') || 'Pro Coach';
-    setOwnerName(name);
-    setInitials(name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) || 'PC');
+    const syncName = () => {
+      const name = getCookie('bmt_name') || getCookie('bmt_owner_name') || 'Pro Coach';
+      setOwnerName(name);
+      setInitials(name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) || 'PC');
+    };
+    syncName();
+    window.addEventListener('bmt_name_changed', syncName);
+    return () => window.removeEventListener('bmt_name_changed', syncName);
   }, []);
 
   const titleInfo = PAGE_TITLES[activePage] || { title: 'Professional Dashboard', subtitle: 'Pro Workspace' };

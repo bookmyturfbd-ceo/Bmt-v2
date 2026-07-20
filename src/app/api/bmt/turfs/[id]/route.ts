@@ -48,6 +48,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Params }) {
         grounds: { include: { slots: true } }
       }
     });
+    if (updated.isCoachProfile && updated.ownerId && patch.name) {
+      await prisma.owner.update({
+        where: { id: updated.ownerId },
+        data: { name: patch.name.trim() }
+      }).catch(() => {});
+    }
     return NextResponse.json(updated);
   } catch (err) {
     return NextResponse.json({ error: 'Failed to update turf' }, { status: 400 });
