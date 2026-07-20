@@ -106,6 +106,8 @@ export default async function TurfDetailPage({ params, searchParams }: PageProps
       lng: rawTurf.lng || undefined,
       mapLink: rawTurf.mapLink || undefined,
       coachType: rawTurf.coachType || 'Professional',
+      professions: Array.isArray(rawTurf.professions) ? rawTurf.professions : [],
+      ownerId: rawTurf.ownerId,
     };
 
     return (
