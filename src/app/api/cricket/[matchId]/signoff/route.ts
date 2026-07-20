@@ -148,7 +148,7 @@ export async function POST(
   const subEvents = await prisma.matchEvent.findMany({
     where: {
       matchId,
-      type: { in: ['SUBSTITUTION', 'SUB' as any] },
+      type: 'SUBSTITUTION',
       status: { not: 'REMOVED' }
     }
   });
