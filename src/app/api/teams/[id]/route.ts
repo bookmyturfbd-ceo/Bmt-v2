@@ -50,7 +50,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           },
           rosterPicks: true,
           events: {
-            where: { type: { in: ['SUBSTITUTION', 'SUB' as any] }, status: { not: 'REMOVED' } }
+            where: { type: 'SUBSTITUTION', status: { not: 'REMOVED' } }
           }
         }
       },
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           },
           rosterPicks: true,
           events: {
-            where: { type: { in: ['SUBSTITUTION', 'SUB' as any] }, status: { not: 'REMOVED' } }
+            where: { type: 'SUBSTITUTION', status: { not: 'REMOVED' } }
           }
         }
       },
