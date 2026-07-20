@@ -17,8 +17,8 @@ export async function GET(req: NextRequest) {
       sizes: { orderBy: { basePrice: 'asc' } },
     },
     orderBy: [
-      { position: 'asc' },
-      { createdAt: 'desc' }
+      { createdAt: 'desc' },
+      { position: 'asc' }
     ],
   });
   return NextResponse.json(products);
