@@ -664,6 +664,9 @@ export default function LiveScoringPage() {
       } else {
         setShowSignOff(true);
       }
+    } else {
+      setShowSignOff(false);
+      setShowScoreEntry(false);
     }
   }, [matchId, locale]);
 
