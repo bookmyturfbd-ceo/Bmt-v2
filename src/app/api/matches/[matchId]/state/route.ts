@@ -123,6 +123,15 @@ export async function GET(
     // Accept/dispute state
     agreedByA: match?.agreedByA ?? false,
     agreedByB: match?.agreedByB ?? false,
+    // Match result payload if completed
+    matchResult: match?.status === 'COMPLETED' ? {
+      scoreA: match.scoreA ?? 0,
+      scoreB: match.scoreB ?? 0,
+      winnerId: match.winnerId,
+      mmrChangeA: match.mmrChangeA ?? 0,
+      mmrChangeB: match.mmrChangeB ?? 0,
+      victoryString: match.winnerId === null ? 'Match Tied — MMR Split Equally' : '',
+    } : null,
     // Server-authoritative negotiation fields
     ...(() => {
       const m = match as any;

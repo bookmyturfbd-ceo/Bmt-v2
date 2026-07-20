@@ -667,6 +667,9 @@ export default function LiveScoringPage() {
     } else {
       setShowSignOff(false);
       setShowScoreEntry(false);
+      if (d.match?.status === 'COMPLETED' && d.matchResult) {
+        setMatchResult(d.matchResult);
+      }
     }
   }, [matchId, locale]);
 
