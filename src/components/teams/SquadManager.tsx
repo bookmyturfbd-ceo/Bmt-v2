@@ -11,7 +11,7 @@ interface SquadManagerProps {
   tournamentMatches?: any[];
 }
 
-const FUTSAL_POSITIONS = ['Goleiro', 'Fixo', 'Ala', 'Pivô'];
+const FUTSAL_POSITIONS = ['Goalkeeper', 'Defender', 'Winger', 'Pivot'];
 const CRICKET_ROLES     = ['Batsman', 'Bowler', 'Wicket Keeper', 'Allrounder'];
 const GENERIC_POSITIONS  = ['GK', 'DEF', 'MID', 'FWD'];
 
@@ -740,10 +740,10 @@ export default function SquadManager({ team, setTeam, myRole, tournamentMatches 
 
   const getSlotLabel = (format: string, slotIndex: number, role: string): string => {
     if (format === '5v5') {
-      if (slotIndex === 0) return 'Goleiro (GK)';
-      if (slotIndex === 1) return 'Fixo (DEF)';
-      if (slotIndex === 2 || slotIndex === 3) return 'Ala';
-      if (slotIndex === 4) return 'Pivô (FWD)';
+      if (slotIndex === 0) return 'Goalkeeper (GK)';
+      if (slotIndex === 1) return 'Defender (DEF)';
+      if (slotIndex === 2 || slotIndex === 3) return 'Winger (ALA)';
+      if (slotIndex === 4) return 'Pivot (FWD)';
     }
     return role;
   };

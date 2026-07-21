@@ -9,10 +9,10 @@ import { FacetRadar } from './FacetRadar';
 
 // ─── Position labels ──────────────────────────────────────────────────────────
 const POSITION_LABELS: Record<string, { football: string; futsal: string }> = {
-  GK:  { football: 'GK',  futsal: 'Goleiro' },
-  DEF: { football: 'DEF', futsal: 'Fixo' },
-  MID: { football: 'MID', futsal: 'Ala' },
-  FWD: { football: 'FWD', futsal: 'Pivô' },
+  GK:  { football: 'GK',  futsal: 'Goalkeeper' },
+  DEF: { football: 'DEF', futsal: 'Defender' },
+  MID: { football: 'MID', futsal: 'Winger' },
+  FWD: { football: 'FWD', futsal: 'Pivot' },
 };
 
 // Base background colors corresponding to card tiers
