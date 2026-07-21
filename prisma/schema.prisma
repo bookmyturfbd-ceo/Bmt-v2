@@ -321,6 +321,7 @@ model Player {
   banStatus      BanStatus @default(none)
   banUntil       DateTime?
   banReason      String?
+  isTestPlayer   Boolean   @default(false)
 
   bookings       Booking[]
   walletRequests WalletRequest[]
@@ -940,6 +941,7 @@ model Team {
   formation    String?
   teamType     TeamType @default(REGULAR)
   isDisbanded  Boolean  @default(false)
+  isTestTeam   Boolean  @default(false)
   teamCode     String?  @unique
   invitations  TeamInvitation[]
   lineupTemplates TeamLineupTemplate[]

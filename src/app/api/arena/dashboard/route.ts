@@ -212,6 +212,7 @@ export async function GET(req: NextRequest) {
     const leaderboard = await prisma.team.findMany({
       where: {
         isDisbanded: false,
+        isTestTeam: false,
         teamType: 'REGULAR'
       },
       orderBy: {

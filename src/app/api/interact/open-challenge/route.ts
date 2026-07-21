@@ -7,11 +7,18 @@ export async function GET(req: NextRequest) {
   if (!playerId) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
 
   try {
-    const now = new Date();
+    // Check if user is part of any test team
+    const userTestTeams = await prisma.teamMember.findMany({
+      where: { playerId, team: { isTestTeam: true } },
+      select: { teamId: true }
+    });
+    const isTestUser = userTestTeams.length > 0;
+
     const openChallenges = await prisma.openChallenge.findMany({
       where: {
         status: 'open',
         windowEnd: { gt: now },
+        ...(isTestUser ? {} : { team: { isTestTeam: false } }),
       },
       include: {
         team: {

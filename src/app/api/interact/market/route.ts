@@ -73,15 +73,27 @@ export async function GET(req: NextRequest) {
       where: { isActive: true },
     });
 
+    // Check if user is part of any test team
+    const userTestTeams = await prisma.teamMember.findMany({
+      where: { playerId, team: { isTestTeam: true } },
+      select: { teamId: true }
+    });
+    const isTestUser = userTestTeams.length > 0;
+
+    const baseWhere: any = isFree 
+      ? { isDisbanded: false, teamType: 'REGULAR' }
+      : {
+          isDisbanded: false,
+          teamType: 'REGULAR',
+          isSubscribed: true,
+        };
+
+    if (!isTestUser) {
+      baseWhere.isTestTeam = false;
+    }
+
     const teams = await prisma.team.findMany({
-      where: isFree 
-        ? { isDisbanded: false, teamType: 'REGULAR' }
-        : {
-            isDisbanded: false,
-            teamType: 'REGULAR',
-            isSubscribed: true,
-            challengeSubscription: { active: true },
-          },
+      where: baseWhere,
       select: {
         id: true,
         name: true,
@@ -92,6 +104,7 @@ export async function GET(req: NextRequest) {
         isSubscribed: true,
         isVerified: true,
         teamCode: true,
+        isTestTeam: true,
         challengeSubscription: {
           select: { active: true, subscribedAt: true, gracePeriodEnd: true },
         },

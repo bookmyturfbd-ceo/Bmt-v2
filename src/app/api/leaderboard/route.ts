@@ -73,6 +73,7 @@ export async function GET(req: NextRequest) {
         const teams = await prisma.team.findMany({
           where: {
             isDisbanded: false,
+            isTestTeam: false,
           },
           select: {
             id        : true,
@@ -139,6 +140,7 @@ export async function GET(req: NextRequest) {
       } else {
         const whereClause: any = {
           isDisbanded: false,
+          isTestTeam: false,
           sportType: { in: sportTypes },
         };
 
@@ -209,7 +211,7 @@ export async function GET(req: NextRequest) {
       const footballField = category === 'tournament' ? ('tournamentFootballMmr' as const) : ('footballMmr' as const);
       const cricketField = category === 'tournament' ? ('tournamentCricketMmr' as const) : ('cricketMmr' as const);
 
-      const whereClause: any = {};
+      const whereClause: any = { isTestPlayer: false };
       if (category === 'tournament') {
         whereClause.id = { in: Array.from(playedPlayerIds) };
       } else {
@@ -272,6 +274,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ leaderboard: top50 });
     } else {
       const playerWhere: any = {
+        isTestPlayer: false,
         [mmrField]: { gte: minMmr, lte: maxMmr },
       };
       if (category === 'tournament') {
