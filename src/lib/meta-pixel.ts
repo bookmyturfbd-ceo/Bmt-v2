@@ -75,8 +75,8 @@ export const trackMetaEvent = async (
     advancedMatching.external_id = externalId;
   }
 
-  // Attach email and phone ONLY to Purchase, InitiateCheckout, and Lead events
-  const allowContactInfo = ['Purchase', 'InitiateCheckout', 'Lead'].includes(eventName);
+  // Attach email and phone ONLY to Purchase, InitiateCheckout, Lead, and CompleteRegistration events
+  const allowContactInfo = ['Purchase', 'InitiateCheckout', 'Lead', 'CompleteRegistration'].includes(eventName);
   if (allowContactInfo) {
     if (userData.email) {
       advancedMatching.em = normalizeEmail(userData.email);

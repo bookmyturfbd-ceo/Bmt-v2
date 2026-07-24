@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { Eye, EyeOff, UserPlus, Phone, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
 import AuthInput from '@/components/auth/AuthInput';
+import { trackMetaEvent } from '@/lib/meta-pixel';
 
 export default function RegisterPage() {
   const t = useTranslations('Auth.register');
@@ -153,6 +154,17 @@ export default function RegisterPage() {
       const data = await res.json();
       if (!res.ok) { setServerErr(data.error || 'Registration failed.'); setSubmitting(false); return; }
       
+      // Track Meta Pixel and CAPI CompleteRegistration event
+      try {
+        await trackMetaEvent(
+          'CompleteRegistration',
+          { status: true, content_name: 'Player Signup', role },
+          { email: form.email, phone: cleanPhone, name: form.fullName }
+        );
+      } catch (err) {
+        console.warn('Meta CompleteRegistration tracking error:', err);
+      }
+
       // Store session backup for PWA recovery (always remember for 30 days on signup)
       if (data.session) {
         localStorage.setItem('bmt_remember_me', 'true');

@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     const openChallenges = await prisma.openChallenge.findMany({
       where: {
         status: 'open',
-        windowEnd: { gt: now },
+        windowEnd: { gt: new Date() },
         ...(isTestUser ? {} : { team: { isTestTeam: false } }),
       },
       include: {

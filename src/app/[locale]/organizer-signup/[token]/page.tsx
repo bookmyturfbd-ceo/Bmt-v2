@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Loader2, ShieldCheck, ArrowRight, Eye, EyeOff, CheckCircle2, XCircle } from 'lucide-react';
+import { trackMetaEvent } from '@/lib/meta-pixel';
 
 export default function OrganizerSignupPage() {
   const { token } = useParams();
@@ -81,6 +82,17 @@ export default function OrganizerSignupPage() {
       });
       const data = await res.json();
       if (data.success) {
+        // Track CompleteRegistration for organizer signup
+        try {
+          await trackMetaEvent(
+            'CompleteRegistration',
+            { status: true, content_name: 'Organizer Signup', role: 'organizer' },
+            { email: formData.email, phone: formData.phone, name: formData.name }
+          );
+        } catch (e) {
+          console.warn('Meta CompleteRegistration tracking error:', e);
+        }
+
         // Auto-login
         const loginRes = await fetch('/api/organizers/login', {
           method: 'POST',
