@@ -10,6 +10,11 @@ const BRACKETS = ['U18', '18-24', '25-34', '35+'];
 const POSITION_LABELS: Record<string, string> = { GK: 'Goalkeeper', DEF: 'Defender', MID: 'Midfielder', FWD: 'Forward' };
 const FOOT_LABELS: Record<string, string> = { L: 'Left', R: 'Right', Both: 'Both' };
 
+import { useRef } from 'react';
+import { Camera, UserCircle } from 'lucide-react';
+import ImageAdjustModal from '@/components/shared/ImageAdjustModal';
+import { uploadFileToCDN } from '@/lib/supabase';
+
 interface Area { id: string; name: string; }
 
 interface IdentityEditSheetProps {
@@ -18,6 +23,7 @@ interface IdentityEditSheetProps {
   onSaved: (fields: any) => void;
   initial: {
     fullName: string;
+    avatarUrl?: string | null;
     position?: string | null;
     preferredFoot?: string | null;
     ageBracket?: string | null;
@@ -27,6 +33,9 @@ interface IdentityEditSheetProps {
 
 export function IdentityEditSheet({ isOpen, onClose, onSaved, initial }: IdentityEditSheetProps) {
   const [fullName, setFullName] = useState(initial.fullName);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(initial.avatarUrl ?? null);
+  const [selectedImageSrc, setSelectedImageSrc] = useState<string | null>(null);
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [position, setPosition] = useState<string>(initial.position ?? '');
   const [preferredFoot, setPreferredFoot] = useState<string>(initial.preferredFoot ?? '');
   const [ageBracket, setAgeBracket] = useState<string>(initial.ageBracket ?? '');
@@ -34,16 +43,52 @@ export function IdentityEditSheet({ isOpen, onClose, onSaved, initial }: Identit
   const [homeAreaName, setHomeAreaName] = useState<string>(initial.homeArea?.name ?? '');
   const [areas, setAreas] = useState<Area[]>([]);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
+      setFullName(initial.fullName);
+      setAvatarUrl(initial.avatarUrl ?? null);
+      setPosition(initial.position ?? '');
+      setPreferredFoot(initial.preferredFoot ?? '');
+      setAgeBracket(initial.ageBracket ?? '');
+      setHomeAreaId(initial.homeArea?.id ?? '');
       fetch('/api/bmt/areas').then(r => r.json()).then(d => {
         if (Array.isArray(d)) setAreas(d);
         else if (Array.isArray(d.cities)) setAreas(d.cities);
       }).catch(() => {});
     }
-  }, [isOpen]);
+  }, [isOpen, initial]);
+
+  const handleFileSelect = (files: FileList | null) => {
+    if (!files?.[0]) return;
+    const file = files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSelectedImageSrc(reader.result as string);
+      setShowAdjustModal(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleConfirmAdjustedAvatar = async (adjustedFile: File) => {
+    setUploadingAvatar(true);
+    setError(null);
+    try {
+      const url = await uploadFileToCDN(adjustedFile, 'player-avatars');
+      if (url) {
+        setAvatarUrl(url);
+      } else {
+        setError('Avatar upload failed');
+      }
+    } catch {
+      setError('Avatar upload error');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   async function handleSave() {
     if (!fullName.trim()) { setError('Name is required'); return; }
@@ -54,6 +99,7 @@ export function IdentityEditSheet({ isOpen, onClose, onSaved, initial }: Identit
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fullName: fullName.trim(),
+          avatarUrl: avatarUrl || null,
           position: position || null,
           preferredFoot: preferredFoot || null,
           ageBracket: ageBracket || null,
@@ -95,6 +141,41 @@ export function IdentityEditSheet({ isOpen, onClose, onSaved, initial }: Identit
             </div>
 
             <div className="flex flex-col gap-4 max-h-[70vh] overflow-y-auto pb-2">
+              {/* Profile Image / Avatar */}
+              <div className="flex flex-col items-center justify-center gap-2 mb-2">
+                <div className="relative group">
+                  <div className="w-20 h-20 rounded-full bg-neutral-900 border-2 border-accent/40 flex items-center justify-center overflow-hidden shadow-lg">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <UserCircle size={44} className="text-neutral-500" />
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingAvatar}
+                    className="absolute bottom-0 right-0 p-2 rounded-full bg-accent text-black shadow-md hover:scale-110 active:scale-95 transition-transform cursor-pointer"
+                  >
+                    <Camera size={14} strokeWidth={2.5} />
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleFileSelect(e.target.files)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-[11px] font-bold text-accent hover:underline cursor-pointer"
+                >
+                  {avatarUrl ? 'Change Profile Picture' : 'Upload Profile Picture'}
+                </button>
+              </div>
+
               {/* Full Name */}
               <div>
                 <label className="text-[11px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-1.5 block">Full Name</label>
@@ -205,6 +286,15 @@ export function IdentityEditSheet({ isOpen, onClose, onSaved, initial }: Identit
           </motion.div>
         </>
       )}
+
+      <ImageAdjustModal
+        isOpen={showAdjustModal}
+        onClose={() => setShowAdjustModal(false)}
+        imageSrc={selectedImageSrc}
+        title="Adjust Profile Picture"
+        shape="circle"
+        onConfirm={handleConfirmAdjustedAvatar}
+      />
     </AnimatePresence>
   );
 }

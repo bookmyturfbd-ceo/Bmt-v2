@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { getCookie } from '@/lib/cookies';
-import { UserCircle, Loader2, MapPin, CheckCircle2, ShieldCheck, Check } from 'lucide-react';
+import { useRef } from 'react';
+import { UserCircle, Loader2, MapPin, CheckCircle2, ShieldCheck, Check, Camera } from 'lucide-react';
 import { useApiEntity } from '@/hooks/useApiEntity';
 import PremiumUploader from '@/components/shared/PremiumUploader';
+import ImageAdjustModal from '@/components/shared/ImageAdjustModal';
 import { uploadFileToCDN } from '@/lib/supabase';
 
 interface City { id: string; name: string; }
@@ -12,6 +14,7 @@ interface Division { id: string; name: string; }
 interface Turf {
   id: string; name: string; ownerId: string; status: string;
   cityId: string; divisionId: string; area?: string; imageUrls: string[];
+  logoUrl?: string | null;
   isCoachProfile: boolean; coachType: string; professions?: string[]; isVerified?: boolean;
   rules?: string;
 }
@@ -32,12 +35,17 @@ export default function CoachProfilePanel() {
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState('');
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [selectedImageSrc, setSelectedImageSrc] = useState<string | null>(null);
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [coachType, setCoachType] = useState('Cricket Coach');
   const [selectedProfessions, setSelectedProfessions] = useState<string[]>([]);
   const [availableProfessions, setAvailableProfessions] = useState<string[]>(COACH_TYPES);
   const [divisionId, setDivisionId] = useState('');
   const [cityId, setCityId] = useState('');
   const [area, setArea] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
 
@@ -63,6 +71,7 @@ export default function CoachProfilePanel() {
   useEffect(() => {
     if (myProfile && !isEditing) {
       if (myProfile.name) setName(myProfile.name);
+      if (myProfile.logoUrl) setLogoUrl(myProfile.logoUrl);
       if (myProfile.coachType) setCoachType(myProfile.coachType);
       if (Array.isArray(myProfile.professions) && myProfile.professions.length > 0) {
         setSelectedProfessions(myProfile.professions);
@@ -71,6 +80,31 @@ export default function CoachProfilePanel() {
       }
     }
   }, [myProfile, isEditing]);
+
+  const handleLogoFileSelect = (files: FileList | null) => {
+    if (!files?.[0]) return;
+    const file = files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSelectedImageSrc(reader.result as string);
+      setShowAdjustModal(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleConfirmAdjustedLogo = async (adjustedFile: File) => {
+    setUploadingLogo(true);
+    try {
+      const url = await uploadFileToCDN(adjustedFile, 'coach-avatars');
+      if (url) {
+        setLogoUrl(url);
+      }
+    } catch {
+      alert('Failed to upload logo');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
 
   if (turfsStore.loading || divisionsStore.loading || citiesStore.loading) {
     return (
@@ -118,6 +152,7 @@ export default function CoachProfilePanel() {
           divisionId,
           cityId,
           area,
+          logoUrl,
           imageUrls: uploadedImageUrls,
           status: 'published',
           isCoachProfile: true,
@@ -188,6 +223,41 @@ export default function CoachProfilePanel() {
         </div>
 
         <form onSubmit={handleSaveProfile} className="flex flex-col gap-5 relative z-10">
+          {/* Profile Picture Avatar */}
+          <div className="flex flex-col items-center justify-center gap-2 py-2 bg-white/5 rounded-2xl border border-white/5">
+            <div className="relative group">
+              <div className="w-20 h-20 rounded-full bg-neutral-900 border-2 border-blue-500/40 flex items-center justify-center overflow-hidden shadow-lg">
+                {logoUrl ? (
+                  <img src={logoUrl} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <UserCircle size={44} className="text-neutral-500" />
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingLogo}
+                className="absolute bottom-0 right-0 p-2 rounded-full bg-blue-500 text-white shadow-md hover:scale-110 active:scale-95 transition-transform cursor-pointer"
+              >
+                <Camera size={14} strokeWidth={2.5} />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleLogoFileSelect(e.target.files)}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="text-[11px] font-bold text-blue-400 hover:underline cursor-pointer"
+            >
+              {logoUrl ? 'Change Profile Picture' : 'Upload Profile Picture'}
+            </button>
+          </div>
+
           {/* Display Name */}
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--muted)]">Display / Professional Name</label>
@@ -352,9 +422,18 @@ export default function CoachProfilePanel() {
                  View Public Page ↗
                </a>
              )}
-           </div>
-        </div>
+            </div>
+         </div>
       </div>
+
+      <ImageAdjustModal
+        isOpen={showAdjustModal}
+        onClose={() => setShowAdjustModal(false)}
+        imageSrc={selectedImageSrc}
+        title="Adjust Professional Profile Picture"
+        shape="circle"
+        onConfirm={handleConfirmAdjustedLogo}
+      />
     </div>
   );
 }

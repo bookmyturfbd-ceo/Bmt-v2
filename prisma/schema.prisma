@@ -430,6 +430,7 @@ model Owner {
   phone         String   @default("")
   contactPerson String?
   isCoach       Boolean  @default(false)
+  avatarUrl     String?
   // bcrypt hashed password — set by admin or via invite flow
   password      String
 
@@ -1969,6 +1970,7 @@ model Organizer {
   joinedAt     DateTime @default(now())
   chargePerTournament Int @default(0)
   publishForFree      Boolean @default(false)
+  logoUrl             String?
   banStatus    BanStatus @default(none)
   banReason    String?
 

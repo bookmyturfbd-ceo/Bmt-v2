@@ -1,23 +1,30 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { getCookie } from '@/lib/cookies';
-import { Bell, User, KeyRound, Eye, EyeOff, X, Loader2, CheckCircle2, LogOut } from 'lucide-react';
+import { Bell, User, KeyRound, Eye, EyeOff, X, Loader2, CheckCircle2, LogOut, Camera, Upload } from 'lucide-react';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import NotificationCenter from '@/components/layout/NotificationCenter';
+import ImageAdjustModal from '@/components/shared/ImageAdjustModal';
+import { uploadFileToCDN } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 
 /* ─── Profile / Change Password Modal ─── */
-export function ProfileModal({ onClose }: { onClose: () => void }) {
+export function ProfileModal({ onClose, onAvatarUpdated }: { onClose: () => void; onAvatarUpdated?: (url: string) => void }) {
   const router = useRouter();
   const [tab, setTab] = useState<'profile' | 'password'>('profile');
 
-  // Profile info (read-only email/phone, editable name)
+  // Profile info (read-only email/phone, editable name, avatarUrl)
   const [name, setName]         = useState('');
   const [email, setEmail]       = useState('');
   const [phone, setPhone]       = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [selectedImageSrc, setSelectedImageSrc] = useState<string | null>(null);
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [savingName, setSavingName] = useState(false);
   const [nameSaved, setNameSaved]   = useState(false);
   const [nameErr, setNameErr]       = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Change password
   const [curPw, setCurPw]       = useState('');
@@ -37,21 +44,52 @@ export function ProfileModal({ onClose }: { onClose: () => void }) {
 
     // Load from API for freshest data
     if (ownerId) {
-      fetch('/api/bmt/owners')
+      fetch('/api/owners/me')
         .then(r => r.json())
-        .then((owners: any[]) => {
-          if (Array.isArray(owners)) {
-            const me = owners.find((o: any) => o.id === ownerId);
-            if (me) {
-              setName(me.name ?? '');
-              setEmail(me.email ?? '');
-              setPhone(me.phone ?? '');
-            }
+        .then((res: any) => {
+          if (res?.owner) {
+            setName(res.owner.name ?? '');
+            setEmail(res.owner.email ?? '');
+            setPhone(res.owner.phone ?? '');
+            if (res.owner.avatarUrl) setAvatarUrl(res.owner.avatarUrl);
           }
         })
         .catch(() => {});
     }
   }, [ownerId]);
+
+  const handleAvatarFileSelect = (files: FileList | null) => {
+    if (!files?.[0]) return;
+    const file = files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSelectedImageSrc(reader.result as string);
+      setShowAdjustModal(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleConfirmAdjustedAvatar = async (adjustedFile: File) => {
+    setUploadingAvatar(true);
+    try {
+      const url = await uploadFileToCDN(adjustedFile, 'owner-avatars');
+      if (url) {
+        const res = await fetch('/api/owners/me', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ avatarUrl: url }),
+        });
+        if (res.ok) {
+          setAvatarUrl(url);
+          if (onAvatarUpdated) onAvatarUpdated(url);
+        }
+      }
+    } catch {
+      alert('Failed to upload avatar');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const saveName = async () => {
     if (!name.trim()) { setNameErr('Name cannot be empty.'); return; }
@@ -126,14 +164,41 @@ export function ProfileModal({ onClose }: { onClose: () => void }) {
         <div className="p-5 flex flex-col gap-4">
           {tab === 'profile' ? (
             <>
-              {/* Avatar placeholder */}
+              {/* Avatar upload / preview */}
               <div className="flex items-center gap-3">
-                <div className="w-14 h-14 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
-                  <User size={24} className="text-accent" />
+                <div className="relative group">
+                  <div className="w-14 h-14 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0 overflow-hidden">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <User size={24} className="text-accent" />
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingAvatar}
+                    className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-accent text-black shadow-md hover:scale-110 active:scale-95 transition-transform cursor-pointer"
+                  >
+                    <Camera size={11} strokeWidth={2.5} />
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleAvatarFileSelect(e.target.files)}
+                  />
                 </div>
                 <div>
                   <p className="font-black text-foreground">{name || '—'}</p>
-                  <p className="text-xs text-[var(--muted)]">{email}</p>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="text-[10px] font-bold text-accent hover:underline block text-left"
+                  >
+                    {avatarUrl ? 'Change Profile Picture' : 'Upload Profile Picture'}
+                  </button>
                 </div>
               </div>
 
@@ -216,6 +281,15 @@ export function ProfileModal({ onClose }: { onClose: () => void }) {
           )}
         </div>
       </div>
+
+      <ImageAdjustModal
+        isOpen={showAdjustModal}
+        onClose={() => setShowAdjustModal(false)}
+        imageSrc={selectedImageSrc}
+        title="Adjust Profile Picture"
+        shape="circle"
+        onConfirm={handleConfirmAdjustedAvatar}
+      />
     </div>
   );
 }
@@ -225,11 +299,22 @@ export default function OwnerHeader() {
   const [showProfile, setShowProfile] = useState(false);
   const [ownerName, setOwnerName]     = useState('');
   const [initials, setInitials]       = useState('O');
+  const [avatarUrl, setAvatarUrl]     = useState<string | null>(null);
 
   useEffect(() => {
     const name = getCookie('bmt_name') || getCookie('bmt_owner_name') || 'Owner';
     setOwnerName(name);
     setInitials(name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2));
+
+    const ownerId = getCookie('bmt_owner_id');
+    if (ownerId) {
+      fetch('/api/owners/me')
+        .then(r => r.json())
+        .then(res => {
+          if (res?.owner?.avatarUrl) setAvatarUrl(res.owner.avatarUrl);
+        })
+        .catch(() => {});
+    }
   }, []);
 
   return (
@@ -244,11 +329,15 @@ export default function OwnerHeader() {
           <ThemeToggle />
           <NotificationCenter />
 
-          {/* Owner profile avatar — initials, no fake photo */}
+          {/* Owner profile avatar */}
           <button onClick={() => setShowProfile(s => !s)}
             className="flex items-center gap-2 glass-panel rounded-xl px-2.5 py-1.5 hover:border-accent/30 transition-colors">
-            <div className="w-7 h-7 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center shrink-0">
-              <span className="text-[10px] font-black text-accent">{initials}</span>
+            <div className="w-7 h-7 rounded-lg bg-accent/15 border border-accent/30 flex items-center justify-center shrink-0 overflow-hidden">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Owner Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-[10px] font-black text-accent">{initials}</span>
+              )}
             </div>
             <div className="hidden sm:flex flex-col leading-none">
               <span className="text-[11px] font-black text-foreground">{ownerName}</span>
@@ -258,7 +347,12 @@ export default function OwnerHeader() {
         </div>
       </header>
 
-      {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
+      {showProfile && (
+        <ProfileModal
+          onClose={() => setShowProfile(false)}
+          onAvatarUpdated={(url) => setAvatarUrl(url)}
+        />
+      )}
     </>
   );
 }

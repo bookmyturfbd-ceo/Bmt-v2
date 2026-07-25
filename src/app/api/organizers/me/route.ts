@@ -68,3 +68,37 @@ export async function GET() {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 }
+
+export async function PATCH(request: Request) {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('org_token')?.value;
+
+    if (!token) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const decoded = verifyToken(token);
+    if (!decoded || decoded.type !== 'ORGANIZER') {
+      return NextResponse.json({ success: false, error: 'Invalid token' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { name, logoUrl, phone } = body;
+
+    const dataToUpdate: Record<string, any> = {};
+    if (name !== undefined && name.trim()) dataToUpdate.name = name.trim();
+    if (logoUrl !== undefined) dataToUpdate.logoUrl = logoUrl || null;
+    if (phone !== undefined) dataToUpdate.phone = phone;
+
+    const updated = await prisma.organizer.update({
+      where: { id: decoded.id },
+      data: dataToUpdate,
+    });
+
+    const { password: _, ...safeOrg } = updated;
+    return NextResponse.json({ success: true, data: safeOrg });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message || 'Update failed' }, { status: 500 });
+  }
+}

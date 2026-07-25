@@ -9,6 +9,8 @@ import {
   Play, GitMerge
 } from 'lucide-react';
 import CreateTournamentWizard from '@/components/admin/tournaments/CreateTournamentWizard';
+import ImageAdjustModal from '@/components/shared/ImageAdjustModal';
+import { uploadFileToCDN } from '@/lib/supabase';
 
 // ── Finance panel — organizer view of BMT-held entry fees ────────────────────
 function OrgFinancePanel() {
@@ -733,6 +735,42 @@ export default function OrganizerDashboard() {
   const [activeNav, setActiveNav]          = useState<NavId>('active');
   const [menuOpen, setMenuOpen]            = useState(false);
   const [localTournaments, setLocalTournaments] = useState<any[]>([]);
+  const [selectedImageSrc, setSelectedImageSrc] = useState<string | null>(null);
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogoFileSelect = (files: FileList | null) => {
+    if (!files?.[0]) return;
+    const file = files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSelectedImageSrc(reader.result as string);
+      setShowAdjustModal(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleConfirmAdjustedLogo = async (adjustedFile: File) => {
+    setUploadingLogo(true);
+    try {
+      const url = await uploadFileToCDN(adjustedFile, 'organizer-logos');
+      if (url) {
+        const res = await fetch('/api/organizers/me', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ logoUrl: url }),
+        });
+        if (res.ok) {
+          setOrganizer((prev: any) => prev ? { ...prev, logoUrl: url } : null);
+        }
+      }
+    } catch {
+      alert('Logo upload failed');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
 
   useEffect(() => {
     fetch('/api/organizers/me')
@@ -798,15 +836,39 @@ export default function OrganizerDashboard() {
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
-      {/* Logo */}
+      {/* Logo & Profile Picture */}
       <div className="p-5 border-b border-white/5">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent shrink-0">
-            <ShieldCheck size={18} />
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className="relative group cursor-pointer"
+          >
+            <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent shrink-0 overflow-hidden">
+              {organizer.logoUrl ? (
+                <img src={organizer.logoUrl} alt={organizer.name} className="w-full h-full object-cover" />
+              ) : (
+                <ShieldCheck size={20} />
+              )}
+            </div>
+            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 rounded-xl flex items-center justify-center transition-opacity text-accent">
+              <Upload size={14} />
+            </div>
           </div>
-          <div className="min-w-0">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => handleLogoFileSelect(e.target.files)}
+          />
+          <div className="min-w-0 flex-1">
             <p className="font-black text-sm uppercase tracking-widest truncate">{organizer.name}</p>
-            <p className="text-[10px] text-neutral-500 font-bold uppercase">Organizer Portal</p>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="text-[9px] text-accent font-bold uppercase hover:underline block text-left"
+            >
+              {organizer.logoUrl ? 'Change Logo' : 'Upload Logo'}
+            </button>
           </div>
         </div>
         {/* Wallet mini-badge */}
@@ -965,6 +1027,15 @@ export default function OrganizerDashboard() {
           )}
         </main>
       </div>
+
+      <ImageAdjustModal
+        isOpen={showAdjustModal}
+        onClose={() => setShowAdjustModal(false)}
+        imageSrc={selectedImageSrc}
+        title="Adjust Organizer Logo"
+        shape="square"
+        onConfirm={handleConfirmAdjustedLogo}
+      />
     </div>
   );
 }
