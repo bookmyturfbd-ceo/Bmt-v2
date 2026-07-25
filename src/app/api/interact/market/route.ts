@@ -81,16 +81,13 @@ export async function GET(req: NextRequest) {
     const isTestUser = userTestTeams.length > 0;
 
     const baseWhere: any = isFree 
-      ? { isDisbanded: false, teamType: 'REGULAR' }
+      ? { isDisbanded: false, teamType: 'REGULAR', isTestTeam: false }
       : {
           isDisbanded: false,
           teamType: 'REGULAR',
           isSubscribed: true,
+          isTestTeam: false,
         };
-
-    if (!isTestUser) {
-      baseWhere.isTestTeam = false;
-    }
 
     const teams = await prisma.team.findMany({
       where: baseWhere,

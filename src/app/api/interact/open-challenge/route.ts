@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
       where: {
         status: 'open',
         windowEnd: { gt: new Date() },
-        ...(isTestUser ? {} : { team: { isTestTeam: false } }),
+        team: { isTestTeam: false },
       },
       include: {
         team: {
