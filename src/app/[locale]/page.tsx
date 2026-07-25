@@ -4,6 +4,7 @@ import SportsTurfSection from '@/components/home/SportsTurfSection';
 import SponsorsBar from '@/components/home/SponsorsBar';
 import JoinUsBentoSection from '@/components/home/JoinUsBentoSection';
 import ProfessionalsSection from '@/components/home/ProfessionalsSection';
+import HomeTeamBanner from '@/components/home/HomeTeamBanner';
 import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import { Trophy, Shield, User, ChevronRight, Star, MapPin, Sparkles } from 'lucide-react';
@@ -619,62 +620,13 @@ export default async function RootPage({ params }: { params: Promise<{ locale: s
                   )}
                 </div>
 
-                {primaryTeam ? (
-                  <a 
-                    href={`/${locale}/teams/${primaryTeam.id}`}
-                    className="group block relative overflow-hidden rounded-2xl border border-white/5 bg-neutral-900/50 hover:bg-neutral-900 p-3.5 flex items-center justify-between active:scale-[0.98] transition-all"
-                  >
-                    {(() => {
-                      const mmr = primaryTeam.sportType?.includes('CRICKET') ? primaryTeam.cricketMmr : primaryTeam.footballMmr;
-                      const isProv = primaryTeamCompletedCount < 3;
-                      const rank = getRankData(mmr);
-                      return (
-                        <div 
-                          className="absolute left-0 top-0 bottom-0 w-1" 
-                          style={{ background: isProv ? '#00ff41' : rank.color }}
-                        />
-                      );
-                    })()}
-
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-neutral-950 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
-                        {primaryTeam.logoUrl ? (
-                          <img src={primaryTeam.logoUrl} className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-xs font-black text-accent">{getInitials(primaryTeam.name)}</span>
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-black text-sm text-white group-hover:text-accent transition-colors leading-tight">{primaryTeam.name}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          {(() => {
-                            const mmr = primaryTeam.sportType?.includes('CRICKET') ? primaryTeam.cricketMmr : primaryTeam.footballMmr;
-                            const isProv = primaryTeamCompletedCount < 3;
-                            const rank = getRankData(mmr);
-                            return (
-                              <span className="text-[10px] font-bold text-neutral-400">
-                                {isProv 
-                                  ? t('greeting.calibrating', { count: primaryTeamCompletedCount })
-                                  : `${rank.label} · ${mmr} MMR`
-                                }
-                              </span>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                    </div>
-                    <ChevronRight size={16} className="text-neutral-600 group-hover:text-accent transition-colors" />
-                  </a>
-                ) : (
-                  <a 
-                    href={`/${locale}/teams/create`}
-                    className="group block relative overflow-hidden rounded-2xl border border-dashed border-accent/25 hover:border-accent/40 bg-[#00ff41]/5 hover:bg-[#00ff41]/10 p-3.5 flex items-center justify-between active:scale-[0.98] transition-all text-center"
-                  >
-                    <span className="text-xs font-black text-accent uppercase tracking-wider flex items-center gap-1.5 mx-auto">
-                      {t('greeting.createTeamCTA')}
-                    </span>
-                  </a>
-                )}
+                <HomeTeamBanner
+                  locale={locale}
+                  primaryTeam={primaryTeam as any}
+                  primaryTeamCompletedCount={primaryTeamCompletedCount}
+                  createTeamCTAText={t('greeting.createTeamCTA')}
+                  calibratingText={t('greeting.calibrating', { count: primaryTeamCompletedCount })}
+                />
               </div>
             )}
 

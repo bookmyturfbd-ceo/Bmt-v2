@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { Users, Plus, Camera, X, Loader2, ChevronRight, Shield, Trophy, Swords } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { uploadFileToCDN } from '@/lib/supabase';
 import { Link } from '@/i18n/routing';
 
@@ -307,7 +308,14 @@ export default function TeamsPage() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('create') === 'true' || searchParams.get('action') === 'create') {
+      setShowCreate(true);
+    }
+    load();
+  }, [searchParams]);
 
   return (
     <div className="flex flex-col min-h-screen bg-background pb-24 pt-2">

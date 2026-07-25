@@ -150,6 +150,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const isOM  = ['owner', 'manager'].includes(myRole);
 
   try {
+    if (action === 'update_logo') {
+      if (!isOM) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+      const { logoUrl } = payload || {};
+      const t = await prisma.team.update({
+        where: { id },
+        data: { logoUrl: logoUrl || null }
+      });
+      return NextResponse.json({ ok: true, logoUrl: t.logoUrl });
+    }
+
     if (action === 'toggle_sub') {
       if (!isOM) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
       const t = await prisma.team.update({
