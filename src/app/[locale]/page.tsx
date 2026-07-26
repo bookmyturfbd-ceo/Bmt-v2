@@ -5,6 +5,7 @@ import SponsorsBar from '@/components/home/SponsorsBar';
 import JoinUsBentoSection from '@/components/home/JoinUsBentoSection';
 import ProfessionalsSection from '@/components/home/ProfessionalsSection';
 import HomeTeamBanner from '@/components/home/HomeTeamBanner';
+import GkAcademyBanner from '@/components/home/GkAcademyBanner';
 import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import { Trophy, Shield, User, ChevronRight, Star, MapPin, Sparkles } from 'lucide-react';
@@ -275,6 +276,7 @@ export default async function RootPage({ params }: { params: Promise<{ locale: s
   const professionals = turfsWithSportIds
     .filter((t: any) => t.isCoachProfile)
     .sort((a: any, b: any) => (a.displayOrder ?? 999) - (b.displayOrder ?? 999));
+  const coachManna = turfsWithSportIds.find((t: any) => t.isCoachProfile && t.name.toLowerCase().includes('manna'));
 
   // Map leaderboard models
   const topTeams = rawTopTeams.map(t => ({
@@ -630,6 +632,9 @@ export default async function RootPage({ params }: { params: Promise<{ locale: s
               </div>
             )}
 
+            {/* GK Academy CTA Banner */}
+            <GkAcademyBanner coachManna={coachManna as any} />
+
             {/* 3. Search & Booking Section */}
             <SportsTurfSection
               initialSports={sports}
@@ -668,6 +673,9 @@ export default async function RootPage({ params }: { params: Promise<{ locale: s
               slides={bannerSlides}
               settings={carouselSettings ?? { autoSlide: true, intervalMs: 3500 }}
             />
+
+            {/* GK Academy CTA Banner */}
+            <GkAcademyBanner coachManna={coachManna as any} />
 
             {/* 4. Search + Sports + Available Turfs */}
             <SportsTurfSection

@@ -1,13 +1,13 @@
 'use client';
 import { useState, useEffect } from 'react';
 import {
-  Loader2, Building2, Briefcase, GraduationCap, Phone,
+  Loader2, Building2, Briefcase, GraduationCap, Shield, Phone,
   Mail, MapPin, MessageSquare, Clock, CheckCircle2, PhoneCall, RefreshCw,
   UserCheck, XCircle, Search, X, Layers, Upload, FileText, Eye, Trash2, Image
 } from 'lucide-react';
 import { uploadFileToCDN } from '@/lib/supabase';
 
-type JoinRequestType = 'TURF_OWNER' | 'PROFESSIONAL' | 'COACH';
+type JoinRequestType = 'TURF_OWNER' | 'PROFESSIONAL' | 'COACH' | 'GK_ACADEMY';
 type JoinRequestStatus = 'PENDING' | 'REVIEWED' | 'CONTACTED' | 'ONBOARDED' | 'DECLINED';
 
 interface JoinRequest {
@@ -30,6 +30,7 @@ const TYPE_TABS: { key: JoinRequestType; label: string; icon: typeof Building2; 
   { key: 'TURF_OWNER',   label: 'Turf Owners',           icon: Building2,      color: 'text-emerald-400',  bg: 'bg-emerald-500/20 border-emerald-500/30' },
   { key: 'PROFESSIONAL', label: 'Tournament Organizers',  icon: Briefcase,      color: 'text-blue-400',     bg: 'bg-blue-500/20 border-blue-500/30' },
   { key: 'COACH',        label: 'Coaches / Refs / Trainers', icon: GraduationCap, color: 'text-fuchsia-400', bg: 'bg-fuchsia-500/20 border-fuchsia-500/30' },
+  { key: 'GK_ACADEMY',   label: 'GK Academy',            icon: Shield,         color: 'text-amber-400',    bg: 'bg-amber-500/20 border-amber-500/30' },
 ];
 
 const STATUS_OPTIONS: { value: JoinRequestStatus; label: string; icon: any; color: string }[] = [

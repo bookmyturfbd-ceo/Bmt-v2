@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Name, phone and location are required.' }, { status: 400 });
     }
 
-    if (!['TURF_OWNER', 'PROFESSIONAL', 'COACH'].includes(type)) {
+    if (!['TURF_OWNER', 'PROFESSIONAL', 'COACH', 'GK_ACADEMY'].includes(type)) {
       return NextResponse.json({ error: 'Invalid request type.' }, { status: 400 });
     }
 
