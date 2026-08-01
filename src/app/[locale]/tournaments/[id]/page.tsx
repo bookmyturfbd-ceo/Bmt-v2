@@ -1522,12 +1522,10 @@ function RegistrationModal({ tournament, onClose, onSuccess }: {
   const balance = isPlayerReg
     ? (playerInfo?.walletBalance ?? 0)
     : (selectedTeamData?.owner?.walletBalance ?? 0);
-  const balanceAfter = balance - tournament.entryFee;
-  const hasEnoughBalance = tournament.entryFee === 0 || balance >= tournament.entryFee;
+  const hasEnoughBalance = true;
 
   const submitDisabled =
     submitting || loading ||
-    !hasEnoughBalance ||
     (!isPlayerReg && myTeams.length === 0);
 
   return (
@@ -1549,10 +1547,13 @@ function RegistrationModal({ tournament, onClose, onSuccess }: {
         <div className="p-5 flex flex-col gap-4">
 
           {/* Entry fee banner */}
-          <div className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/20 rounded-2xl p-4 flex flex-col items-center text-center">
-            <p className="text-[10px] font-black uppercase tracking-widest text-blue-400 mb-1">Entry Fee</p>
+          <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 flex flex-col items-center text-center">
+            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-1">Entry Fee (Info Only)</p>
             <p className="text-3xl font-black text-white">
               {tournament.entryFee > 0 ? `BDT ${tournament.entryFee.toLocaleString()}` : 'Free'}
+            </p>
+            <p className="text-[11px] font-semibold text-emerald-400/80 mt-1">
+              ✨ Free Entry — No payment or wallet balance required
             </p>
           </div>
 
@@ -1560,27 +1561,6 @@ function RegistrationModal({ tournament, onClose, onSuccess }: {
           {loading && (
             <div className="flex justify-center py-6">
               <Loader2 className="animate-spin text-blue-500 w-8 h-8" />
-            </div>
-          )}
-
-          {/* Player registration */}
-          {!loading && isPlayerReg && (
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between p-4 bg-zinc-900 border border-white/5 rounded-xl">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500">Your Wallet Balance</p>
-                  <p className="text-xl font-black text-white mt-1">BDT {balance.toLocaleString()}</p>
-                </div>
-                {hasEnoughBalance ? (
-                  <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-                    <Check size={16} strokeWidth={3} />
-                  </div>
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center text-red-400">
-                    <AlertTriangle size={16} />
-                  </div>
-                )}
-              </div>
             </div>
           )}
 
@@ -1596,73 +1576,19 @@ function RegistrationModal({ tournament, onClose, onSuccess }: {
                   <p className="text-xs text-red-400/60 mt-1">Create one in Arena &gt; Teams &gt; Tournament Team first.</p>
                 </div>
               ) : (
-                <>
-                  <div className="relative">
-                    <select
-                      value={selectedTeamId}
-                      onChange={e => setSelectedTeamId(e.target.value)}
-                      className="w-full appearance-none bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm font-black text-white focus:border-blue-500 outline-none"
-                    >
-                      {myTeams.map((t: any) => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
-                    <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none" />
-                  </div>
-
-                  {selectedTeamData && (
-                    <div className="flex items-center justify-between p-4 bg-zinc-900 border border-white/5 rounded-xl mt-1">
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500">
-                          Owner: {selectedTeamData.owner?.fullName || 'Unknown'}
-                        </p>
-                        <p className="text-[10px] font-bold text-neutral-400 mt-0.5">Owner's Balance</p>
-                        <p className="text-lg font-black text-white mt-0.5">BDT {balance.toLocaleString()}</p>
-                      </div>
-                      {hasEnoughBalance ? (
-                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-                          <Check size={16} strokeWidth={3} />
-                        </div>
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center text-red-400">
-                          <AlertTriangle size={16} />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </>
+                <div className="relative">
+                  <select
+                    value={selectedTeamId}
+                    onChange={e => setSelectedTeamId(e.target.value)}
+                    className="w-full appearance-none bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-sm font-black text-white focus:border-blue-500 outline-none"
+                  >
+                    {myTeams.map((t: any) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none" />
+                </div>
               )}
-            </div>
-          )}
-
-          {/* Checkout Invoice Summary */}
-          {!loading && (myTeams.length > 0 || isPlayerReg) && (
-            <div className="bg-zinc-900/60 border border-white/5 rounded-2xl p-4 space-y-3 mt-1">
-              <h4 className="text-[9px] font-black uppercase tracking-widest text-neutral-500 mb-1">Invoice Summary</h4>
-              <div className="flex justify-between items-center text-xs font-bold text-neutral-400">
-                <span>Entry Fee</span>
-                <span className="text-white font-black">BDT {tournament.entryFee.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between items-center text-xs font-bold text-neutral-400">
-                <span>{isPlayerReg ? 'Your Current Balance' : "Owner's Current Balance"}</span>
-                <span className="text-white font-black">BDT {balance.toLocaleString()}</span>
-              </div>
-              <div className="h-px bg-white/5" />
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-black uppercase tracking-wider text-neutral-400">Balance After Paying</span>
-                <span className={`text-sm font-black ${balanceAfter >= 0 ? 'text-[#00ff41]' : 'text-red-500'}`}>
-                  BDT {balanceAfter.toLocaleString()}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Balance Warn Error */}
-          {!loading && !hasEnoughBalance && (myTeams.length > 0 || isPlayerReg) && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-xs font-bold text-red-400 text-center">
-              {isPlayerReg
-                ? `Insufficient balance. You need BDT ${Math.abs(balanceAfter).toLocaleString()} more to join.`
-                : `Insufficient balance. Team Owner (${selectedTeamData?.owner?.fullName || 'Owner'}) needs BDT ${Math.abs(balanceAfter).toLocaleString()} more to pay the entry fee.`}
             </div>
           )}
 

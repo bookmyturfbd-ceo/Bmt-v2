@@ -150,14 +150,6 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
-    const hasPaid = tournament.registrations.some(r => r.entryFeePaid);
-    if (hasPaid) {
-      return NextResponse.json(
-        { success: false, error: 'Cannot delete — teams have already paid entry fees.' },
-        { status: 400 }
-      );
-    }
-
     await prisma.tournament.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (e: any) {

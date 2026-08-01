@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter, usePathname } from 'next/navigation';
-import { Loader2, ArrowLeft, Users, Trophy, Play, GitMerge, Link as LinkIcon, AlertCircle, Calendar, Gavel, ChevronDown, ChevronUp, Shield, Star, X, Edit, Check } from 'lucide-react';
+import { Loader2, ArrowLeft, Users, Trophy, Play, GitMerge, Link as LinkIcon, AlertCircle, Calendar, Gavel, ChevronDown, ChevronUp, Shield, Star, X, Edit, Check, Trash2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 const AuctionOrganizerPanel = dynamic(() => import('@/components/admin/tournaments/AuctionOrganizerPanel'), { ssr: false });
 import TournamentSponsorsTab from '@/components/admin/tournaments/TournamentSponsorsTab';
@@ -188,6 +188,27 @@ export default function OrganizerTournamentDetails() {
     } catch (e) {
       console.error(e);
       alert('Network error trying to fill tournament.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRemoveTeam = async (regId: string, teamName: string) => {
+    if (!confirm(`Are you sure you want to remove ${teamName} from this tournament?`)) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/tournaments/${tournamentId}/registrations/${regId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success) {
+        await loadData();
+      } else {
+        alert(data.error || 'Failed to remove team');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Error removing team');
     } finally {
       setActionLoading(false);
     }
@@ -559,12 +580,25 @@ export default function OrganizerTournamentDetails() {
                                 </p>
                               </div>
                             </div>
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3">
                               <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full ${
                                 r.entryFeePaid ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
                               }`}>
-                                {r.entryFeePaid ? 'Paid' : 'Unpaid'}
+                                {r.entryFeePaid ? 'Registered' : 'Unpaid'}
                               </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveTeam(r.id, entity.name || entity.fullName || 'Team');
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-colors flex items-center gap-1 text-xs font-bold"
+                                title="Remove Team from Tournament"
+                                disabled={actionLoading}
+                              >
+                                <Trash2 size={13} />
+                                <span>Remove</span>
+                              </button>
                               {isTeam && (
                                 <div className="text-neutral-500 bg-neutral-900 w-8 h-8 rounded-full flex items-center justify-center">
                                   {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}

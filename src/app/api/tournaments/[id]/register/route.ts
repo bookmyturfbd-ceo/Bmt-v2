@@ -37,9 +37,7 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'Tournament is full' }, { status: 400 });
     }
 
-    // ── REGISTRATION VALIDATION & BALANCE CHECK ──
-    let ownerIdToCharge = null;
-
+    // ── REGISTRATION VALIDATION ──
     if (entityType === 'TEAM') {
       const team = await prisma.team.findUnique({
         where: { id: entityId },
@@ -80,76 +78,19 @@ export async function POST(
       if (team.members.length < requiredPlayers) {
         return NextResponse.json({ success: false, error: `Your team must have at least ${requiredPlayers} players to join.` }, { status: 400 });
       }
-
-      // Balance check for entry fee
-      if (tournament.entryFee > 0) {
-        const ownerMember = team.members.find((m: any) => m.role === 'owner');
-        if (!ownerMember || !ownerMember.player) {
-          return NextResponse.json({ success: false, error: 'Team owner not found.' }, { status: 400 });
-        }
-        
-        if (ownerMember.player.walletBalance < tournament.entryFee) {
-          return NextResponse.json({ 
-            success: false, 
-            error: `Insufficient balance. Team owner (${ownerMember.player.fullName}) needs BDT ${tournament.entryFee} to register, but only has BDT ${ownerMember.player.walletBalance}.` 
-          }, { status: 400 });
-        }
-        ownerIdToCharge = ownerMember.player.id;
-      }
     } else if (entityType === 'PLAYER') {
-      if (tournament.entryFee > 0) {
-         const player = await prisma.player.findUnique({ where: { id: entityId }});
-         if (!player) return NextResponse.json({ success: false, error: 'Player not found.' }, { status: 400 });
-         if (player.walletBalance < tournament.entryFee) {
-            return NextResponse.json({ success: false, error: `Insufficient balance. You need BDT ${tournament.entryFee} to register, but only have BDT ${player.walletBalance}.` }, { status: 400 });
-         }
-         ownerIdToCharge = player.id;
-      }
+      const player = await prisma.player.findUnique({ where: { id: entityId }});
+      if (!player) return NextResponse.json({ success: false, error: 'Player not found.' }, { status: 400 });
     }
 
-    const registration = await prisma.$transaction(async (tx) => {
-      if (ownerIdToCharge && tournament.entryFee > 0) {
-        await tx.player.update({
-          where: { id: ownerIdToCharge },
-          data: { walletBalance: { decrement: tournament.entryFee } }
-        });
+    const registration = await prisma.tournamentRegistration.create({
+      data: {
+        tournamentId: id,
+        entityType,
+        entityId,
+        status: 'PENDING',
+        entryFeePaid: true
       }
-
-      const reg = await tx.tournamentRegistration.create({
-        data: {
-          tournamentId: id,
-          entityType,
-          entityId,
-          status: 'PENDING',
-          entryFeePaid: tournament.entryFee === 0 || !!ownerIdToCharge
-        }
-      });
-
-      // Create payout holding record if there's an entry fee
-      if (tournament.entryFee > 0) {
-        let entityName = entityId;
-        if (entityType === 'TEAM') {
-          const team = await tx.team.findUnique({ where: { id: entityId }, select: { name: true } });
-          entityName = team?.name ?? entityId;
-        } else {
-          const player = await tx.player.findUnique({ where: { id: entityId }, select: { fullName: true } });
-          entityName = player?.fullName ?? entityId;
-        }
-        const organizerId = tournament.operatorType === 'ORGANIZER' ? tournament.operatorId : null;
-        await tx.tournamentPayout.create({
-          data: {
-            tournamentId: id,
-            organizerId,
-            entityType,
-            entityId,
-            entityName,
-            amount: tournament.entryFee,
-            status: 'HOLDING',
-          }
-        });
-      }
-
-      return reg;
     });
 
     return NextResponse.json({ success: true, data: registration });
