@@ -24,13 +24,22 @@ export async function advanceKnockoutWinner(
 
   // Next stage mapping
   const nextStageMap: Record<string, string> = {
+    'ROUND_OF_32': 'ROUND_OF_16',
     'ROUND_OF_16': 'QUARTER',
     'QUARTER': 'SEMI',
     'SEMI': 'FINAL',
   };
 
+  if (match.stage === 'FINAL' && winnerId) {
+    await prisma.tournament.update({
+      where: { id: tournamentId },
+      data: { status: 'COMPLETED' },
+    });
+    return;
+  }
+
   const nextStage = nextStageMap[match.stage];
-  if (!nextStage) return; // Final match, nowhere to advance
+  if (!nextStage) return; // Final match or unknown stage, nowhere to advance
 
   // We need to find the target match in the next round.
   // In a standard binary bracket:

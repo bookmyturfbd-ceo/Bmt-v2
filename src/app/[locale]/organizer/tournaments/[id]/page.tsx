@@ -352,7 +352,7 @@ export default function OrganizerTournamentDetails() {
                   {actionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Close Registration'}
                 </button>
               )}
-              {tournament.status === 'DRAFTING' && tournament.formatType === 'GROUP_KNOCKOUT' && tournament.groups.length === 0 && (
+              {['DRAFT', 'DRAFTING'].includes(tournament.status) && tournament.formatType === 'GROUP_KNOCKOUT' && tournament.groups.length === 0 && (
                 <button onClick={() => handleAction('groups/draw')} disabled={actionLoading} className="w-full bg-blue-500 text-white font-black uppercase tracking-wider px-4 py-3 rounded-xl text-sm hover:bg-blue-400 transition-colors flex items-center justify-center gap-2">
                   {actionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : (
                     <>
@@ -361,7 +361,7 @@ export default function OrganizerTournamentDetails() {
                   )}
                 </button>
               )}
-              {tournament.status === 'DRAFTING' && (tournament.formatType !== 'GROUP_KNOCKOUT' || tournament.groups.length > 0) && (
+              {['DRAFT', 'DRAFTING'].includes(tournament.status) && (tournament.formatType !== 'GROUP_KNOCKOUT' || tournament.groups.length > 0) && (
                 <button onClick={() => handleAction('generate-fixtures')} disabled={actionLoading} className="w-full bg-purple-500 text-white font-black uppercase tracking-wider px-4 py-3 rounded-xl text-sm hover:bg-purple-400 transition-colors flex items-center justify-center gap-2">
                   {actionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : (
                     <>
@@ -382,8 +382,8 @@ export default function OrganizerTournamentDetails() {
               {tournament.status === 'ACTIVE' && (
                 <div className="flex flex-col gap-3">
                   {matches.some(m => m.groupId !== null) && 
-                   matches.filter(m => m.groupId !== null).every(m => m.status === 'COMPLETED') && 
-                   matches.every(m => m.groupId !== null) ? (
+                   matches.filter(m => m.groupId !== null).every(m => ['COMPLETED', 'WALKOVER', 'CANCELLED'].includes(m.status)) && 
+                   !matches.some(m => m.groupId === null) ? (
                     <button
                       onClick={() => handleAction('advance')}
                       disabled={actionLoading}

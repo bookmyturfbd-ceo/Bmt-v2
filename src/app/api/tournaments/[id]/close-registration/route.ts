@@ -13,8 +13,8 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'Tournament not found' }, { status: 404 });
     }
 
-    if (tournament.status !== 'REGISTRATION_OPEN') {
-      return NextResponse.json({ success: false, error: 'Tournament is not open for registration' }, { status: 400 });
+    if (!['DRAFT', 'REGISTRATION_OPEN'].includes(tournament.status)) {
+      return NextResponse.json({ success: false, error: 'Tournament must be in DRAFT or REGISTRATION_OPEN state to close registration' }, { status: 400 });
     }
 
     // Determine next state

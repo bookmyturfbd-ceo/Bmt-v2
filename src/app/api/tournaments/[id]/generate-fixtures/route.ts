@@ -18,8 +18,15 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'Tournament not found' }, { status: 404 });
     }
 
-    if (tournament.status !== 'DRAFTING') {
-      return NextResponse.json({ success: false, error: 'Tournament must be in DRAFTING state to generate fixtures' }, { status: 400 });
+    if (!['DRAFT', 'DRAFTING'].includes(tournament.status)) {
+      return NextResponse.json({ success: false, error: 'Tournament must be in DRAFT or DRAFTING state to generate fixtures' }, { status: 400 });
+    }
+
+    if (tournament.status === 'DRAFT') {
+      await prisma.tournament.update({
+        where: { id },
+        data: { status: 'DRAFTING' }
+      });
     }
 
     // Determine the teams participating
@@ -36,13 +43,6 @@ export async function POST(
         select: { id: true }
       });
       teamIds = teams.map(t => t.id);
-    }
-
-    if (tournament.formatType === 'GROUP_KNOCKOUT' && teamIds.length % 2 !== 0) {
-      return NextResponse.json({
-        success: false,
-        error: `Group-based tournaments require an even number of approved teams to draw balanced groups. Please approve/register one more team or reject one.`
-      }, { status: 400 });
     }
 
     if (teamIds.length < 2) {

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { useState, useEffect } from 'react';
 import { X, Loader2, Play, Users, Calendar, Trophy, GitMerge } from 'lucide-react';
 
@@ -88,12 +88,12 @@ export default function TournamentDetailsModal({ tournamentId, onClose }: { tour
                   Close Registration
                 </button>
               )}
-              {tournament.status === 'DRAFTING' && tournament.formatType === 'GROUP_KNOCKOUT' && tournament.groups.length === 0 && (
+              {['DRAFT', 'DRAFTING'].includes(tournament.status) && tournament.formatType === 'GROUP_KNOCKOUT' && tournament.groups.length === 0 && (
                 <button onClick={() => handleAction('groups/draw')} disabled={actionLoading} className="bg-blue-500 text-white font-black uppercase tracking-wider px-4 py-2 rounded-xl text-sm hover:bg-blue-400 transition-colors flex items-center gap-2">
                   <Users size={16} /> Draw Groups
                 </button>
               )}
-              {tournament.status === 'DRAFTING' && (tournament.formatType !== 'GROUP_KNOCKOUT' || tournament.groups.length > 0) && (
+              {['DRAFT', 'DRAFTING'].includes(tournament.status) && (tournament.formatType !== 'GROUP_KNOCKOUT' || tournament.groups.length > 0) && (
                 <button onClick={() => handleAction('generate-fixtures')} disabled={actionLoading} className="bg-purple-500 text-white font-black uppercase tracking-wider px-4 py-2 rounded-xl text-sm hover:bg-purple-400 transition-colors flex items-center gap-2">
                   <GitMerge size={16} /> Generate Fixtures
                 </button>
