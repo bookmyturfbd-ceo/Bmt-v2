@@ -160,10 +160,16 @@ export default function OrganizerTournamentDetails() {
     if (!tournamentId) return;
     setActionLoading(true);
     try {
-      await fetch(`/api/tournaments/${tournamentId}/${endpoint}`, { method: 'POST' });
-      await loadData();
-    } catch (e) {
+      const res = await fetch(`/api/tournaments/${tournamentId}/${endpoint}`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(data.error || 'Failed to perform action');
+      } else {
+        await loadData();
+      }
+    } catch (e: any) {
       console.error(e);
+      alert(e?.message || 'Network error executing action');
     } finally {
       setActionLoading(false);
     }

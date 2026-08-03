@@ -33,10 +33,16 @@ export async function POST(
     let teamIds: string[] = [];
     if (tournament.registrationType === 'TEAM') {
       const registrations = await prisma.tournamentRegistration.findMany({
-        where: { tournamentId: id, status: 'APPROVED' },
+        where: { tournamentId: id, status: { in: ['APPROVED', 'PENDING'] } },
         select: { entityId: true }
       });
       teamIds = registrations.map(r => r.entityId);
+
+      // Auto-approve any pending registrations upon generating fixtures
+      await prisma.tournamentRegistration.updateMany({
+        where: { tournamentId: id, status: 'PENDING' },
+        data: { status: 'APPROVED' }
+      });
     } else {
       const teams = await prisma.tournamentTeam.findMany({
         where: { tournamentId: id },
