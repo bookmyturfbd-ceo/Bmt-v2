@@ -18,8 +18,17 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'Tournament not found' }, { status: 404 });
     }
 
-    if (!['DRAFT', 'DRAFTING'].includes(tournament.status)) {
-      return NextResponse.json({ success: false, error: 'Tournament must be in DRAFT or DRAFTING state to generate fixtures' }, { status: 400 });
+    if (!['DRAFT', 'DRAFTING', 'SCHEDULED'].includes(tournament.status)) {
+      return NextResponse.json({ success: false, error: 'Tournament must be in DRAFT, DRAFTING, or SCHEDULED state to generate fixtures' }, { status: 400 });
+    }
+
+    if (tournament.status === 'SCHEDULED') {
+      const activeOrCompletedMatches = await prisma.tournamentMatch.count({
+        where: { tournamentId: id, status: { in: ['LIVE', 'COMPLETED'] } }
+      });
+      if (activeOrCompletedMatches > 0) {
+        return NextResponse.json({ success: false, error: 'Cannot regenerate fixtures once matches have started or completed' }, { status: 400 });
+      }
     }
 
     if (tournament.status === 'DRAFT') {

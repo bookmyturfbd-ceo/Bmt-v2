@@ -367,11 +367,13 @@ export default function OrganizerTournamentDetails() {
                   )}
                 </button>
               )}
-              {['DRAFT', 'DRAFTING'].includes(tournament.status) && (tournament.formatType !== 'GROUP_KNOCKOUT' || tournament.groups.length > 0) && (
+              {['DRAFT', 'DRAFTING', 'SCHEDULED'].includes(tournament.status) && 
+               (!matches || matches.length === 0 || !matches.some(m => ['LIVE', 'COMPLETED'].includes(m.status))) && 
+               (tournament.formatType !== 'GROUP_KNOCKOUT' || (tournament.groups && tournament.groups.length > 0)) && (
                 <button onClick={() => handleAction('generate-fixtures')} disabled={actionLoading} className="w-full bg-purple-500 text-white font-black uppercase tracking-wider px-4 py-3 rounded-xl text-sm hover:bg-purple-400 transition-colors flex items-center justify-center gap-2">
                   {actionLoading ? <Loader2 className="animate-spin w-4 h-4" /> : (
                     <>
-                      <GitMerge size={16} /> Generate Fixtures
+                      <GitMerge size={16} /> {matches && matches.length > 0 ? 'Regenerate Fixtures' : 'Generate Fixtures'}
                     </>
                   )}
                 </button>
@@ -1201,6 +1203,8 @@ function EditMatchModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const [teamAId, setTeamAId] = useState(match.teamAId || 'TBD');
+  const [teamBId, setTeamBId] = useState(match.teamBId || 'TBD');
   const [status, setStatus] = useState(match.status);
   const [venue, setVenue] = useState(match.venue || '');
   const [scheduledAt, setScheduledAt] = useState(
@@ -1227,14 +1231,33 @@ function EditMatchModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  // Fetch team names
-  const teamNameMap: Record<string, string> = {};
+  // Build team name map and team options list
+  const teamNameMap: Record<string, string> = { TBD: 'TBD (To Be Decided)' };
+  const teamOptions: { id: string; name: string }[] = [{ id: 'TBD', name: 'TBD (To Be Decided)' }];
+
   if (tournament.registrations) {
     tournament.registrations.forEach((r: any) => {
       const isTeam = r.entityType === 'TEAM';
       const entity = isTeam ? r.team : r.player;
-      if (entity) teamNameMap[r.entityId] = entity.name || entity.fullName || '';
+      if (entity) {
+        const name = entity.name || entity.fullName || r.entityId;
+        teamNameMap[r.entityId] = name;
+        teamOptions.push({ id: r.entityId, name });
+      }
     });
+  } else if (tournament.teams) {
+    tournament.teams.forEach((t: any) => {
+      const name = t.name || t.id;
+      teamNameMap[t.id] = name;
+      teamOptions.push({ id: t.id, name });
+    });
+  }
+
+  if (teamAId && !teamOptions.some(t => t.id === teamAId)) {
+    teamOptions.push({ id: teamAId, name: teamNameMap[teamAId] || teamAId });
+  }
+  if (teamBId && !teamOptions.some(t => t.id === teamBId)) {
+    teamOptions.push({ id: teamBId, name: teamNameMap[teamBId] || teamBId });
   }
 
   const handleSave = async () => {
@@ -1242,6 +1265,8 @@ function EditMatchModal({
     setError('');
     try {
       const payload: any = {
+        teamAId,
+        teamBId,
         status,
         venue,
         scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
@@ -1289,11 +1314,48 @@ function EditMatchModal({
         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto font-bold text-sm text-neutral-300">
           {error && <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl text-center font-semibold">{error}</div>}
 
-          {/* Teams Header */}
-          <div className="text-center py-2 border-b border-white/5 mb-4">
-            <span className="text-white text-base font-black">
-              {teamNameMap[match.teamAId] || match.teamAId} vs {teamNameMap[match.teamBId] || match.teamBId}
-            </span>
+          {/* Teams Selector */}
+          <div className="bg-black/40 border border-white/10 p-4 rounded-xl space-y-3">
+            <div className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Match Fixture Teams</div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-neutral-400">Team A</label>
+                <select
+                  value={teamAId}
+                  onChange={e => {
+                    const newA = e.target.value;
+                    setTeamAId(newA);
+                    if (winnerId !== 'none' && winnerId !== newA && winnerId !== teamBId) {
+                      setWinnerId('none');
+                    }
+                  }}
+                  className="bg-black/50 border border-white/10 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-accent text-xs font-bold"
+                >
+                  {teamOptions.map(t => (
+                    <option key={`teamA-${t.id}`} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-neutral-400">Team B</label>
+                <select
+                  value={teamBId}
+                  onChange={e => {
+                    const newB = e.target.value;
+                    setTeamBId(newB);
+                    if (winnerId !== 'none' && winnerId !== teamAId && winnerId !== newB) {
+                      setWinnerId('none');
+                    }
+                  }}
+                  className="bg-black/50 border border-white/10 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-accent text-xs font-bold"
+                >
+                  {teamOptions.map(t => (
+                    <option key={`teamB-${t.id}`} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -1313,8 +1375,8 @@ function EditMatchModal({
               <label className="text-[10px] uppercase tracking-wider text-neutral-500">Winner</label>
               <select value={winnerId} onChange={e => setWinnerId(e.target.value)} className="bg-black/50 border border-white/10 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-accent">
                 <option value="none">None / Draw</option>
-                <option value={match.teamAId}>{teamNameMap[match.teamAId] || match.teamAId}</option>
-                <option value={match.teamBId}>{teamNameMap[match.teamBId] || match.teamBId}</option>
+                <option value={teamAId}>{teamOptions.find(t => t.id === teamAId)?.name || teamNameMap[teamAId] || teamAId}</option>
+                <option value={teamBId}>{teamOptions.find(t => t.id === teamBId)?.name || teamNameMap[teamBId] || teamBId}</option>
               </select>
             </div>
           </div>
@@ -1337,11 +1399,11 @@ function EditMatchModal({
               <h4 className="text-[10px] uppercase tracking-wider text-neutral-400">Goals Summary</h4>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-neutral-400">{teamNameMap[match.teamAId] || 'Team A'}</label>
+                  <label className="text-xs text-neutral-400">{teamOptions.find(t => t.id === teamAId)?.name || teamNameMap[teamAId] || 'Team A'}</label>
                   <input type="number" min="0" value={goalsA} onChange={e => setGoalsA(Number(e.target.value))} className="bg-black/50 border border-white/10 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-accent" />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-neutral-400">{teamNameMap[match.teamBId] || 'Team B'}</label>
+                  <label className="text-xs text-neutral-400">{teamOptions.find(t => t.id === teamBId)?.name || teamNameMap[teamBId] || 'Team B'}</label>
                   <input type="number" min="0" value={goalsB} onChange={e => setGoalsB(Number(e.target.value))} className="bg-black/50 border border-white/10 text-white rounded-xl px-3 py-2 focus:outline-none focus:border-accent" />
                 </div>
               </div>
@@ -1355,7 +1417,7 @@ function EditMatchModal({
               
               {/* Team A */}
               <div className="space-y-2">
-                <p className="text-xs font-black text-white">{teamNameMap[match.teamAId] || 'Team A'}</p>
+                <p className="text-xs font-black text-white">{teamOptions.find(t => t.id === teamAId)?.name || teamNameMap[teamAId] || 'Team A'}</p>
                 <div className="grid grid-cols-3 gap-2">
                   <div className="flex flex-col gap-1">
                     <label className="text-[9px] text-neutral-500">Runs</label>
@@ -1374,7 +1436,7 @@ function EditMatchModal({
 
               {/* Team B */}
               <div className="space-y-2">
-                <p className="text-xs font-black text-white">{teamNameMap[match.teamBId] || 'Team B'}</p>
+                <p className="text-xs font-black text-white">{teamOptions.find(t => t.id === teamBId)?.name || teamNameMap[teamBId] || 'Team B'}</p>
                 <div className="grid grid-cols-3 gap-2">
                   <div className="flex flex-col gap-1">
                     <label className="text-[9px] text-neutral-500">Runs</label>

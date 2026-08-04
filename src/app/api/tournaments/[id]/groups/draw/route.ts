@@ -17,11 +17,20 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'Tournament not found' }, { status: 404 });
     }
 
-    if (!['DRAFT', 'DRAFTING'].includes(tournament.status)) {
-      return NextResponse.json({ success: false, error: 'Tournament must be in DRAFT or DRAFTING state to draw groups' }, { status: 400 });
+    if (!['DRAFT', 'DRAFTING', 'SCHEDULED'].includes(tournament.status)) {
+      return NextResponse.json({ success: false, error: 'Tournament must be in DRAFT, DRAFTING, or SCHEDULED state to draw groups' }, { status: 400 });
     }
 
-    if (tournament.status === 'DRAFT') {
+    if (tournament.status === 'SCHEDULED') {
+      const activeOrCompletedMatches = await prisma.tournamentMatch.count({
+        where: { tournamentId: id, status: { in: ['LIVE', 'COMPLETED'] } }
+      });
+      if (activeOrCompletedMatches > 0) {
+        return NextResponse.json({ success: false, error: 'Cannot redraw groups once matches have started or completed' }, { status: 400 });
+      }
+    }
+
+    if (['DRAFT', 'SCHEDULED'].includes(tournament.status)) {
       await prisma.tournament.update({
         where: { id },
         data: { status: 'DRAFTING' }
@@ -110,7 +119,10 @@ export async function POST(
       [teamIds[i], teamIds[j]] = [teamIds[j], teamIds[i]];
     }
 
-    // Delete existing groups and standings
+    // Delete existing matches, groups and standings
+    await prisma.tournamentMatch.deleteMany({
+      where: { tournamentId: id }
+    });
     await prisma.tournamentGroup.deleteMany({
       where: { tournamentId: id }
     });

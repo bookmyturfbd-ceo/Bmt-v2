@@ -93,9 +93,11 @@ export default function TournamentDetailsModal({ tournamentId, onClose }: { tour
                   <Users size={16} /> Draw Groups
                 </button>
               )}
-              {['DRAFT', 'DRAFTING'].includes(tournament.status) && (tournament.formatType !== 'GROUP_KNOCKOUT' || tournament.groups.length > 0) && (
+              {['DRAFT', 'DRAFTING', 'SCHEDULED'].includes(tournament.status) && 
+               (!matches || matches.length === 0 || !matches.some(m => ['LIVE', 'COMPLETED'].includes(m.status))) && 
+               (tournament.formatType !== 'GROUP_KNOCKOUT' || (tournament.groups && tournament.groups.length > 0)) && (
                 <button onClick={() => handleAction('generate-fixtures')} disabled={actionLoading} className="bg-purple-500 text-white font-black uppercase tracking-wider px-4 py-2 rounded-xl text-sm hover:bg-purple-400 transition-colors flex items-center gap-2">
-                  <GitMerge size={16} /> Generate Fixtures
+                  <GitMerge size={16} /> {matches && matches.length > 0 ? 'Regenerate Fixtures' : 'Generate Fixtures'}
                 </button>
               )}
               {tournament.status === 'SCHEDULED' && (
