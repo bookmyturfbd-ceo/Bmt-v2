@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Shop Manager (Sub Admin) ──────────────────────────────────────────────────
-  if (cred === 'sm@bmt.com' && pw === 'Cristianoronaldo01!$') {
+  if (cred === 'sm@bmt.com' && pw === 'Antor/10') {
     const session = { bmt_auth: '1', bmt_role: 'shop_manager', bmt_name: 'Shop Manager' };
     const response = NextResponse.json({ ok: true, redirect: '/en/admin', session });
     response.cookies.set('bmt_auth',  '1',            cookieOpts);

@@ -115,7 +115,7 @@ export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganize
     registrationType: 'TEAM',
     auctionEnabled: false,
     operatorType: isOrganizer ? 'ORGANIZER' : 'PLATFORM',
-    operatorId: organizerId || 'super_admin',
+    operatorId: organizerId || null,
     prizeDistribution: {},
   });
   const [formatConfig, setFormatConfig] = useState<Record<string, any>>(
@@ -317,7 +317,7 @@ export default function CreateTournamentWizard({ onCancel, onSuccess, isOrganize
                       value={form.operatorType}
                       onChange={e => {
                         set('operatorType', e.target.value);
-                        set('operatorId', e.target.value === 'PLATFORM' ? 'super_admin' : '');
+                        set('operatorId', e.target.value === 'PLATFORM' ? null : '');
                       }}
                       className={inputCls}
                     >

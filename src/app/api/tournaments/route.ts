@@ -66,12 +66,20 @@ export async function POST(request: Request) {
     } = body;
 
     // Validate required fields
-    if (!operatorId || !operatorType || !sport || !name || !registrationType || !maxParticipants || !formatType) {
+    if (!operatorType || !sport || !name || !registrationType || !maxParticipants || !formatType) {
       return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
     }
 
+    if (operatorType === 'ORGANIZER' && !operatorId) {
+      return NextResponse.json({ success: false, error: 'Missing operatorId for organizer tournament' }, { status: 400 });
+    }
+
+    // For PLATFORM, operatorId is null unless a valid organizer is linked. Omit string 'super_admin' to avoid FK violation.
+    const cleanOperatorId = (operatorId && operatorId !== 'super_admin') ? operatorId : null;
+    const finalOperatorId = operatorType === 'ORGANIZER' ? operatorId : cleanOperatorId;
+
     const tournamentData = {
-      operatorId,
+      operatorId: finalOperatorId,
       operatorType,
       sport,
       name,
@@ -95,8 +103,8 @@ export async function POST(request: Request) {
       startDate: startDate ? new Date(startDate) : null,
       endDate: endDate ? new Date(endDate) : null,
       startTime: startTime || null,
-      isRegistrationOpen: operatorType === 'ORGANIZER',
-      status: (operatorType === 'ORGANIZER' ? 'REGISTRATION_OPEN' : 'DRAFT') as any,
+      isRegistrationOpen: true,
+      status: 'REGISTRATION_OPEN' as any,
     };
 
 

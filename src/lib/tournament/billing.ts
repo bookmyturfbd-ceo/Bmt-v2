@@ -27,8 +27,8 @@ export async function chargeMatchFee(
 
   if (!tournament) throw new Error(`Tournament ${tournamentId} not found`);
 
-  // Platform tournaments are never charged
-  if (tournament.operatorType === 'PLATFORM') {
+  // Platform tournaments (or tournaments without an organizerId) are never charged
+  if (tournament.operatorType === 'PLATFORM' || !tournament.operatorId) {
     return { ok: true, newBalance: 0 };
   }
 
@@ -80,7 +80,7 @@ export async function refundMatchFee(
     select: { operatorType: true, operatorId: true },
   });
 
-  if (!tournament || tournament.operatorType === 'PLATFORM') return;
+  if (!tournament || tournament.operatorType === 'PLATFORM' || !tournament.operatorId) return;
 
   const wallet = await prisma.organizerWallet.findUnique({
     where: { organizerId: tournament.operatorId },
@@ -116,7 +116,7 @@ export async function refundUnplayedMatches(tournamentId: string): Promise<void>
     select: { operatorType: true, operatorId: true },
   });
 
-  if (!tournament || tournament.operatorType === 'PLATFORM') return;
+  if (!tournament || tournament.operatorType === 'PLATFORM' || !tournament.operatorId) return;
 
   // Count matches that went LIVE (were charged) but are now CANCELLED/POSTPONED
   const liveMatches = await prisma.tournamentMatch.count({

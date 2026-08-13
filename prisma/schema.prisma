@@ -2048,7 +2048,7 @@ model OrganizerInvite {
 
 model Tournament {
   id                   String            @id @default(cuid())
-  operatorId           String            // Organizer.id OR super_admin string id
+  operatorId           String?           // Organizer.id (null for PLATFORM / super_admin)
   operatorType         OperatorType
   sport                TournamentSport
   name                 String
@@ -2100,7 +2100,7 @@ model Tournament {
   updatedAt            DateTime          @updatedAt
 
 
-  organizer            Organizer?        @relation(fields: [operatorId], references: [id], onDelete: Restrict)
+  organizer            Organizer?        @relation(fields: [operatorId], references: [id], onDelete: SetNull)
   registrations        TournamentRegistration[]
   groups               TournamentGroup[]
   matches              TournamentMatch[]
