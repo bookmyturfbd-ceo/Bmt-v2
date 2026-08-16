@@ -43,7 +43,9 @@ export default function ShopFrontClient({ initialData }: ShopFrontClientProps) {
     });
   }, []);
 
-  const leafCategories = categories.filter(c => !c.children?.length);
+  const activeCategories = categories.filter(c => 
+    products.some(p => p.categoryId === c.id) || !c.children?.length
+  );
 
   return (
     <div className="min-h-screen flex flex-col pb-24">
@@ -70,7 +72,7 @@ export default function ShopFrontClient({ initialData }: ShopFrontClientProps) {
         {products.length === 0 ? (
           <div className="text-center text-[var(--muted)] py-20 font-bold">{t('noProducts')}</div>
         ) : (
-          leafCategories.map(cat => {
+          activeCategories.map(cat => {
             const catProducts = products
               .filter(p => p.categoryId === cat.id)
               .sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
