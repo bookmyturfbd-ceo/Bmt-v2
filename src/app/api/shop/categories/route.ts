@@ -3,28 +3,10 @@ import prisma from '@/lib/prisma';
 
 // GET all categories (with parent/children structure)
 export async function GET() {
-  const categoriesRaw = await prisma.shopCategory.findMany({
-    include: { children: { orderBy: { order: 'asc' } } },
-    orderBy: { order: 'asc' },
+  const categories = await prisma.shopCategory.findMany({
+    include: { children: { orderBy: [{ order: 'asc' }, { createdAt: 'desc' }] } },
+    orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
   });
-
-  // Sort children of each category to put Spain CA first
-  const processedCategories = categoriesRaw.map(cat => {
-    if (cat.children && cat.children.length > 0) {
-      const spainChild = cat.children.find(c => c.name === 'Spain CA');
-      const otherChildren = cat.children.filter(c => c.name !== 'Spain CA');
-      return {
-        ...cat,
-        children: spainChild ? [spainChild, ...otherChildren] : cat.children
-      };
-    }
-    return cat;
-  });
-
-  // Sort top-level categories to put Spain CA first
-  const spainCategory = processedCategories.find(c => c.name === 'Spain CA');
-  const otherCategories = processedCategories.filter(c => c.name !== 'Spain CA');
-  const categories = spainCategory ? [spainCategory, ...otherCategories] : processedCategories;
 
   return NextResponse.json(categories);
 }

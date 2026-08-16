@@ -71,7 +71,9 @@ export default function ShopFrontClient({ initialData }: ShopFrontClientProps) {
           <div className="text-center text-[var(--muted)] py-20 font-bold">{t('noProducts')}</div>
         ) : (
           leafCategories.map(cat => {
-            const catProducts = products.filter(p => p.categoryId === cat.id);
+            const catProducts = products
+              .filter(p => p.categoryId === cat.id)
+              .sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
             if (catProducts.length === 0) return null;
             const parentCat = categories.find(c => c.id === cat.parentId);
 
