@@ -317,6 +317,15 @@ function initBot() {
 
   const botInstance = new TelegramBot(token, { polling: true });
 
+  botInstance.on('polling_error', (err) => {
+    // Gracefully handle polling conflict & connection errors to prevent process crash
+    if (process.env.NODE_ENV !== 'production') {
+      // Suppress verbose polling noise during development/reloads
+      return;
+    }
+    console.error('Telegram bot polling error:', err?.message || err);
+  });
+
   botInstance.deleteWebHook()
     .then(() => {
       botInstance.on('callback_query', handleCallbackQuery);
